@@ -83,6 +83,11 @@ class QuotaError(RuntimeError):
     """This provider is spent. Retrying it cannot help; the caller should move down the chain."""
 
 
+class NoModel(RuntimeError):
+    """Nothing is configured to call. Not a crash - a setup step nobody has done yet, and the
+    app should say so in those words rather than show a traceback."""
+
+
 # Once a provider says it is out of budget, every other call would say the same. Remember it
 # briefly so a 100-job search fails over in milliseconds instead of retrying 100 times.
 _BLOWN = {}
@@ -186,9 +191,10 @@ def active():
     """The entry a call would use right now: first in the chain that is not rate-limited out."""
     opts = chain()
     if not opts:
-        raise RuntimeError(
-            "No AI model is set up yet. Open Settings, pick a provider, and paste its key - "
-            "the link next to the provider list takes you to where the key comes from.")
+        raise NoModel(
+            "No AI model is set up yet. Open Settings on the dashboard, pick a provider and "
+            "paste its key - the 'Get a key' link beside the list goes straight to where that "
+            "provider hands them out, and several are free.")
     return next((e for e in opts if not _breaker(e[:2])), opts[0])
 
 

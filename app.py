@@ -317,6 +317,15 @@ async def quota_error(request: Request, exc: llm.QuotaError):
     return JSONResponse({"detail": str(exc)}, status_code=400)
 
 
+@app.exception_handler(llm.NoModel)
+async def no_model(request: Request, exc: llm.NoModel):
+    """Same reasoning: a fresh copy with no key yet is a setup step, not a bug. Without this it
+    reaches the browser as a 500, and "internal error, restart the app" is the wrong advice -
+    restarting changes nothing, pasting a key does."""
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"detail": str(exc)}, status_code=400)
+
+
 # ---------- pages ----------
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):

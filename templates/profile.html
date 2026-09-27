@@ -23,6 +23,16 @@
 {% endblock %}
 
 {% block body %}
+<div class="card" id="nomodel" style="display:none;
+  border-color:color-mix(in srgb,var(--mid) 55%,var(--line));
+  background:color-mix(in srgb,var(--mid) 8%,transparent)">
+  <b style="color:var(--mid)">⚠ No AI model is set up yet</b>
+  <p class="muted" style="margin:6px 0 0">Reading a CV, suggesting improvements and scoring jobs
+    all need one. Open <a href="/">the dashboard</a> and use <b>Settings → AI model</b>: pick a
+    provider, press <i>Get a key</i>, paste it back and press <i>Save &amp; test</i>. Several are
+    free. You can still fill this page in by hand without one.</p>
+</div>
+
 <div class="card">
   <b>Start from an existing CV</b>
   <p class="muted">Upload a PDF/DOCX/TXT and the profile below is filled in automatically. Nothing is invented — blanks stay blank.</p>
@@ -266,4 +276,9 @@ $('#sugs').addEventListener('click', async e => {
 });
 
 api('/api/profile', undefined, 'GET').then(p => { P = p; render(); });
+// Everything on this page that reads or rewrites a CV goes through the model, so say up front
+// when there is not one rather than letting the first click fail.
+api('/api/llm', undefined, 'GET')
+  .then(l => { if(!l.provider || l.error) $('#nomodel').style.display = 'block'; })
+  .catch(()=>{});
 {% endblock %}
