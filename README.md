@@ -8,11 +8,17 @@ even those.
 
 ## Start
 
-Double-click **FirstTimeSetup.bat**. It installs everything, including Python itself if the PC
-does not have it, and checks that it all works. About five minutes, once.
+Double-click **FirstTimeSetup.bat** — this one first, before anything else. It installs
+everything the app needs, including Python itself if the PC does not have it, and checks that it
+all works. About five minutes, once.
 
 After that, start the app with **run.bat**. It opens the dashboard at http://127.0.0.1:8777 by
 itself. Keep the black window open while you use it; closing it stops the app.
+
+run.bat does not install anything. If it finds the setup missing — a fresh copy, or a folder
+carried over from another PC whose `.venv` cannot run here — it offers to run FirstTimeSetup for
+you and then starts the app in the same window. It also tells you if the PC's Python has moved on
+from the one the app was built against.
 
 ## First time: three steps
 

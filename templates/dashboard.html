@@ -252,7 +252,10 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
           employers you might have wanted to approach properly.</li>
         <li><b>Check your board CV before you switch this on.</b> A board application sends the
           CV stored on your eJobs and BestJobs profile, not a tailored one. If it is out of
-          date, every application that week is out of date.</li>
+          date, every application that week is out of date. Both profile links are above.</li>
+        <li><b>The score is the only thing holding it back.</b> A few points either way changes
+          how much goes out, so start high with a cap of one or two and watch what it picks for
+          a few weeks before loosening it.</li>
         <li><b>It is your account doing it.</b> Boards notice patterns. Searches are ordinary
           traffic; a burst of applications at 09:00 every Sunday is not.</li>
       </ul>
@@ -457,15 +460,47 @@ const AUTO_FIELDS = ['auto_enabled', 'auto_day', 'auto_time', 'auto_query', 'aut
                      'auto_apply_cap'];
 // the floor and the cap only mean anything while applying is on
 const applyRow = () => $('#applyrow').style.opacity = $('#auto_apply').checked ? '1' : '.45';
-$('#auto_apply').onchange = e => {
+$('#auto_apply').onchange = async e => {
   applyRow();
-  if(e.target.checked && !confirm(
-      'This sends real applications every week with nobody watching.\n\n'
-    + 'They go to real employers, on ads nobody read, carrying the salary figure from your\n'
-    + 'profile and the CV stored on your board profile. None of it can be taken back, and\n'
-    + 'you see what went out a week later.\n\n'
-    + 'Switch it on?')) { e.target.checked = false; applyRow(); }
+  if(!e.target.checked) return;
+  e.target.checked = false;               // stays off until the question below is answered
+  applyRow();
+  const floor = +$('#auto_apply_min_fit').value, cap = +$('#auto_apply_cap').value;
+  let p = null;
+  try {
+    p = await api(`/api/auto/preview?min_fit=${floor}&cap=${cap}`, undefined, 'GET');
+  } catch(err){ /* show the warning without the preview rather than not at all */ }
+
+  const lines = ['Switch on automatic applying?', ''];
+  if(p && p.picks.length){
+    lines.push(`With your settings (score ${floor}+, at most ${cap} a week), THESE would have`,
+               'been sent this week, with nobody reading them first:', '');
+    p.picks.forEach(j => lines.push(`   ${j.fit}  ${j.title}  -  ${j.company || j.source}`));
+  } else if(p){
+    lines.push(`Nothing scores ${floor}+ right now, so this week it would send nothing.`);
+  }
+  const off = p && Object.entries(p.boards).filter(([, ok]) => !ok).map(([b]) => b);
+  lines.push('', 'Two things worth knowing first:', '',
+    '1. The CV it sends is the one saved on your eJobs and BestJobs profile - NOT a',
+    '   tailored one. If that CV is out of date, every application this week is out of',
+    '   date. The links to both profiles are under Settings.', '',
+    '2. The score is the only thing holding it back, and it moves fast.'
+      + (p ? ` At ${floor} it would send ${p.at_floor[floor]}; at 90, ${p.at_floor[90]}.` : ''),
+    '   A high score and a cap of 1 or 2 for the first few weeks lets you see what it',
+    '   picks before it picks much.');
+  if(off && off.length)
+    lines.push('', `You are not signed in to ${off.join(' or ')}, so nothing would be sent`,
+               'until you are.');
+  lines.push('', 'Applications cannot be taken back, and you see what went out a week later.');
+
+  if(confirm(lines.join('\n'))){ e.target.checked = true; applyRow(); }
 };
+// the preview in the warning depends on both, so re-ask if they change it after ticking
+for(const id of ['auto_apply_min_fit', 'auto_apply_cap'])
+  $('#' + id).onchange = () => { if($('#auto_apply').checked){
+    $('#auto_apply').checked = false; applyRow();
+    toast('Score or cap changed - tick "Also apply for me" again to confirm the new limits.', 7000);
+  } };
 // PowerShell hands back "10/04/2026 09:00:00", and a task that has never run reports 1999
 const taskDate = v => { const d = new Date(v); return isNaN(d) || d.getFullYear() < 2001 ? null
   : d.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'})

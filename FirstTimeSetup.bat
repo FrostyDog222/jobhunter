@@ -3,6 +3,11 @@ title jobhunter - first time setup
 cd /d "%~dp0"
 color 0F
 
+rem run.bat calls this with /fromrun when the app is not set up yet: same work, no second
+rem round of questions, and it goes back there to start the app in the same window.
+set FROMRUN=
+if /i "%~1"=="/fromrun" set FROMRUN=1
+
 echo.
 echo   ==========================================
 echo      jobhunter  -  first time setup
@@ -17,7 +22,7 @@ echo.
 echo   You only do this once. It takes about five minutes on a new PC,
 echo   and needs an internet connection. Nothing of yours is sent anywhere.
 echo.
-pause
+if not defined FROMRUN pause
 echo.
 
 if not exist app.py (
@@ -131,6 +136,8 @@ echo   ==========================================
 echo.
 echo   From now on, start the app by double-clicking  run.bat
 echo.
+rem Called from run.bat: it does the starting, and asking twice would be silly.
+if defined FROMRUN exit /b 0
 echo   The dashboard will walk you through the three things left to do:
 echo     - choose an AI model and paste its key  (there are free ones)
 echo     - upload your CV so it knows your history
@@ -138,7 +145,7 @@ echo     - run your first search
 echo.
 choice /c YN /n /m "   Start it now? [Y/N] "
 if errorlevel 2 goto :done
-start "" run.bat
+start "" "%~dp0run.bat"
 exit /b 0
 
 :done

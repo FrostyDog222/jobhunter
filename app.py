@@ -181,6 +181,23 @@ def set_auto(body: dict = Body(...)):
     return {"ok": True, "task": task_state()}
 
 
+@app.get("/api/auto/preview")
+def auto_preview(min_fit: int = 85, cap: int = 5):
+    """What automatic applying would send right now, at these limits.
+
+    The dashboard shows this inside the confirmation, because "5 real applications a week" is
+    an abstraction and a list of five employers is not.
+    """
+    import auto_apply
+    me = sys.modules[__name__]            # candidates() only needs db(), which lives here
+    picks = auto_apply.candidates(me, prefill, max(0, min(100, min_fit)),
+                                  max(1, min(BATCH_CAP, cap)))
+    # what a stricter floor would do, so the count is not the only thing you can judge by
+    at = {f: len(auto_apply.candidates(me, prefill, f, 10000)) for f in (min_fit, 90, 95)}
+    return {"picks": picks, "at_floor": at,
+            "boards": {b: prefill.session_for(b) for b in prefill.AUTO_APPLY}}
+
+
 @app.post("/api/auto/run")
 def run_auto():
     """Run the weekly search now, in the same way Windows will run it."""
