@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}potrivit{% endblock %}</title>
+<style>
+:root{
+  --bg:#0f1115; --card:#181b22; --line:#272b35; --fg:#e7e9ee; --dim:#9aa1af;
+  --accent:#6ea8fe; --good:#4ade80; --mid:#fbbf24; --bad:#f87171;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]){
+  --bg:#f6f7f9; --card:#fff; --line:#e3e6ec; --fg:#14161a; --dim:#5f6775;
+  --accent:#2563eb; --good:#16a34a; --mid:#b45309; --bad:#dc2626;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,Segoe UI,sans-serif}
+header{display:flex;gap:18px;align-items:center;padding:13px 20px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:var(--bg);z-index:10}
+header a{padding:4px 2px;font-size:14.5px}
+header b{font-size:16px} header a{color:var(--dim);text-decoration:none}
+header a.on,header a:hover{color:var(--fg)}
+main{max-width:1060px;margin:0 auto;padding:20px 16px 80px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px;margin:12px 0}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 16px;
+  font:inherit;font-weight:500;cursor:pointer;transition:filter .12s,background .12s}
+button:hover:not(:disabled){filter:brightness(1.08)}
+button:active:not(:disabled){filter:brightness(.94)}
+button.ghost{background:transparent;color:var(--dim);border:1px solid var(--line);font-weight:400}
+button.ghost:hover:not(:disabled){color:var(--fg);border-color:var(--dim);filter:none}
+button:disabled{opacity:.45;cursor:not-allowed}
+/* a search takes minutes, so say so twice: a spinner in the button you pressed, and a bar at the
+   top of the window for when that button has scrolled out of sight */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;width:11px;height:11px;margin-right:7px;vertical-align:-1px;
+  border:2px solid currentColor;border-right-color:transparent;border-radius:50%;
+  animation:spin .7s linear infinite}
+button:disabled .spin{opacity:.9}
+@keyframes slide{from{left:-45%}to{left:100%}}
+#bar{position:fixed;top:0;left:0;right:0;height:3px;z-index:50;display:none;overflow:hidden;
+  background:color-mix(in srgb,var(--accent) 14%,transparent)}
+#bar.on{display:block}
+#bar i{position:absolute;top:0;height:100%;width:45%;background:var(--accent);
+  animation:slide 1.15s ease-in-out infinite}
+@media(prefers-reduced-motion:reduce){
+  .spin,#bar i{animation-duration:0s}
+  #bar i{width:100%;opacity:.5}
+}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,textarea,select{background:var(--bg);color:var(--fg);border:1px solid var(--line);
+  border-radius:8px;padding:9px 10px;font:inherit;width:100%;transition:border-color .12s}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);outline:none}
+input::placeholder{color:var(--dim);opacity:.7}
+textarea{resize:vertical;min-height:70px}
+label{display:block;font-size:12px;color:var(--dim);margin:8px 0 3px;text-transform:uppercase;letter-spacing:.04em}
+.row{display:flex;gap:10px;flex-wrap:wrap} .row>*{flex:1;min-width:150px}
+.muted{color:var(--dim);font-size:13px}
+a{color:var(--accent)} a:hover{text-decoration:none}
+.pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--dim)}
+h2{font-size:15px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--card);
+  border:1px solid var(--line);padding:10px 16px;border-radius:8px;display:none;z-index:99;max-width:90vw}
+@media(max-width:640px){main{padding:14px 12px 60px}header{gap:12px;padding:12px}}
+{% block css %}{% endblock %}
+</style></head><body>
+<div id="bar"><i></i></div>
+<header><b>potrivit</b>
+  <a href="/" class="{{ 'on' if page=='dash' }}">Dashboard</a>
+  <a href="/profile" class="{{ 'on' if page=='profile' }}">Profile</a>
+</header>
+<main>{% block body %}{% endblock %}</main>
+<div id="toast"></div>
+<script>
+const $ = s => document.querySelector(s);
+let _t;
+function toast(m, ms=3200){ const t=$('#toast'); t.textContent=m; t.style.display='block';
+  clearTimeout(_t); _t=setTimeout(()=>t.style.display='none', ms); }
+async function api(url, body, method){
+  const r = await fetch(url, body===undefined ? {} : {
+    method: method||'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  return unwrap(r);
+}
+async function unwrap(r){
+  const body = await r.text();
+  let j; try { j = JSON.parse(body); } catch(e) {
+    throw new Error(r.ok ? 'server sent a non-JSON reply' : (body.match(/\w[\w .:'-]{10,200}/)||[r.statusText])[0]);
+  }
+  if(!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail||j));
+  return j;
+}
+// What went wrong, in words someone who did not write the app can act on. The raw text still
+// goes to the console for whoever is debugging.
+const FRIENDLY = [
+  [/getaddrinfo|ConnectError|ConnectTimeout|ReadTimeout|timed out|Failed to fetch|NetworkError/i,
+   'Could not reach the website or the app. Check your internet connection, and that the black run.bat window is still open.'],
+  [/rate limit|out of quota|QuotaError|\b429\b/i,
+   'The AI model has used up its free quota for now. Wait a few minutes, or add another provider key under Settings.'],
+  [/\b40[13]\b|invalid.{0,20}key|authentication|unauthorized/i,
+   'The API key was refused. Open Settings and paste it again.'],
+  [/non-JSON reply|Internal Server Error/i,
+   'The app hit an internal error. Close the black window and double-click run.bat again.'],
+  [/Fill in your profile first/i,
+   'Fill in your profile first: open the Profile tab and upload your CV.'],
+];
+const friendly = m => { const hit = FRIENDLY.find(([re]) => re.test(String(m)));
+  if(hit) console.warn('[detail]', m);
+  return hit ? hit[1] : m; };
+
+let _busy = 0;   // ref-counted: two things running at once must not switch the bar off early
+async function busy(btn, fn, label){
+  const old = btn.innerHTML; btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>' + (label || 'working...');
+  if(++_busy === 1) document.getElementById('bar').classList.add('on');
+  try { return await fn(); } catch(e){ toast('⚠ ' + friendly(e.message), 8000); }
+  finally {
+    btn.disabled = false; btn.innerHTML = old;
+    if(--_busy === 0) document.getElementById('bar').classList.remove('on');
+  }
+}
+{% block js %}{% endblock %}
+</script></body></html>

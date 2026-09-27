@@ -1,0 +1,18 @@
+/* Classic - the original: Calibri, thin rules, dates on the right. The safest choice for
+   any applicant tracking system. */
+@page{size:A4}
+body{font:10.5pt/1.45 Calibri,"Segoe UI",sans-serif;color:#1a1a1a;margin:0;
+  font-variant-ligatures:none}
+h1{font-size:20pt;margin:0;letter-spacing:-.4pt}
+.role{font-size:11pt;color:#444;margin:2px 0 6px}
+.contact{font-size:9pt;color:#444;border-bottom:1.5pt solid #1a1a1a;padding-bottom:8px;margin-bottom:12px}
+.contact span:not(:last-child):after{content:" | "}   /* a middot is not a token break to an ATS */
+h2{font-size:9.5pt;text-transform:uppercase;letter-spacing:.3pt;color:#1a1a1a;
+   border-bottom:.5pt solid #bbb;padding-bottom:2px;margin:13px 0 6px;break-after:avoid}
+.item{margin-bottom:9px;page-break-inside:avoid}
+.line{display:flex;justify-content:space-between;gap:10px}
+.line b{font-size:11pt}
+.when{font-size:9pt;color:#555;white-space:nowrap}
+.where{font-size:9.5pt;color:#444;font-style:italic}
+ul{margin:3px 0 0;padding-left:15px} li{margin-bottom:1.5px}
+.tags{font-size:10pt} p{margin:0}

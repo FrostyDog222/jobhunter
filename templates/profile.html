@@ -1,0 +1,269 @@
+{% extends "base.html" %}{% set page='profile' %}
+{% block title %}Profile · potrivit{% endblock %}
+{% block css %}
+.entry{border:1px solid var(--line);border-radius:8px;padding:12px;margin:8px 0;position:relative}
+.entry .del{position:absolute;top:8px;right:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 0}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);
+  border-radius:99px;padding:5px 6px 5px 12px;font-size:13px;line-height:1.3;max-width:100%}
+.chip span{overflow-wrap:anywhere}
+.chip button{background:none;border:0;color:var(--dim);cursor:pointer;font-size:15px;padding:0 5px;
+  border-radius:99px;line-height:1}
+.chip button:hover{color:var(--bad);background:var(--line)}
+.chipin{border:1px dashed var(--line);border-radius:99px;padding:5px 12px;font-size:13px;
+  width:auto;min-width:160px;flex:1 1 160px;background:transparent}
+.chipin:focus{border-style:solid;border-color:var(--accent);outline:none}
+.lang{display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.lang:last-child{border-bottom:0}
+.lang input{flex:2;min-width:120px} .lang select{flex:1;min-width:120px}
+.lang button{flex:0 0 auto;padding:6px 10px}
+.sug{border-left:3px solid var(--accent);padding:10px 12px;margin:8px 0;background:var(--card);border-radius:0 8px 8px 0}
+.sug .val{white-space:pre-wrap;font-size:14px;margin:6px 0;padding:8px;background:var(--bg);border-radius:6px}
+.bar{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:12px 0;display:flex;gap:10px;align-items:center}
+{% endblock %}
+
+{% block body %}
+<div class="card">
+  <b>Start from an existing CV</b>
+  <p class="muted">Upload a PDF/DOCX/TXT and the profile below is filled in automatically. Nothing is invented — blanks stay blank.</p>
+  <div class="row">
+    <input type="file" id="file" accept=".pdf,.docx,.txt">
+    <button id="up" style="flex:0 0 auto">Upload &amp; autofill</button>
+  </div>
+  <details style="margin-top:10px"><summary class="muted">or paste CV text</summary>
+    <textarea id="paste" placeholder="Paste your CV here..."></textarea>
+    <button id="pasteBtn" class="ghost" style="margin-top:6px">Parse pasted text</button>
+  </details>
+</div>
+
+<h2>Basics</h2>
+<div class="card row">
+  <div><label>Full name</label><input data-f="name"></div>
+  <div><label>Headline / target role</label><input data-f="title"></div>
+</div>
+<div class="card row">
+  <div><label>Email</label><input data-f="email"></div>
+  <div><label>Phone</label><input data-f="phone"></div>
+  <div><label>Location</label><input data-f="location"></div>
+</div>
+<div class="card">
+  <label>Links</label><div class="chips" id="c_links"></div>
+  <label>Summary</label><textarea data-f="summary"></textarea>
+</div>
+
+<h2>Experience</h2><div id="experience"></div>
+<button class="ghost" data-add="experience">+ Add role</button>
+
+<h2>Education</h2><div id="education"></div>
+<button class="ghost" data-add="education">+ Add education</button>
+
+<h2>Projects</h2><div id="projects"></div>
+<button class="ghost" data-add="projects">+ Add project</button>
+
+<h2>Skills &amp; more</h2>
+<div class="card">
+  <label>Skills</label><div class="chips" id="c_skills"></div>
+  <label>Certifications</label><div class="chips" id="c_certifications"></div>
+  <label>Interests / hobbies</label><div class="chips" id="c_hobbies"></div>
+</div>
+
+<h2>Application answers</h2>
+<div class="card">
+  <p class="muted">Employers on eJobs often attach a short "mini interviu" before your application
+    goes through. These are the questions no CV answers, so the app fills them with exactly what
+    you write here and leaves them blank if you do not. It never invents a figure.</p>
+  <div class="row">
+    <div><label>Salary expectation</label>
+      <input data-f="salary_expectation" placeholder="e.g. 5500 RON net / month"></div>
+    <div><label>Notice period</label>
+      <input data-f="notice_period" placeholder="e.g. 30 days"></div>
+    <div><label>Earliest start</label>
+      <input data-f="earliest_start" placeholder="e.g. immediately"></div>
+  </div>
+</div>
+
+<h2>Languages</h2>
+<div class="card">
+  <div id="langs"></div>
+  <button class="ghost" id="addlang" style="margin-top:8px">+ Add language</button>
+</div>
+
+<h2>AI review</h2>
+<div class="card">
+  <button id="sug">Suggest improvements</button>
+  <span class="muted">The model reviews what you wrote and proposes rewrites. Accept the ones you like.</span>
+  <div id="sugs"></div>
+</div>
+
+<div class="bar"><button id="save">Save profile</button><span class="muted" id="saved"></span></div>
+{% endblock %}
+
+{% block js %}
+const FIELDS = {
+  experience: ['role','company','location','start','end','bullets'],
+  education:  ['degree','school','start','end'],
+  projects:   ['name','desc','link'],
+};
+let P = {};
+
+function esc(s){ return String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function renderList(key){
+  const box = $('#'+key);
+  box.innerHTML = (P[key]||[]).map((item,i) => `<div class="entry" data-i="${i}">
+    <button class="ghost del" data-del="${key}" data-idx="${i}">✕</button>
+    ${FIELDS[key].map(f => f==='bullets'
+      ? `<label>What you did</label><div class="chips" id="c_${key}.${i}.${f}"></div>`
+      : f==='desc'
+      ? `<label>${f}</label><textarea data-e="${key}.${i}.${f}">${esc(item[f])}</textarea>`
+      : `<label>${f}</label><input data-e="${key}.${i}.${f}" value="${esc(item[f])}">`).join('')}
+  </div>`).join('') || '<p class="muted">Nothing yet.</p>';
+  if(key === 'experience') (P.experience||[]).forEach((_,i) => renderChips(`experience.${i}.bullets`));
+}
+
+const CHIPS = ['links','skills','certifications','hobbies'];
+const LEVELS = ['Native','Advanced','Upper-intermediate','Intermediate','Beginner'];
+
+function at(path){                        // 'skills' or 'experience.0.bullets'
+  const parts = path.split('.');
+  let n = P;
+  for (const k of parts.slice(0,-1)) n = Array.isArray(n) ? n[+k] : n[k];
+  const last = parts[parts.length-1];
+  return { get: () => (Array.isArray(n) ? n[+last] : n[last]) || [],
+           set: v => { if (Array.isArray(n)) n[+last] = v; else n[last] = v; } };
+}
+
+function renderChips(path){
+  const box = document.getElementById('c_'+path); if(!box) return;
+  const keep = document.activeElement && document.activeElement.dataset.addChip === path;
+  box.innerHTML = at(path).get().map((v,i) =>
+      `<span class="chip"><span>${esc(v)}</span><button type="button" data-chip="${path}"
+         data-i="${i}" title="Remove">&times;</button></span>`).join('')
+    + `<input class="chipin" data-add-chip="${path}" placeholder="+ add">`;
+  if(keep) box.querySelector('.chipin').focus();
+}
+
+function renderLangs(){
+  $('#langs').innerHTML = (P.languages||[]).map((l,i) => `<div class="lang">
+      <input data-lang="${i}" data-k="name" value="${esc(l.name)}" placeholder="Language">
+      <select data-lang="${i}" data-k="level">
+        <option value="">level…</option>
+        ${LEVELS.map(v => `<option ${v===l.level?'selected':''}>${v}</option>`).join('')}
+        ${l.level && !LEVELS.includes(l.level) ? `<option selected>${esc(l.level)}</option>` : ''}
+      </select>
+      <button class="ghost" data-dellang="${i}" title="Remove">&times;</button>
+    </div>`).join('') || '<p class="muted">No languages yet.</p>';
+}
+
+document.addEventListener('input', e => {
+  const i = e.target.dataset.lang;
+  if(i !== undefined) P.languages[+i][e.target.dataset.k] = e.target.value;
+});
+document.addEventListener('click', e => {
+  if(e.target.id === 'addlang'){ (P.languages ||= []).push({name:'', level:''}); renderLangs(); }
+  const d = e.target.dataset.dellang;
+  if(d !== undefined){ P.languages.splice(+d,1); renderLangs(); }
+});
+
+function chipPaths(){
+  return CHIPS.concat((P.experience||[]).map((_,i) => `experience.${i}.bullets`));
+}
+
+function commit(input, path){
+  const v = input.value.trim();
+  if(!v) return false;
+  at(path).set(at(path).get().concat(v.replace(/,+$/,'').trim()));
+  input.value = ''; renderChips(path); return true;
+}
+
+// Enter or comma commits; Backspace in an empty box removes the last chip
+document.addEventListener('keydown', e => {
+  const path = e.target.dataset && e.target.dataset.addChip; if(!path) return;
+  if(e.key === 'Enter' || e.key === ','){ e.preventDefault(); commit(e.target, path); }
+  else if(e.key === 'Backspace' && !e.target.value){
+    const cur = at(path).get();
+    if(cur.length){ at(path).set(cur.slice(0,-1)); renderChips(path); }
+  }
+});
+// clicking away keeps what was typed instead of silently dropping it
+document.addEventListener('blur', e => {
+  const path = e.target.dataset && e.target.dataset.addChip;
+  if(path) commit(e.target, path);
+}, true);
+document.addEventListener('click', e => {
+  const path = e.target.dataset && e.target.dataset.chip; if(!path) return;
+  at(path).set(at(path).get().filter((_,i) => i !== +e.target.dataset.i));
+  renderChips(path);
+});
+
+function render(){
+  document.querySelectorAll('[data-f]').forEach(el => {
+    const v = P[el.dataset.f];
+    el.value = el.hasAttribute('data-list') ? (v||[]).join('\n') : (v||'');
+  });
+  Object.keys(FIELDS).forEach(renderList);
+  CHIPS.forEach(renderChips);
+  renderLangs();
+}
+
+function collect(){
+  document.querySelectorAll('[data-f]').forEach(el => {
+    P[el.dataset.f] = el.hasAttribute('data-list')
+      ? el.value.split('\n').map(s=>s.trim()).filter(Boolean) : el.value.trim();
+  });
+  document.querySelectorAll('[data-e]').forEach(el => {
+    const [k,i,f] = el.dataset.e.split('.');
+    P[k][i][f] = el.hasAttribute('data-list')
+      ? el.value.split('\n').map(s=>s.trim()).filter(Boolean) : el.value.trim();
+  });
+  return P;
+}
+
+document.addEventListener('click', async e => {
+  const add = e.target.dataset.add, del = e.target.dataset.del;
+  if(add){ collect(); (P[add] ||= []).push(Object.fromEntries(FIELDS[add].map(f=>[f, f==='bullets'?[]:'']))); renderList(add); }
+  if(del){ collect(); P[del].splice(+e.target.dataset.idx,1); renderList(del); }
+});
+
+$('#save').onclick = e => busy(e.target, async () => {
+  await api('/api/profile', collect()); $('#saved').textContent = 'saved ' + new Date().toLocaleTimeString();
+}, 'saving...');
+
+$('#up').onclick = e => busy(e.target, async () => {
+  const f = $('#file').files[0];
+  if(!f) return toast('Pick a file first');
+  const fd = new FormData(); fd.append('file', f);
+  P = await unwrap(await fetch('/api/profile/upload', {method:'POST', body:fd})); render(); toast('Profile filled in from your CV — check every field before saving.', 7000);
+}, 'reading CV...');
+
+$('#pasteBtn').onclick = e => busy(e.target, async () => {
+  P = await api('/api/profile/paste', {text: $('#paste').value}); render(); toast('Parsed — review the fields.');
+}, 'parsing...');
+
+$('#sug').onclick = e => busy(e.target, async () => {
+  await api('/api/profile', collect());
+  const list = await api('/api/suggest', {});
+  $('#sugs').innerHTML = list.map((s,i) => `<div class="sug" id="s${i}">
+      <b>${esc(s.label)}</b> <span class="pill">${esc(s.path)}</span>
+      <div class="muted">${esc(s.issue)}</div>
+      <div class="val">${esc(Array.isArray(s.value) ? s.value.map(v=>'• '+v).join('\n') : s.value)}</div>
+      <button data-acc="${i}">Use this</button>
+      <button class="ghost" data-skip="${i}">Skip</button>
+    </div>`).join('') || '<p class="muted">No suggestions — looks solid.</p>';
+  window._sugs = list;
+}, 'thinking...');
+
+$('#sugs').addEventListener('click', async e => {
+  const a = e.target.dataset.acc, s = e.target.dataset.skip;
+  if(s !== undefined) return $('#s'+s).remove();
+  if(a === undefined) return;
+  await busy(e.target, async () => {
+    // save first: the server re-reads the profile from disk, so anything typed while the
+    // model was thinking would be replaced by the stale copy and lost
+    await api('/api/profile', collect());
+    P = await api('/api/suggest/apply', window._sugs[a]); render(); $('#s'+a).remove(); toast('Applied and saved.');
+  }, 'applying...');
+});
+
+api('/api/profile', undefined, 'GET').then(p => { P = p; render(); });
+{% endblock %}

@@ -1,0 +1,16 @@
+.browser/
+.env
+profile.json
+db.sqlite
+out/
+__pycache__/
+.venv/
+srv.log
+.session.json
+signin.log
+srv.err.log
+settings.json
+.boards.json
+.profile.test.json
+potrivit.zip
+.claude/

@@ -1,0 +1,18 @@
+/* Traditional - Harvard style: Georgia serif, centred name and contact line, bold capital
+   headings on a full black rule, no colour. For banks, law, public sector, academia. */
+@page{size:A4}
+body{font:10pt/1.4 Georgia,"Times New Roman",serif;color:#000;margin:0;
+  font-variant-ligatures:none}
+h1{font-size:19pt;font-weight:bold;text-align:center;margin:0;line-height:1.2}
+.role{font-size:11pt;font-style:italic;text-align:center;color:#222;margin:1px 0 3px}
+.contact{font-size:9.5pt;text-align:center;color:#222;margin-bottom:10px}
+.contact span:not(:last-child):after{content:" | "}   /* a middot is not a token break to an ATS */
+h2{font-size:10pt;font-weight:bold;text-transform:uppercase;color:#000;
+   border-bottom:.75pt solid #000;padding-bottom:1px;margin:12px 0 5px;break-after:avoid}
+.item{margin-bottom:8px;page-break-inside:avoid}
+.line{display:flex;justify-content:space-between;gap:10px}
+.line b{font-size:10pt}
+.when{font-size:9.5pt;color:#000;white-space:nowrap}
+.where{font-size:9.5pt;color:#222;font-style:italic}
+ul{margin:2px 0 0;padding-left:16px} li{margin-bottom:1px}
+.tags{font-size:10pt} p{margin:0}

@@ -1,0 +1,44 @@
+<!doctype html><html lang="{{ lang }}"><head><meta charset="utf-8">
+<style>{{ style | safe }}</style></head><body>
+
+<h1>{{ cv.name }}</h1>
+{% if cv.title %}<div class="role">{{ cv.title }}</div>{% endif %}
+<div class="contact">
+  {# cv.links is normalised to a list of strings in llm.tailor, but a hand-edited profile.json
+     can still hold anything, and a crash here wastes the tailor call that was already paid for #}
+  {% for x in [cv.email, cv.phone, cv.location] + (cv.links | select('string') | list if cv.links is iterable
+       and cv.links is not string else []) %}{% if x %}<span>{{ x }}</span>{% endif %}{% endfor %}
+</div>
+
+{% if cv.summary %}<h2>{{ L.profile }}</h2><p>{{ cv.summary }}</p>{% endif %}
+
+{% if cv.experience %}<h2>{{ L.experience }}</h2>
+  {% for e in cv.experience %}<div class="item">
+    <div class="line"><b>{{ e.role }}</b><span class="when">{{ when(e.start, e.end) }}</span></div>
+    <div class="where">{{ [e.company, e.location] | select | join(", ") }}</div>
+    {% if e.bullets %}<ul>{% for b in e.bullets %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}
+  </div>{% endfor %}
+{% endif %}
+
+{% if cv.projects %}<h2>{{ L.projects }}</h2>
+  {% for p in cv.projects %}<div class="item">
+    <div class="line"><b>{{ p.name }}</b>{% if p.link %}<span class="when">{{ p.link }}</span>{% endif %}</div>
+    {% if p.desc %}<p>{{ p.desc }}</p>{% endif %}
+  </div>{% endfor %}
+{% endif %}
+
+{% if cv.education %}<h2>{{ L.education }}</h2>
+  {% for e in cv.education %}<div class="item">
+    <div class="line"><b>{{ e.degree }}</b><span class="when">{{ when(e.start, e.end) }}</span></div>
+    <div class="where">{{ e.school }}</div>
+  </div>{% endfor %}
+{% endif %}
+
+{% if cv.skills %}<h2>{{ L.skills }}</h2><p class="tags">{{ cv.skills | join(', ') }}</p>{% endif %}
+{% if cv.languages %}<h2>{{ L.languages }}</h2><p class="tags">
+  {%- for l in cv.languages -%}{{ l.name }}{% if l.level %} ({{ l.level }}){% endif %}
+  {%- if not loop.last %}, {% endif %}{%- endfor -%}</p>{% endif %}
+{% if cv.certifications %}<h2>{{ L.certifications }}</h2>
+  <ul>{% for c in cv.certifications %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+{% if cv.hobbies %}<h2>{{ L.hobbies }}</h2><p class="tags">{{ cv.hobbies | join(', ') }}</p>{% endif %}
+</body></html>
