@@ -12,8 +12,11 @@ HERE = pathlib.Path(__file__).parent
 
 # yours, never shared: secrets, sessions, your CV data, your job history, your generated CVs
 PRIVATE = {".env", "profile.json", "settings.json", "db.sqlite", ".session.json", ".boards.json",
-           "signin.log", "srv.log", "srv.err.log"}
-PRIVATE_DIRS = {".venv", "__pycache__", ".browser", "out", ".claude", ".git", "graphify-out"}
+           "signin.log", "srv.log", "srv.err.log",
+           # what the weekly run did, including the jobs it applied to
+           "auto.log", "auto_last.json"}
+PRIVATE_DIRS = {".venv", "__pycache__", ".browser", "out", ".claude", ".git", "graphify-out",
+                "backup"}
 # rebuilt or irrelevant on the other machine
 SKIP_SUFFIX = {".pyc", ".tmp", ".bak", ".zip", ".log", ".db"}
 # working files that are not part of the app

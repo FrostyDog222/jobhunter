@@ -175,6 +175,21 @@ mistake, *Undo* works for two minutes.
 keeps in your own account and copies it into this history, with Hipo's dates. Jobs you applied
 to by hand then stop showing up as still to do. It only ever adds.
 
+## Getting a newer version
+
+Double-click **Update.bat**. It downloads the current code from
+[github.com/FrostyDog222/jobhunter](https://github.com/FrostyDog222/jobhunter) and replaces the
+app's files with it. Nothing else is needed — no GitHub account, no git.
+
+**It only ever touches the app's own files.** Your API keys, profile, job list, applied history,
+board sign-ins, settings and generated CVs are left exactly as they are. Anything it does
+replace is copied into `backup\<date>-<time>` first, so a bad update can be undone by hand.
+
+It tells you what changed, and says nothing if you are already up to date. If the dependencies
+changed it installs them for you. Close the app's black window and start it again afterwards.
+
+If the folder is a git checkout it runs `git pull` instead, and says so.
+
 ## Giving the app to someone else
 
 Double-click **share.bat**. It makes `jobhunter.zip` containing the app and nothing of yours: no
@@ -207,12 +222,14 @@ and rebuilds it.
 | "The AI model has used up its free quota" | Wait a few minutes, or add a second provider key. |
 | "The API key was refused" | Paste the key again under *Settings*. |
 | A board shows *not signed in* | Sign in again under *Settings*. Board sessions expire. |
-| A search finds nothing on one board | Boards change their pages. The search reports which one failed; the others still work. |
+| A search finds nothing on one board | Boards change their pages. The search reports which one failed; the others still work. Run Update.bat — a fix may already be out. |
+| An update broke something | The files it replaced are in `backup\<date>-<time>`. Copy them back over the top. |
 
 ## For whoever maintains it
 
     FirstTimeSetup.bat  installs Python, the packages and Chromium, then self-checks
     run.bat             starts the app; hands over to FirstTimeSetup if it is not set up
+    Update.bat          pulls the current code from GitHub, keeping your data
     share.bat           builds the clean zip for someone else
 
     app.py        routes, database, PDF rendering
@@ -221,6 +238,7 @@ and rebuilds it.
     prefill.py    browser automation: sign-in, apply, form filling, reading application lists
     templates/    dashboard, profile, the CV, and templates/cv/*.css (one file per CV template)
     share.py      builds the clean zip
+    update.py     the update, and the one list of what it may never overwrite
     auto.py       the weekly run, started by Windows Task Scheduler
     auto_apply.py the applying step of the weekly run, and the limits on it
 
