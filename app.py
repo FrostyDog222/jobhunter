@@ -427,14 +427,34 @@ def get_llm():
 
 
 @app.post("/api/llm")
-def set_llm(body: dict = Body(...)):
+async def set_llm(body: dict = Body(...)):
     p = body.get("provider")
     if p not in llm.PROVIDERS:
         raise HTTPException(400, f"unknown provider {p!r}")
     env = llm.PROVIDERS[p][0]
-    kv = {"LLM_PROVIDER": p, "LLM_MODEL": body.get("model") or None}
-    if env and body.get("key"):          # blank key = keep the one already saved
-        kv[env] = body["key"]
+    key = (body.get("key") or "").strip()
+    model = body.get("model") or None
+
+    # A new key replaces the old one for that provider - but only once it has answered. Writing
+    # first and testing afterwards means a typo destroys a key that was working, and the person
+    # has no way back to it.
+    if env and key:
+        wrong = llm.key_looks_wrong(p, key)
+        if wrong:
+            raise HTTPException(400, f"That looks like a {wrong} key, and {p} is selected. "
+                                     f"Pick {wrong} in the list, or paste a {p} key. "
+                                     f"Nothing was changed.")
+        try:
+            # this exact key against this exact provider, not the chain: otherwise a dead key
+            # gets reported as working because a different provider answered the test
+            await off(llm.test_key, p, model, key)
+        except Exception as e:
+            had = " Your previous key is untouched." if llm.cfg(env) else ""
+            raise HTTPException(400, f"{p} would not accept that key: {e}.{had}")
+
+    kv = {"LLM_PROVIDER": p, "LLM_MODEL": model}
+    if env and key:                      # blank key = keep the one already saved
+        kv[env] = key
     llm.set_cfg(**kv)
     try:
         return {**get_llm(), "check": llm.ask("Reply with JSON only.", 'Return {"ok": true}', 100)}

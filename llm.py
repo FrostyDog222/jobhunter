@@ -62,6 +62,35 @@ def set_cfg(**kv):
     ENV.write_text("\n".join(f"{k}={v}" for k, v in cur.items()) + "\n", encoding="utf-8")
 
 
+# Most providers stamp their keys with a recognisable prefix. Used only to catch the obvious
+# slip - a Gemini key pasted while Groq is selected in the dropdown - never to reject a key,
+# since a provider may change its format at any time.
+KEY_PREFIX = {"gemini": "AIza", "groq": "gsk_", "nvidia": "nvapi-", "openrouter": "sk-or-",
+              "anthropic": "sk-ant-"}
+
+
+def key_looks_wrong(provider, key):
+    """-> the provider the key seems to belong to, if it is clearly not this one."""
+    key = (key or "").strip()
+    want = KEY_PREFIX.get(provider)
+    if not key or not want or key.startswith(want):
+        return ""
+    for other, prefix in KEY_PREFIX.items():
+        if other != provider and key.startswith(prefix):
+            return other
+    return ""
+
+
+def test_key(provider, model, key):
+    """Call this one provider with this one key. Raises if it does not answer.
+
+    Deliberately not ask(): that walks the whole chain, so a broken key could be reported as
+    working because a different provider answered instead.
+    """
+    return _call(provider, model or PROVIDERS[provider][2], key,
+                 "Reply with JSON only.", 'Return {"ok": true}', 100, 1)
+
+
 def models(provider=None):
     """Model ids a provider offers. Every provider here exposes GET /models."""
     if provider:
