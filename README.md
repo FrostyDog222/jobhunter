@@ -6,6 +6,36 @@ your profile, writes a CV tailored to the ad, and applies on the boards that all
 Everything stays on your PC except the calls to the AI model you choose — and with Ollama, not
 even those.
 
+## Getting it
+
+The repository is public, so none of this needs a GitHub account or a login.
+
+Easiest: open [github.com/FrostyDog222/jobhunter](https://github.com/FrostyDog222/jobhunter),
+press **Code → Download ZIP**, and unzip it somewhere short like `C:\jobhunter` — not inside
+OneDrive.
+
+Or from a terminal. With git:
+
+```
+git clone https://github.com/FrostyDog222/jobhunter.git
+```
+
+Without git, in PowerShell:
+
+```
+Invoke-WebRequest https://github.com/FrostyDog222/jobhunter/archive/refs/heads/main.zip -OutFile jobhunter.zip
+Expand-Archive jobhunter.zip -DestinationPath .
+```
+
+Or with curl, which ships with Windows 10 and later:
+
+```
+curl -L -o jobhunter.zip https://github.com/FrostyDog222/jobhunter/archive/refs/heads/main.zip
+```
+
+The zip unpacks into a folder called `jobhunter-main`; git gives you `jobhunter`. Either is
+fine — the app runs from whatever folder it is in. Then carry on below.
+
 ## Start
 
 ### 1. FirstTimeSetup.bat — this one first, before anything else
@@ -190,6 +220,11 @@ changed it installs them for you. Close the app's black window and start it agai
 
 If the folder is a git checkout it runs `git pull` instead, and says so.
 
+By hand, if you would rather: `git pull` in a checkout, or download the zip again with one of
+the commands under [Getting it](#getting-it) and copy the files over the top. Keep your own
+files when you do — `.env`, `profile.json`, `settings.json`, `db.sqlite`, `.session.json`,
+`.boards.json` and the `out` folder. That is the bookkeeping Update.bat does for you.
+
 ## Giving the app to someone else
 
 Double-click **share.bat**. It makes `jobhunter.zip` containing the app and nothing of yours: no
@@ -199,6 +234,10 @@ short local folder such as `C:\jobhunter` (not inside OneDrive) and double-click
 
 Do not copy the folder by hand. It holds your keys and your signed-in sessions, and whoever
 receives it could apply to jobs as you.
+
+They can equally get it themselves from GitHub — see [Getting it](#getting-it) — which is the
+better route, since it is always the current version. The zip is for handing it to someone with
+no internet at that moment, or for pinning them to the version you are running.
 
 ## Moving to a new PC (keeping your own data)
 
