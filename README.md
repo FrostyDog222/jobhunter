@@ -8,13 +8,11 @@ even those.
 
 ## Start
 
-Double-click **run.bat**. The first run takes a few minutes: it creates a Python environment,
-installs what it needs and downloads a browser. After that it starts in seconds and the
-dashboard opens by itself at http://127.0.0.1:8777.
+Double-click **FirstTimeSetup.bat**. It installs everything, including Python itself if the PC
+does not have it, and checks that it all works. About five minutes, once.
 
-Keep the black window open while you use the app. Closing it stops the app.
-
-You need Python 3.10 or newer from python.org, installed with **Add to PATH** ticked.
+After that, start the app with **run.bat**. It opens the dashboard at http://127.0.0.1:8777 by
+itself. Keep the black window open while you use it; closing it stops the app.
 
 ## First time: three steps
 
@@ -103,6 +101,23 @@ date are answered from your *Application answers*; if every question is answered
 application is sent, and if even one is left blank the app stops and opens it for you to finish.
 The salary figure you wrote goes to every employer that asks, so set one you would stand behind.
 
+## The weekly run
+
+Under *Settings → Weekly run*, Windows can run your search once a week on its own, so the list
+is already searched and scored when you next open the app. It works with the app closed — the
+black window does not need to be open — and a run missed because the PC was off happens the next
+time it is on.
+
+It searches and scores. **It does not apply to anything**, and that is deliberate: an
+application cannot be recalled, and one sent unattended goes out on a job nobody read, with
+whatever CV currently sits on your board profile. The panel spells this out before you switch
+it on.
+
+Ads older than two weeks are dropped from the list on every search — they are filled or
+abandoned, and scoring them wastes a call. Anything you applied to, tailored, opened or skipped
+stays regardless of age. Each job shows a green **new** badge for the first week after it was
+posted and an amber **old** one after that.
+
 ## Applied history
 
 Everything you applied to is kept, with the date and time, newest first, 20 to a page. Applied
@@ -147,6 +162,7 @@ not survive the move.
     prefill.py    browser automation: sign-in, apply, form filling
     templates/    dashboard, profile, the CV, and templates/cv/*.css (one file per CV template)
     share.py      builds the clean zip
+    auto.py       the weekly run, started by Windows Task Scheduler
 
     profile.json  your data          settings.json  your preferences
     db.sqlite     jobs and history   out/           generated CVs

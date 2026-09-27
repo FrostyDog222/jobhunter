@@ -14,3 +14,5 @@ settings.json
 .profile.test.json
 jobhunter.zip
 .claude/
+auto.log
+auto_last.json

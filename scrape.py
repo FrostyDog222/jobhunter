@@ -1,6 +1,6 @@
 """Job scraping. Every serious board emits schema.org JobPosting JSON-LD for Google Jobs,
 so one generic extractor covers them all - a new board is one entry in BOARDS."""
-import html, json, random, re, time, unicodedata
+import datetime, html, json, random, re, time, unicodedata
 import httpx
 from urllib.parse import unquote, urlsplit
 
@@ -327,6 +327,19 @@ def discover(board, query, location="", limit=25, timeout=30, country="ro", filt
 # below this many characters an "ad" is a stub: a title, a company and no requirements
 MIN_AD = 200
 
+# An ad this old is filled, withdrawn or being ignored by the employer. Applying to it wastes an
+# application; keeping it wastes a scoring call and a row on the dashboard. Undated ads are kept,
+# because "no date" is not "old" - BestJobs publishes no posting date at all.
+MAX_AGE_DAYS = 14
+
+
+def _too_old(posted):
+    try:
+        return (datetime.date.today()
+                - datetime.date.fromisoformat((posted or "")[:10])).days > MAX_AGE_DAYS
+    except ValueError:
+        return False
+
 
 def hydrate(jobs, timeout=30):
     """Phase 2: fetch the detail page only for jobs that survived deduplication. This is where
@@ -367,7 +380,7 @@ def hydrate(jobs, timeout=30):
     # gets scored twice, and can be applied to twice.
     out, seen = [], set()
     for j in jobs:
-        if not j.get("_full") or NOISE.search(j["title"]):
+        if not j.get("_full") or NOISE.search(j["title"]) or _too_old(j.get("posted")):
             continue
         key = (j["title"].lower().strip(), (j.get("company") or "").lower().strip()[:18])
         if key[1] and key in seen:

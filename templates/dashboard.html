@@ -67,6 +67,7 @@
 .st{font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600}
 .st-applied{color:var(--good)} .st-ready{color:var(--accent)}
 .st-opened{color:var(--mid)} .st-skipped,.st-vetoed{color:var(--dim);opacity:.7}
+.st-fresh{color:var(--good)} .st-stale{color:var(--mid)}
 details.desc{margin-top:8px}
 details.desc summary{font-size:12.5px;color:var(--dim);cursor:pointer}
 details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--dim);
@@ -77,6 +78,15 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 #picked{display:none;position:sticky;top:60px;z-index:5;
   border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
 .warn{color:var(--mid)}
+
+/* ---- weekly run ---- */
+#auto .row{margin-top:8px}
+#autostate{font-size:13px;margin-top:10px}
+.warn-box{margin-top:12px;padding:11px 13px;border-radius:9px;font-size:13px;line-height:1.5;
+  border:1px solid color-mix(in srgb,var(--mid) 45%,var(--line));
+  background:color-mix(in srgb,var(--mid) 7%,transparent)}
+.warn-box b{color:var(--mid)}
+.warn-box ul{margin:6px 0 0;padding-left:18px} .warn-box li{margin-bottom:3px}
 
 /* ---- first-run checklist ---- */
 #steps{display:none;border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
@@ -182,6 +192,56 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
         <option value="">Open the browser to review</option>
         <option value="1">Dry run — just report</option>
       </select></div>
+  </div>
+
+  <b style="display:block;margin-top:18px">Weekly run</b>
+  <p class="muted">Windows can run your search once a week on its own, so the list is already
+    scored when you next open the app. It keeps working with the app closed; the black run.bat
+    window does not need to be open.</p>
+  <div id="auto">
+    <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
+      font-size:13.5px;cursor:pointer"><input type="checkbox" id="auto_enabled" style="width:auto">
+      Search and score every week, on its own</label>
+    <div class="row">
+      <div><label>Day</label><select id="auto_day">
+        <option value="MON">Monday</option><option value="TUE">Tuesday</option>
+        <option value="WED">Wednesday</option><option value="THU">Thursday</option>
+        <option value="FRI">Friday</option><option value="SAT">Saturday</option>
+        <option value="SUN" selected>Sunday</option></select></div>
+      <div><label>Time</label><input id="auto_time" type="time" value="09:00"></div>
+      <div><label>Worth my attention from</label><input id="auto_min_fit" type="number"
+        min="0" max="100" step="5" value="75" title="Jobs scoring this or higher are counted in the summary"></div>
+    </div>
+    <div class="row">
+      <div style="flex:3"><label>Search for</label>
+        <input id="auto_query" placeholder="the terms to run every week"></div>
+      <div class="small"><label>City</label><input id="auto_location" placeholder="anywhere"></div>
+      <div class="small"><label>Country</label><input id="auto_country" value="ro"></div>
+    </div>
+    <div class="row" style="align-items:center">
+      <button id="autosave">Save the schedule</button>
+      <button class="ghost" id="autonow">Run it now</button>
+      <button class="ghost" id="autocopy" title="Copy what is in the search bar above into these boxes">Use my current search</button>
+    </div>
+    <div id="autostate" class="muted"></div>
+
+    <div class="warn-box">
+      <b>⚠ Read this before you switch it on</b>
+      <ul>
+        <li><b>It runs with nobody watching.</b> Every week it spends API quota on scoring,
+          whether or not you look at the result. If a free tier runs dry it fails quietly and
+          you find out days later, in the summary.</li>
+        <li><b>The score is a model's opinion, not a fact.</b> It is a useful sort order, not a
+          judgement you should act on without reading the ad.</li>
+        <li><b>It does not apply to anything, and that is deliberate.</b> An application cannot
+          be recalled. Sending them unattended means the salary figure from your profile, and
+          whatever CV currently sits on your board profile, reach real employers on jobs nobody
+          read - and you learn which ones a week later. Those same employers are the ones you
+          may want to approach properly.</li>
+        <li><b>It is your account doing it.</b> Boards notice patterns. Searches are ordinary
+          traffic; a burst of applications at 09:00 every Sunday is not.</li>
+      </ul>
+    </div>
   </div>
 
   <b style="display:block;margin-top:18px">CV template</b>
@@ -375,6 +435,72 @@ async function saveSettings(patch){
 $('#lang').onchange = e => saveSettings({lang: e.target.value});
 $('#headless').onchange = e => saveSettings({headless: e.target.value});
 $('#cvask').onchange = e => saveSettings({cv_ask: e.target.checked});
+
+/* ---------- the weekly run ---------- */
+const AUTO_FIELDS = ['auto_enabled', 'auto_day', 'auto_time', 'auto_query', 'auto_location',
+                     'auto_country', 'auto_min_fit'];
+// PowerShell hands back "10/04/2026 09:00:00", and a task that has never run reports 1999
+const taskDate = v => { const d = new Date(v); return isNaN(d) || d.getFullYear() < 2001 ? null
+  : d.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'})
+    + ', ' + d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}); };
+
+async function loadAuto(){
+  let a;
+  try { a = await api('/api/auto', undefined, 'GET'); } catch(e){ return; }
+  for(const k of AUTO_FIELDS){
+    const el = $('#' + k); if(!el) continue;
+    if(el.type === 'checkbox') el.checked = !!a.settings[k]; else el.value = a.settings[k] ?? '';
+  }
+  const next = a.task.exists ? taskDate(a.task.next) : null;
+  const bits = [];
+  bits.push(a.task.exists
+    ? (next ? `Scheduled — next run <b>${esc(next)}</b>.` : 'Scheduled with Windows.')
+    : 'Not scheduled. Tick the box and save to set it up.');
+  const l = a.last;
+  if(l){
+    const s = l.searched;
+    bits.push(`Last run ${esc(l.when)}: ` + (
+      l.error ? `<span style="color:var(--bad)">${esc(friendly(l.error))}</span>`
+      : s ? `${s.found} ads seen, ${s.new} new, ${s.scored} scored`
+            + (s.expired ? `, ${s.expired} dropped as over two weeks old` : '')
+            + `. <b>${l.waiting}</b> waiting at ${esc(String(a.settings.auto_min_fit))}+.`
+      : esc(l.note || 'nothing to do')));
+  }
+  $('#autostate').innerHTML = bits.join('<br>');
+}
+
+$('#autocopy').onclick = () => {
+  $('#auto_query').value = $('#q').value;
+  $('#auto_location').value = $('#loc').value;
+  $('#auto_country').value = $('#country').value;
+  toast('Copied. Press "Save the schedule" to keep it.');
+};
+
+$('#autosave').onclick = e => busy(e.target, async () => {
+  const body = {};
+  for(const k of AUTO_FIELDS){
+    const el = $('#' + k);
+    body[k] = el.type === 'checkbox' ? el.checked
+            : el.type === 'number' ? +el.value : el.value;
+  }
+  await api('/api/auto', body);
+  await loadAuto();
+  toast(body.auto_enabled ? 'Weekly run scheduled with Windows.' : 'Weekly run switched off.');
+}, 'saving...');
+
+$('#autonow').onclick = e => busy(e.target, async () => {
+  if(!$('#auto_query').value.trim())
+    return toast('Type what it should search for first.');
+  await api('/api/auto/run', {});
+  toast('Running it now, exactly as Windows will. It takes a few minutes — '
+      + 'this panel shows the result when it lands.', 9000);
+  // it runs as its own process, so poll for the report rather than awaiting it
+  let tries = 0;
+  const tick = setInterval(async () => {
+    await loadAuto(); await load();
+    if(++tries > 40) clearInterval(tick);
+  }, 15000);
+}, 'starting...');
 
 /* ---------- CV templates ---------- */
 function tplCards(selected){
@@ -627,10 +753,15 @@ function draw(){
     const list = v => { try { const x = JSON.parse(v || '[]'); return Array.isArray(x) ? x : []; }
                         catch(e){ return []; } };
     const gaps = list(j.gaps), brings = list(j.untapped);
+    // How old the ad is, not how long we have known about it. A week is the line: after that
+    // the good ones are usually spoken for. Anything past two weeks never reaches this list.
     const days = j.posted ? Math.round((Date.now() - new Date(j.posted)) / 864e5) : null;
-    const age = days == null || isNaN(days) ? ''
-      : `<span title="${esc(j.posted)}">· ${days <= 0 ? 'posted today' : days === 1 ? 'posted yesterday' : 'posted ' + days + ' days ago'}</span>`
-        + (days > 30 ? ' <span class="pill" style="color:var(--mid);border-color:var(--mid)">old ad</span>' : '');
+    const dated = days != null && !isNaN(days);
+    const age = !dated ? ''
+      : `<span class="st ${days <= 7 ? 'st-fresh' : 'st-stale'}" title="posted ${esc(j.posted)}">${
+            days <= 7 ? 'new' : 'old'}</span>`
+        + `<span>· ${days <= 0 ? 'posted today' : days === 1 ? 'posted yesterday'
+            : 'posted ' + days + ' days ago'}</span>`;
     const applied = j.status === 'applied';
     const canPick = BOARD(j) && !applied;
     const primary = applied
@@ -655,7 +786,7 @@ function draw(){
           <span class="pill">${esc(j.source)}</span>
           ${j.lang ? `<span class="pill" title="Language of the ad">${esc(String(j.lang).toUpperCase())}</span>` : ''}
           ${age}
-          <span class="st st-${esc(j.status)}">${esc(j.status)}</span>
+          ${j.status === 'new' ? '' : `<span class="st st-${esc(j.status)}">${esc(j.status)}</span>`}
           ${applied ? `<span class="applied-when">· ${j.applied_at ? 'applied ' + esc(fmtWhen(j.applied_at)) : 'applied (date not recorded)'}</span>` : ''}
           ${j.note ? `<span class="pill" style="border-color:var(--mid);color:var(--mid)">${esc(j.note)}</span>` : ''}
           ${ATS.test(j.url) ? '<span class="pill">prefillable form</span>' : ''}
@@ -842,6 +973,7 @@ $('#go').onclick = e => busy(e.target, async () => {
   toast(`${r.found} ads seen, ${r.new} new. Scored ${r.scored}.` +
         (r.vetoed ? ` ${r.vetoed} skipped on language.` : '') +
         (r.freed ? ` ${r.freed} re-opened by the language check.` : '') +
+        (r.expired ? ` ${r.expired} dropped as over two weeks old.` : '') +
         ((r.warnings || []).length ? ' ⚠ ' + r.warnings.map(friendly).join('; ') : '') +
         (r.failed ? ` ${r.failed} failed — search again to retry them.` : ''), 8000);
   await load();
@@ -937,6 +1069,7 @@ loadLlm();
 loadSignins();
 api('/api/cv/templates', undefined, 'GET').then(t => { TPLS = t; return loadSettings(); }).catch(()=>{});
 api('/api/profile', undefined, 'GET').then(p => { PROFILE = p || {}; drawPresets(); steps(); }).catch(()=>{});
+loadAuto();
 // keep the auto/manual split in step with the server rather than hard-coding it twice
 api('/api/boards', undefined, 'GET')
   .then(b => {

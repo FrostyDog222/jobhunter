@@ -1,5 +1,5 @@
 """jobhunter - a local job-hunting assistant. Run: run.bat  ->  http://127.0.0.1:8777"""
-import asyncio, hashlib, io, json, os, pathlib, re, sqlite3, sys, webbrowser
+import asyncio, hashlib, io, json, os, pathlib, re, sqlite3, subprocess, sys, webbrowser
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, UploadFile, File, Body, HTTPException
@@ -30,6 +30,7 @@ pool = ThreadPoolExecutor(max_workers=3)   # free LLM tiers rate-limit above thi
 def db():
     c = sqlite3.connect(DB)
     c.row_factory = sqlite3.Row
+    c.execute("PRAGMA busy_timeout=15000")   # the weekly run may be writing at the same time
     c.execute("""CREATE TABLE IF NOT EXISTS jobs(
         url TEXT PRIMARY KEY, source TEXT, title TEXT, company TEXT, location TEXT,
         posted TEXT, description TEXT, fit INTEGER, why TEXT, gaps TEXT,
@@ -63,7 +64,10 @@ def _mark_applied(c, url):
 SETTINGS = HERE / "settings.json"
 # what the dashboard remembers between visits. Secrets stay in .env; these are preferences,
 # and they travel with a folder copy while .env deliberately does not.
-DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True}
+DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
+            # the weekly run (auto.py, started by Windows Task Scheduler)
+            "auto_enabled": False, "auto_day": "SUN", "auto_time": "09:00",
+            "auto_query": "", "auto_location": "", "auto_country": "ro", "auto_min_fit": 75}
 
 
 def settings():
@@ -76,6 +80,106 @@ def settings():
 @app.get("/api/settings")
 def get_settings():
     return settings()
+
+
+# ---------- the weekly run ----------
+# One scheduled task, owned by this folder. Windows keeps it after the app is closed, which is
+# the whole point: the search happens whether or not anyone opens the dashboard.
+TASK = "jobhunter weekly search"
+DAYS = {"MON": "Monday", "TUE": "Tuesday", "WED": "Wednesday", "THU": "Thursday",
+        "FRI": "Friday", "SAT": "Saturday", "SUN": "Sunday"}
+
+
+def _ps(script):
+    """Run a PowerShell snippet. The ScheduledTask cmdlets are used rather than schtasks.exe
+    because their output is objects with English names - schtasks prints localised field labels,
+    which is unparseable on a Romanian Windows."""
+    r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                       capture_output=True, text=True, timeout=60)
+    return r.returncode, (r.stdout or "").strip(), (r.stderr or "").strip()
+
+
+def task_state():
+    """-> what Windows knows about the scheduled task right now."""
+    code, out, _ = _ps(
+        f"$ErrorActionPreference='SilentlyContinue';"
+        f"$t = Get-ScheduledTask -TaskName '{TASK}';"
+        f"if (-not $t) {{ '{{}}' }} else {{ $i = $t | Get-ScheduledTaskInfo;"
+        f"[pscustomobject]@{{ exists=$true; state=[string]$t.State;"
+        f" next=[string]$i.NextRunTime; last=[string]$i.LastRunTime;"
+        f" result=$i.LastTaskResult }} | ConvertTo-Json -Compress }}")
+    try:
+        state = json.loads(out) if code == 0 and out else {}
+    except json.JSONDecodeError:
+        state = {}
+    return {"exists": bool(state.get("exists")), **state}
+
+
+def schedule(on, day, at):
+    """Create or remove the weekly task. Returns "" or a message explaining why it failed."""
+    if not on:
+        _ps(f"Unregister-ScheduledTask -TaskName '{TASK}' -Confirm:$false "
+            f"-ErrorAction SilentlyContinue")
+        return ""
+    pyw = HERE / ".venv" / "Scripts" / "pythonw.exe"      # windowless: no console pops up
+    if not pyw.exists():
+        return "The Python environment is missing - start the app once through run.bat first."
+    code, _, err = _ps(
+        f"$a = New-ScheduledTaskAction -Execute '{pyw}' -Argument 'auto.py' "
+        f"-WorkingDirectory '{HERE}';"
+        f"$t = New-ScheduledTaskTrigger -Weekly -DaysOfWeek {DAYS[day]} -At '{at}';"
+        # StartWhenAvailable is what makes this work on a laptop: a run missed because the PC
+        # was off happens the next time it is on, instead of being skipped for the week.
+        f"$s = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries "
+        f"-DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew "
+        f"-ExecutionTimeLimit (New-TimeSpan -Hours 2);"
+        f"Register-ScheduledTask -TaskName '{TASK}' -Action $a -Trigger $t -Settings $s "
+        f"-Description 'jobhunter: weekly job search and scoring' -Force | Out-Null")
+    return "" if code == 0 else f"Windows refused to create the scheduled task: {err[:200]}"
+
+
+@app.get("/api/auto")
+def get_auto():
+    s = settings()
+    try:
+        last = json.loads((HERE / "auto_last.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        last = None
+    return {"settings": {k: v for k, v in s.items() if k.startswith("auto_")},
+            "task": task_state(), "last": last}
+
+
+@app.post("/api/auto")
+def set_auto(body: dict = Body(...)):
+    cur = settings()
+    for k in ("auto_enabled", "auto_day", "auto_time", "auto_query", "auto_location",
+              "auto_country", "auto_min_fit"):
+        if k in body:
+            cur[k] = body[k]
+    if cur["auto_day"] not in DAYS:
+        raise HTTPException(400, f"not a day: {cur['auto_day']}")
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", str(cur["auto_time"])):
+        raise HTTPException(400, "time must be HH:MM, e.g. 09:00")
+    try:
+        cur["auto_min_fit"] = max(0, min(100, int(cur["auto_min_fit"])))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "the score must be a number between 0 and 100")
+    if cur["auto_enabled"] and not (cur["auto_query"] or "").strip():
+        raise HTTPException(400, "Type what the weekly run should search for.")
+    SETTINGS.write_text(json.dumps(cur, indent=1), encoding="utf-8")
+    problem = schedule(cur["auto_enabled"], cur["auto_day"], cur["auto_time"])
+    if problem:
+        raise HTTPException(400, problem)
+    return {"ok": True, "task": task_state()}
+
+
+@app.post("/api/auto/run")
+def run_auto():
+    """Run the weekly search now, in the same way Windows will run it."""
+    py = HERE / ".venv" / "Scripts" / "python.exe"
+    subprocess.Popen([str(py), str(HERE / "auto.py")], cwd=str(HERE),
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {"ok": True}
 
 
 @app.post("/api/settings")
@@ -380,6 +484,15 @@ async def search(body: dict = Body(...)):
         if complaint:
             warnings.append(complaint)
 
+    # Two weeks is the shelf life of a job ad. Clear out what has aged past it - but only rows
+    # nobody has touched: applied, opened, tailored and skipped all stay, and so does anything
+    # holding a CV, exactly as with Clear results.
+    with db() as c:
+        expired = c.execute(
+            "DELETE FROM jobs WHERE status IN ('new','vetoed') AND (cv IS NULL OR cv = '') "
+            "AND posted IS NOT NULL AND posted != '' AND posted < date('now', ?)",
+            (f"-{scrape.MAX_AGE_DAYS} days",)).rowcount
+
     with db() as c:
         for j in fresh:
             if j.get("lang") in ("", None, "en", "ro"):     # keep freehire's 'de', 'nl', ...
@@ -449,7 +562,7 @@ async def search(body: dict = Body(...)):
     # stored row, so counting the whole list would report the standing total as if it had just
     # happened ("113 skipped on language" on a search that skipped none)
     newly_vetoed = sum(1 for j, _ in vetoed if j["status"] != "vetoed")
-    return {"found": len(found), "new": len(fresh), "freed": len(freed),
+    return {"found": len(found), "new": len(fresh), "freed": len(freed), "expired": expired,
             "scored": len(todo) - failed,
             "failed": failed, "vetoed": newly_vetoed, "queries": len(queries),
             "warnings": warnings}
