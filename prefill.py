@@ -673,6 +673,49 @@ def _profile():
         return {}
 
 
+# Where a board lists what you have applied to, and how to read a row out of that page.
+# This is better evidence than anything on the job page itself: Hipo puts no "you applied"
+# marker on a posting, so the board's own list is the only way to know - and it also covers
+# applications you made yourself, in your own browser, which this app never saw.
+APPLICATIONS = {
+    "hipo": ("https://www.hipo.ro/locuri-de-munca/candidat/myhipo/aplicarileMele",
+             """() => [...document.querySelectorAll('a')]
+                 .filter(a => (a.getAttribute('href') || '').includes('locuri_de_munca')
+                           && !(a.getAttribute('href') || '').includes('Top-Talents'))
+                 .map(a => { let n = a, row = '';
+                     for (let i = 0; i < 6 && n; i++) { n = n.parentElement;
+                       if (n && /data aplic/i.test(n.innerText || '')) { row = n.innerText; break; } }
+                     return {url: a.href, title: (a.innerText || '').trim(), row}; })"""),
+}
+
+
+def board_applications(board, headless=True):
+    """-> [{url, title, when}] straight from the board's own "my applications" page.
+
+    Read-only. Raises if the board is not one we can read, or the session has lapsed.
+    """
+    from playwright.sync_api import sync_playwright
+    if board not in APPLICATIONS:
+        raise ValueError(f"no applications page known for {board}")
+    page_url, extract = APPLICATIONS[board]
+    out = []
+    with sync_playwright() as pw:
+        browser, ctx, page = _open(pw, headless)
+        try:
+            page.goto(page_url, wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(2500)
+            if any(d in page.url.lower() for d in BOARD_UI[board]["denied"]):
+                raise RuntimeError(f"not signed in to {board}")
+            for r in page.evaluate(extract):
+                m = re.search(r"data aplic[aă]rii:\s*(\d{2})-(\d{2})-(\d{4})", r.get("row") or "", re.I)
+                out.append({"url": r["url"], "title": r["title"],
+                            "when": f"{m.group(3)}-{m.group(2)}-{m.group(1)}" if m else ""})
+        finally:
+            _save(ctx, visited=(BOARD_HOSTS.get(board) or "",))
+            browser.close()
+    return out
+
+
 def board_of(url):
     host = (urlsplit(url).hostname or "").lower()
     return ("ejobs" if "ejobs.ro" in host else

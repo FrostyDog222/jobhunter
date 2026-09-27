@@ -181,6 +181,49 @@ def set_auto(body: dict = Body(...)):
     return {"ok": True, "task": task_state()}
 
 
+@app.post("/api/history/import")
+async def import_history(body: dict = Body(...)):
+    """Fold the applications a board already knows about into the Applied history.
+
+    You apply on Hipo in your own browser, so this app never sees it - the job sits at 'new' and
+    keeps offering itself. The board's own list is the truth, and this copies it across. It only
+    ever marks things applied; nothing is undone, and the date comes from the board.
+    """
+    board = body.get("board", "hipo")
+    if board not in prefill.APPLICATIONS:
+        raise HTTPException(400, f"{board} does not publish a list of your applications")
+    if not prefill.session_for(board):
+        raise HTTPException(400, f"Not signed in to {board}. Use the sign-in button first.")
+    try:
+        apps = await off(prefill.board_applications, board)
+    except Exception as e:
+        raise HTTPException(400, f"Could not read your {board} applications: {e}")
+
+    # match on the board's own numeric posting id: the slug after it differs between the list
+    # and the search results (diacritics, punctuation), the id does not
+    def jid(u):
+        m = re.search(r"/locuri_de_munca/(\d+)", u or "")
+        return m.group(1) if m else None
+
+    marked, unknown = [], []
+    with db() as c:
+        mine = {jid(r["url"]): r["url"] for r in c.execute(
+            "SELECT url FROM jobs WHERE source=?", (board,)) if jid(r["url"])}
+        for a in apps:
+            url = mine.get(jid(a["url"]))
+            if not url:
+                unknown.append(a["title"])
+                continue
+            row = c.execute("SELECT status FROM jobs WHERE url=?", (url,)).fetchone()
+            if row and row["status"] == "applied":
+                continue
+            c.execute("UPDATE jobs SET status='applied', "
+                      "applied_at=COALESCE(applied_at, ?) WHERE url=?",
+                      (f"{a['when']} 00:00:00" if a["when"] else None, url))
+            marked.append(a["title"])
+    return {"ok": True, "found": len(apps), "marked": marked, "not_in_your_list": unknown}
+
+
 @app.get("/api/auto/preview")
 def auto_preview(min_fit: int = 85, cap: int = 5):
     """What automatic applying would send right now, at these limits.

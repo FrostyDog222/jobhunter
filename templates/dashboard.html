@@ -178,6 +178,12 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   <p class="muted" style="margin-top:10px">A board apply sends the CV stored on your board
     profile, not the tailored PDF — so keep those profiles current:
     <span id="boardprofiles"></span></p>
+  <div class="row" style="margin-top:6px">
+    <div style="flex:0 0 auto"><button class="ghost" id="importhist">Import my Hipo applications</button></div>
+    <div style="flex:1;display:flex;align-items:center"><span class="muted" style="font-size:12.5px">
+      Hipo keeps its own list of what you applied to. This copies it into your Applied history,
+      with the dates, so jobs you sent by hand stop showing up as still to do.</span></div>
+  </div>
 
   <b style="display:block;margin-top:18px">Defaults</b>
   <div class="row" style="margin-top:8px">
@@ -453,6 +459,15 @@ async function saveSettings(patch){
 $('#lang').onchange = e => saveSettings({lang: e.target.value});
 $('#headless').onchange = e => saveSettings({headless: e.target.value});
 $('#cvask').onchange = e => saveSettings({cv_ask: e.target.checked});
+
+$('#importhist').onclick = e => busy(e.target, async () => {
+  const r = await api('/api/history/import', {board: 'hipo'});
+  await load();
+  toast(r.marked.length
+    ? `Added ${r.marked.length} to your Applied history: ${r.marked.join(', ').slice(0, 120)}`
+    : `Hipo lists ${r.found} application(s), and none of them are jobs in your list `
+      + `(${r.not_in_your_list.length} were sent before this app knew about them).`, 9000);
+}, 'reading Hipo...');
 
 /* ---------- the weekly run ---------- */
 const AUTO_FIELDS = ['auto_enabled', 'auto_day', 'auto_time', 'auto_query', 'auto_location',
