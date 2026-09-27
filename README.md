@@ -108,10 +108,26 @@ is already searched and scored when you next open the app. It works with the app
 black window does not need to be open — and a run missed because the PC was off happens the next
 time it is on.
 
-It searches and scores. **It does not apply to anything**, and that is deliberate: an
-application cannot be recalled, and one sent unattended goes out on a job nobody read, with
-whatever CV currently sits on your board profile. The panel spells this out before you switch
-it on.
+By default it searches and scores, and leaves the applying to you.
+
+**Applying without you there** is a second switch, off until you turn it on, and it asks once
+more before it takes. When it is on the weekly run also applies to the best of what it found:
+
+| limit | default |
+|---|---|
+| boards | eJobs and BestJobs only — never Hipo, never an employer form |
+| score | 85 or above, your choice |
+| how many | 5 per week, your choice, never more than 20 |
+| which rows | only ones nobody has touched; applied, opened, skipped and vetoed are left alone |
+| screening questions | marked and left for you — no browser window opens on an empty desk |
+
+Everything it sent is listed in the panel with its score, so Monday morning shows you exactly
+what went out.
+
+Think about it before switching it on. An application cannot be recalled; it carries the salary
+figure from your profile and the CV stored on your **board** profile, not a tailored one; the
+score is a model's opinion; and you find out a week later. The panel says all of this next to
+the switch.
 
 Ads older than two weeks are dropped from the list on every search — they are filled or
 abandoned, and scoring them wastes a call. Anything you applied to, tailored, opened or skipped
@@ -163,6 +179,7 @@ not survive the move.
     templates/    dashboard, profile, the CV, and templates/cv/*.css (one file per CV template)
     share.py      builds the clean zip
     auto.py       the weekly run, started by Windows Task Scheduler
+    auto_apply.py the applying step of the weekly run, and the limits on it
 
     profile.json  your data          settings.json  your preferences
     db.sqlite     jobs and history   out/           generated CVs

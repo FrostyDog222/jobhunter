@@ -2,7 +2,8 @@
 
 It does the part of a Sunday morning that is pure legwork: run your saved search across all four
 boards, score everything new against your profile, and leave the result waiting on the dashboard.
-It does not apply to anything - see the note in the dashboard for why that step is yours.
+If you switched applying on as well, it then sends the best of what it found, on the boards that
+take an application without a form. auto_apply.py holds that step and the limits on it.
 
 Everything it does goes to auto.log, and a summary to auto_last.json, which the dashboard shows
 the next time you open it. It decides nothing the dashboard cannot: it calls the same search the
@@ -19,6 +20,8 @@ HERE = pathlib.Path(__file__).parent
 sys.path.insert(0, str(HERE))          # Task Scheduler starts us with its own working directory
 
 import app                             # noqa: E402  (has to follow the sys.path line)
+import auto_apply                      # noqa: E402
+import prefill                         # noqa: E402
 
 LOG = HERE / "auto.log"
 LAST = HERE / "auto_last.json"
@@ -47,7 +50,7 @@ def run():
     """-> the report dict, also written to auto_last.json for the dashboard to show."""
     s = app.settings()
     report = {"when": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-              "searched": None, "waiting": 0, "note": None, "error": None}
+              "searched": None, "waiting": 0, "applied": None, "note": None, "error": None}
 
     if not s.get("auto_enabled"):
         log("the weekly run is switched off - nothing to do")
@@ -79,6 +82,15 @@ def run():
             "SELECT COUNT(*) FROM jobs WHERE status IN ('new','ready') AND fit >= ?",
             (int(s.get("auto_min_fit", 75)),)).fetchone()[0]
     log(f"{report['waiting']} job(s) at {s.get('auto_min_fit', 75)}+ are waiting on the dashboard")
+    _write(report)           # written before applying, so a crash there still leaves the search
+
+    if not s.get("auto_apply"):
+        return report
+    try:
+        report["applied"] = auto_apply.run(app, prefill, s, log)
+    except Exception as e:
+        report["error"] = f"applying failed: {type(e).__name__}: {e}"
+        log(report["error"] + "\n" + traceback.format_exc())
     _write(report)
     return report
 

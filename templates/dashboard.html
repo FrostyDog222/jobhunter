@@ -218,6 +218,19 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <div class="small"><label>City</label><input id="auto_location" placeholder="anywhere"></div>
       <div class="small"><label>Country</label><input id="auto_country" value="ro"></div>
     </div>
+    <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
+      font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="auto_apply"
+      style="width:auto"> <b style="color:var(--mid)">Also apply for me, without asking</b></label>
+    <div class="row" id="applyrow">
+      <div><label>Only jobs scoring</label><input id="auto_apply_min_fit" type="number"
+        min="0" max="100" step="5" value="85"></div>
+      <div><label>At most, per week</label><input id="auto_apply_cap" type="number"
+        min="1" max="20" step="1" value="5"></div>
+      <div style="flex:2;display:flex;align-items:flex-end">
+        <span class="muted" style="font-size:12.5px">On eJobs and BestJobs only — the boards that
+          take an application without a form. Hipo and employer forms are never sent for you.</span></div>
+    </div>
+
     <div class="row" style="align-items:center">
       <button id="autosave">Save the schedule</button>
       <button class="ghost" id="autonow">Run it now</button>
@@ -233,11 +246,13 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
           you find out days later, in the summary.</li>
         <li><b>The score is a model's opinion, not a fact.</b> It is a useful sort order, not a
           judgement you should act on without reading the ad.</li>
-        <li><b>It does not apply to anything, and that is deliberate.</b> An application cannot
-          be recalled. Sending them unattended means the salary figure from your profile, and
-          whatever CV currently sits on your board profile, reach real employers on jobs nobody
-          read - and you learn which ones a week later. Those same employers are the ones you
-          may want to approach properly.</li>
+        <li><b>An application cannot be recalled.</b> With applying switched on, the salary
+          figure from your profile and whatever CV currently sits on your board profile reach
+          real employers, on ads nobody read, and you find out a week later. Those are the same
+          employers you might have wanted to approach properly.</li>
+        <li><b>Check your board CV before you switch this on.</b> A board application sends the
+          CV stored on your eJobs and BestJobs profile, not a tailored one. If it is out of
+          date, every application that week is out of date.</li>
         <li><b>It is your account doing it.</b> Boards notice patterns. Searches are ordinary
           traffic; a burst of applications at 09:00 every Sunday is not.</li>
       </ul>
@@ -438,7 +453,19 @@ $('#cvask').onchange = e => saveSettings({cv_ask: e.target.checked});
 
 /* ---------- the weekly run ---------- */
 const AUTO_FIELDS = ['auto_enabled', 'auto_day', 'auto_time', 'auto_query', 'auto_location',
-                     'auto_country', 'auto_min_fit'];
+                     'auto_country', 'auto_min_fit', 'auto_apply', 'auto_apply_min_fit',
+                     'auto_apply_cap'];
+// the floor and the cap only mean anything while applying is on
+const applyRow = () => $('#applyrow').style.opacity = $('#auto_apply').checked ? '1' : '.45';
+$('#auto_apply').onchange = e => {
+  applyRow();
+  if(e.target.checked && !confirm(
+      'This sends real applications every week with nobody watching.\n\n'
+    + 'They go to real employers, on ads nobody read, carrying the salary figure from your\n'
+    + 'profile and the CV stored on your board profile. None of it can be taken back, and\n'
+    + 'you see what went out a week later.\n\n'
+    + 'Switch it on?')) { e.target.checked = false; applyRow(); }
+};
 // PowerShell hands back "10/04/2026 09:00:00", and a task that has never run reports 1999
 const taskDate = v => { const d = new Date(v); return isNaN(d) || d.getFullYear() < 2001 ? null
   : d.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'})
@@ -451,6 +478,7 @@ async function loadAuto(){
     const el = $('#' + k); if(!el) continue;
     if(el.type === 'checkbox') el.checked = !!a.settings[k]; else el.value = a.settings[k] ?? '';
   }
+  applyRow();
   const next = a.task.exists ? taskDate(a.task.next) : null;
   const bits = [];
   bits.push(a.task.exists
@@ -465,6 +493,15 @@ async function loadAuto(){
             + (s.expired ? `, ${s.expired} dropped as over two weeks old` : '')
             + `. <b>${l.waiting}</b> waiting at ${esc(String(a.settings.auto_min_fit))}+.`
       : esc(l.note || 'nothing to do')));
+    // what it sent, one line each - the point of an unattended run is seeing it afterwards
+    const ap = l.applied;
+    if(ap && (ap.applied || []).length){
+      bits.push('Sent: ' + ap.applied.map(r => `${
+          r.submitted ? '✓' : r.already ? '•' : r.needs_you ? '!' : '✗'} ${
+          esc(String(r.fit ?? ''))} ${esc(r.title || '')}`).join('<br>&nbsp;&nbsp;&nbsp;&nbsp;'));
+    } else if(ap && ap.note){
+      bits.push(esc(ap.note));
+    }
   }
   $('#autostate').innerHTML = bits.join('<br>');
 }

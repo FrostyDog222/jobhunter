@@ -67,7 +67,10 @@ SETTINGS = HERE / "settings.json"
 DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             # the weekly run (auto.py, started by Windows Task Scheduler)
             "auto_enabled": False, "auto_day": "SUN", "auto_time": "09:00",
-            "auto_query": "", "auto_location": "", "auto_country": "ro", "auto_min_fit": 75}
+            "auto_query": "", "auto_location": "", "auto_country": "ro", "auto_min_fit": 75,
+            # applying without you there: off unless you turn it on, and deliberately stricter
+            # than the score you would use when reading the ad yourself
+            "auto_apply": False, "auto_apply_min_fit": 85, "auto_apply_cap": 5}
 
 
 def settings():
@@ -153,7 +156,8 @@ def get_auto():
 def set_auto(body: dict = Body(...)):
     cur = settings()
     for k in ("auto_enabled", "auto_day", "auto_time", "auto_query", "auto_location",
-              "auto_country", "auto_min_fit"):
+              "auto_country", "auto_min_fit", "auto_apply", "auto_apply_min_fit",
+              "auto_apply_cap"):
         if k in body:
             cur[k] = body[k]
     if cur["auto_day"] not in DAYS:
@@ -162,8 +166,12 @@ def set_auto(body: dict = Body(...)):
         raise HTTPException(400, "time must be HH:MM, e.g. 09:00")
     try:
         cur["auto_min_fit"] = max(0, min(100, int(cur["auto_min_fit"])))
+        cur["auto_apply_min_fit"] = max(0, min(100, int(cur["auto_apply_min_fit"])))
+        cur["auto_apply_cap"] = max(1, min(BATCH_CAP, int(cur["auto_apply_cap"])))
     except (TypeError, ValueError):
-        raise HTTPException(400, "the score must be a number between 0 and 100")
+        raise HTTPException(400, "the score and the cap must be numbers")
+    if cur["auto_apply"] and not cur["auto_enabled"]:
+        raise HTTPException(400, "Applying happens during the weekly run, so switch that on too.")
     if cur["auto_enabled"] and not (cur["auto_query"] or "").strip():
         raise HTTPException(400, "Type what the weekly run should search for.")
     SETTINGS.write_text(json.dumps(cur, indent=1), encoding="utf-8")
@@ -787,8 +795,11 @@ async def apply_batch(body: dict = Body(...)):
             with db() as c:
                 _mark_applied(c, url)
         elif res.get("needs_you"):
-            # screening questions: open it for the person, and take it out of the next batch
-            prefill.spawn_board(url, j["title"])
+            # Screening questions: normally open it for the person, and take it out of the next
+            # batch either way. hand_off=False is the scheduled run, where opening a window at
+            # 09:00 on a Sunday just leaves Chromium sitting on an empty desk.
+            if body.get("hand_off", True):
+                prefill.spawn_board(url, j["title"])
             _handed_over(url)
         results.append({"url": url, "title": j["title"], "submitted": res.get("submitted"),
                         "already": res.get("already"), "needs_you": res.get("needs_you"),
