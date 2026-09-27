@@ -1,4 +1,4 @@
-"""Make a clean copy of the app to give to someone else:  share.bat  ->  potrivit.zip
+"""Make a clean copy of the app to give to someone else:  share.bat  ->  jobhunter.zip
 
 Everything personal stays behind. The zip holds the code and nothing else, so the person who
 unpacks it starts with their own keys, their own profile, their own board sign-ins and an empty
@@ -18,7 +18,7 @@ PRIVATE_DIRS = {".venv", "__pycache__", ".browser", "out", ".claude", ".git", "g
 SKIP_SUFFIX = {".pyc", ".tmp", ".bak", ".zip", ".log", ".db"}
 # working files that are not part of the app
 SKIP_NAMES = {"audit.json", "research_ux.json", ".profile.test.json"}
-NAME = "potrivit"
+NAME = "jobhunter"
 
 
 def wanted(p):
@@ -31,7 +31,7 @@ def wanted(p):
 
 
 def main():
-    out = HERE / "potrivit.zip"
+    out = HERE / f"{NAME}.zip"
     files = sorted(p for p in HERE.rglob("*") if wanted(p))
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for p in files:

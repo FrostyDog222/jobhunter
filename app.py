@@ -1,4 +1,4 @@
-"""potrivit - a local job-hunting assistant. Run: run.bat  ->  http://127.0.0.1:8777"""
+"""jobhunter - a local job-hunting assistant. Run: run.bat  ->  http://127.0.0.1:8777"""
 import asyncio, hashlib, io, json, os, pathlib, re, sqlite3, sys, webbrowser
 from concurrent.futures import ThreadPoolExecutor
 

@@ -1,4 +1,4 @@
-# potrivit
+# jobhunter
 
 A local job-hunting assistant for the Romanian market. It finds jobs, scores each one against
 your profile, writes a CV tailored to the ad, and applies on the boards that allow it.
@@ -113,9 +113,9 @@ mistake, *Undo* works for two minutes.
 
 ## Giving the app to someone else
 
-Double-click **share.bat**. It makes `potrivit.zip` containing the app and nothing of yours: no
+Double-click **share.bat**. It makes `jobhunter.zip` containing the app and nothing of yours: no
 API keys, no profile, no job list, no board sign-ins, no CVs. Send the zip; they unzip it to a
-short local folder such as `C:\potrivit` (not inside OneDrive) and double-click run.bat.
+short local folder such as `C:\jobhunter` (not inside OneDrive) and double-click run.bat.
 
 Do not copy the folder by hand. It holds your keys and your signed-in sessions, and whoever
 receives it could apply to jobs as you.
