@@ -289,6 +289,14 @@ assert "keep_signed_in" in _i3.getsource(app.set_auto), "set_auto must accept it
 assert "keep_signed_in" in _i3.getsource(app.keep_signed_in)
 assert app.KEEP_HOURS * 3600 < 6 * 3600, "must touch more often than Hipo's ~6h session"
 
+# 1x. A model that wraps its one answer in a list cost a whole job on the 144-ad run
+# ("score returned list, not an object"), and nothing re-scores it afterwards.
+import inspect as _i4
+_ssrc = _i4.getsource(app.search)
+assert "isinstance(s, list) and len(s) == 1" in _ssrc, "a single-item list must be unwrapped"
+# and the prompt now asks for plain text, because the markdown is what breaks the JSON
+assert "no markdown" in _i4.getsource(app.llm.score)
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

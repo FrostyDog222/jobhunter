@@ -698,6 +698,10 @@ def score(profile, job):
     return ask(
         TRUST +
         "You match candidates to jobs. Be strict and realistic - most jobs are not a great fit. "
+        # Prevention, not repair: models write **bold** into the JSON and sometimes put the
+        # asterisks outside the string - `**\"documentation\"**` - which no salvage can unpick,
+        # because the inner quotes have already ended the string.
+        "Write plain text inside the JSON: no markdown, no asterisks, no quotation marks. "
         "Output ONLY JSON: {\"fit\": 0-100, \"why\": \"two sentences\", "
         "\"gaps\": [\"requirement the candidate genuinely lacks\"], "
         "\"untapped\": [\"requirement the posting asks for that the profile DOES support\"]}. "

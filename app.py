@@ -816,6 +816,10 @@ async def search(body: dict = Body(...)):
             # the same scrub the CV gets: models emit **bold** and em-dashes into the reasoning
             # too, and it renders literally on the dashboard
             try:
+                # a model that wraps its one answer in a list cost a whole job last run:
+                # "score returned list, not an object", and that job was never scored again
+                if isinstance(s, list) and len(s) == 1 and isinstance(s[0], dict):
+                    s = s[0]
                 if not isinstance(s, dict):
                     raise TypeError(f"score returned {type(s).__name__}, not an object")
                 c.execute("UPDATE jobs SET fit=?,why=?,gaps=?,untapped=? WHERE url=?",
