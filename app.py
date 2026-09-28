@@ -1,6 +1,7 @@
 """jobhunter - a local job-hunting assistant. Run: run.bat  ->  http://127.0.0.1:8777"""
 import asyncio
 import contextlib
+import datetime
 import base64
 import collections, hashlib, io, json, os, pathlib, re, sqlite3, subprocess, sys, time, webbrowser
 import shutil
@@ -1199,10 +1200,12 @@ def _job(url):
 LABELS = {
     "en": dict(profile="Profile", experience="Experience", projects="Projects",
                education="Education", skills="Skills", languages="Languages",
-               certifications="Certifications", hobbies="Interests", present="present"),
+               certifications="Certifications", hobbies="Interests", present="present",
+               year="year", years="years", month="month", months="months", and_="and"),
     "ro": dict(profile="Profil", experience="Experiență profesională", projects="Proiecte",
                education="Educație", skills="Competențe", languages="Limbi",
-               certifications="Certificări", hobbies="Interese", present="prezent"),
+               certifications="Certificări", hobbies="Interese", present="prezent",
+               year="an", years="ani", month="lună", months="luni", and_="și"),
 }
 
 
@@ -1259,6 +1262,15 @@ def cv_templates():
     return out
 
 
+def _ym(value):
+    """-> (year, month) from '2024-06', '2024-6' or '2024', else None."""
+    m = re.match(r"\s*(\d{4})(?:[-/](\d{1,2}))?", str(value or ""))
+    if not m:
+        return None
+    month = int(m.group(2) or 1)
+    return (int(m.group(1)), month if 1 <= month <= 12 else 1)
+
+
 def _cv_html(cv, lang, template):
     def when(start, end):
         """Render a date range. An ASCII hyphen, because ATS parsers split on that and not on
@@ -1267,10 +1279,32 @@ def _cv_html(cv, lang, template):
         if b and str(end).strip().lower() in ONGOING:
             b = LABELS[lang]["present"]
         return f"{a} - {b}" if a and b else (a or b or "")
+    def howlong(start, end):
+        """'1 year and 8 months'. Empty when a date is missing - a guess here is a lie on a CV."""
+        a, b = _ym(start), _ym(end)
+        if not a:
+            return ""
+        if not b:
+            if str(end).strip().lower() not in ONGOING and str(end).strip():
+                return ""
+            today = datetime.date.today()
+            b = (today.year, today.month)
+        months = (b[0] - a[0]) * 12 + (b[1] - a[1]) + 1        # a job worked in one month is 1
+        if months < 1:
+            return ""
+        y, m = divmod(months, 12)
+        L = LABELS[lang]
+        bits = []
+        if y:
+            bits.append(f"{y} {L['year'] if y == 1 else L['years']}")
+        if m:
+            bits.append(f"{m} {L['month'] if m == 1 else L['months']}")
+        return f" {L['and_']} ".join(bits)
+
     if template not in cv_templates():
         template = "classic"
     return tpl.get_template("cv.html").render(
-        cv=cv, L=LABELS[lang], when=when, lang=lang, photo=photo_data_uri(),
+        cv=cv, L=LABELS[lang], when=when, howlong=howlong, lang=lang, photo=photo_data_uri(),
         style=(CV_DIR / f"{template}.css").read_text(encoding="utf-8"))
 
 

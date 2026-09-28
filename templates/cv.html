@@ -18,7 +18,9 @@
 
 {% if cv.experience %}<h2>{{ L.experience }}</h2>
   {% for e in cv.experience %}<div class="item">
-    <div class="line"><b>{{ e.role }}</b><span class="when">{{ when(e.start, e.end) }}</span></div>
+    <div class="line"><b>{{ e.role }}</b><span class="when">{{ when(e.start, e.end) }}
+      {%- set d = howlong(e.start, e.end) %}{% if d %}<i class="dur">&#160;· {{ d }}</i>{% endif %}
+    </span></div>
     <div class="where">{{ [e.company, e.location] | select | join(", ") }}</div>
     {% if e.bullets %}<ul>{% for b in e.bullets %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}
   </div>{% endfor %}
@@ -38,11 +40,13 @@
   </div>{% endfor %}
 {% endif %}
 
-{% if cv.skills %}<h2>{{ L.skills }}</h2><p class="tags">{{ cv.skills | join(', ') }}</p>{% endif %}
+{% if cv.skills %}<h2>{{ L.skills }}</h2><p class="tags">
+  {%- for s in cv.skills -%}<span class="tag">{{ s }}<i>,</i></span> {% endfor -%}</p>{% endif %}
 {% if cv.languages %}<h2>{{ L.languages }}</h2><p class="tags">
-  {%- for l in cv.languages -%}{{ l.name }}{% if l.level %} ({{ l.level }}){% endif %}
-  {%- if not loop.last %}, {% endif %}{%- endfor -%}</p>{% endif %}
+  {%- for l in cv.languages -%}<span class="tag">{{ l.name }}{% if l.level %} ({{ l.level }})
+  {%- endif %}<i>,</i></span> {% endfor -%}</p>{% endif %}
 {% if cv.certifications %}<h2>{{ L.certifications }}</h2>
   <ul>{% for c in cv.certifications %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
-{% if cv.hobbies %}<h2>{{ L.hobbies }}</h2><p class="tags">{{ cv.hobbies | join(', ') }}</p>{% endif %}
+{% if cv.hobbies %}<h2>{{ L.hobbies }}</h2><p class="tags">
+  {%- for h in cv.hobbies -%}<span class="tag">{{ h }}<i>,</i></span> {% endfor -%}</p>{% endif %}
 </body></html>

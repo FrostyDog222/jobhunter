@@ -1,5 +1,5 @@
-/* Traditional - Harvard style: Georgia serif, centred name and contact line, bold capital
-   headings on a full black rule, no colour. For banks, law, public sector, academia. */
+/* Traditional - Georgia serif, centred name, bold capital headings on black rules, no
+   colour. For banks, law, the public sector and academia. */
 @page{size:A4}
 body{font:10pt/1.4 Georgia,"Times New Roman",serif;color:#000;margin:0;
   font-variant-ligatures:none}
@@ -18,3 +18,7 @@ ul{margin:2px 0 0;padding-left:16px} li{margin-bottom:1px}
 .tags{font-size:10pt} p{margin:0}
 .photo{display:block;width:24mm;height:30mm;object-fit:cover;margin:0 auto 6px;
   border:.5pt solid #000}
+/* the comma lives in an <i> so a chip template can hide it; here it just prints */
+.tag i{font-style:normal}
+.tag:last-child i{display:none}
+.dur{font-style:normal;color:#666}

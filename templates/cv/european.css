@@ -1,7 +1,6 @@
-/* European - the two-column CV most people here mean when they say CV: photo and contact in a
-   tinted sidebar, experience in the wide column. Familiar to a human reader, and still one
-   plain column of text underneath - the sidebar is made with floats, not a table, so an
-   applicant tracking system reads it top to bottom in the right order. */
+/* European - the two-column CV people here mean when they say CV: photo and contact in a
+   tinted sidebar, experience in the wide column. Built with floats rather than a table, so
+   an applicant tracking system still reads it top to bottom in the right order. */
 @page{size:A4}
 /* The tinted band runs the whole page rather than stopping under the contact block: the left
    column is empty for most of a CV, and an empty column that stops halfway reads as a mistake
@@ -13,7 +12,8 @@ body{font:10pt/1.38 Calibri,"Segoe UI",Arial,sans-serif;color:#1a1a1a;margin:0;
 
 /* The sidebar is drawn by floating the photo and the contact block left and giving the rest a
    margin. Nothing is positioned absolutely, so the text order in the file is the reading order. */
-.photo{float:left;width:32mm;height:40mm;object-fit:cover;margin:0 0 6px 3mm;
+.photo{float:left;width:32mm;height:32mm;border-radius:50%;object-fit:cover;
+  margin:0 0 7px 3mm;
   border:.5pt solid #c9d3dd}
 h1{font-size:21pt;font-weight:600;margin:0 0 1px 44mm;line-height:1.15;color:#12344d}
 .role{font-size:11.5pt;color:#417ba1;margin:0 0 6px 44mm}
@@ -42,3 +42,15 @@ p{margin-top:0;margin-bottom:0}
 
 /* If the sidebar outruns the page the floats would strand the last section, so release it. */
 body:after{content:"";display:block;clear:both}
+
+/* Skills, languages and interests as chips rather than a run-on comma list - the one thing the
+   eJobs CV does that a plain list does not. The comma still exists: it sits inside each chip in
+   the chip's own colour, invisible to a reader and still there for anything reading the text
+   layer, which would otherwise see the words run together. */
+.tags{line-height:2.1}
+.tag{background:#e7eef5;border-radius:3px;padding:2px 7px;margin-right:3px;
+  white-space:nowrap;font-size:9pt;color:#22475f}
+.tag i{font-style:normal;color:#e7eef5}          /* present in the text, invisible on the page */
+
+/* How long each job lasted, beside the dates - the number a recruiter is scanning for. */
+.dur{font-style:normal;color:#5a6b78}
