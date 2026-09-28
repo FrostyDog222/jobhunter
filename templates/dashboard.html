@@ -15,6 +15,27 @@
 /* ---- search ---- */
 /* The automation block is the one place on this page where a setting acts on its own, with
    nobody watching, so it is set apart rather than reading as one more field. */
+/* The sign-in buttons were ghost styling on a dark card - dim text on a near-invisible border -
+   so the row read as grey noise. Each board is now a tile that states which board it is, what
+   its session is doing, and what the button will do, with the border carrying the state. */
+.boardrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.boardcard{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;
+  border:1px solid var(--line);background:var(--card);flex:0 1 auto}
+.boardcard.on{border-color:color-mix(in srgb,var(--good) 50%,var(--line))}
+.boardcard.off{border-color:color-mix(in srgb,var(--bad) 60%,var(--line));
+  background:color-mix(in srgb,var(--bad) 7%,var(--card))}
+.boardcard .who{display:flex;flex-direction:column;gap:2px;line-height:1.25}
+.boardcard .who b{font-size:14px}
+.boardcard .who span{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;
+  font-weight:600}
+.boardcard.on .who span{color:var(--good)}
+.boardcard.off .who span{color:var(--bad)}
+/* signed in: a real outline, foreground text - visible without competing with the primary
+   actions on the page. Signed out: the ordinary accent button, because it is the thing to press */
+.boardcard button.quiet{background:transparent;color:var(--fg);border:1px solid var(--dim);
+  font-weight:500;padding:8px 14px}
+.boardcard button.quiet:hover:not(:disabled){border-color:var(--accent);color:var(--accent);
+  filter:none}
 .autobox{margin-top:18px;padding:14px 16px;border-radius:10px;
   border:1px solid color-mix(in srgb,var(--accent) 38%,var(--line));
   background:color-mix(in srgb,var(--accent) 5%,transparent)}
@@ -193,7 +214,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       Until you sign in again, applying to those jobs fails and the weekly run sends nothing —
       it re-checks before it applies, rather than trusting this panel. Use the button below.</p>
   </div>
-  <div class="row" id="signinrow"></div>
+  <div class="boardrow" id="signinrow"></div>
   <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
     font-size:13.5px;cursor:pointer;margin-top:10px"><input type="checkbox" id="keep_signed_in"
     style="width:auto"> Keep me signed in to the boards</label>
@@ -877,9 +898,11 @@ async function loadSignins(){
   }).join('');
   $('#signinrow').innerHTML = Object.entries(SBOARDS).map(([k,name]) => {
     const on = st.boards && st.boards[k];
-    return `<div style="flex:0 0 auto;display:flex;gap:8px;align-items:center">
-      <button class="${on ? 'ghost' : ''}" data-signin="${k}">${on ? 'Re-sign in to' : 'Sign in to'} ${name}</button>
-      <span class="st ${on ? 'st-applied' : 'st-skipped'}">${on ? 'signed in' : 'not signed in'}</span></div>`;
+    return `<div class="boardcard ${on ? 'on' : 'off'}">
+      <span class="who"><b>${esc(name)}</b><span>${on ? '✓ signed in' : '✕ signed out'}</span></span>
+      <button class="${on ? 'quiet' : ''}" data-signin="${k}"
+        title="${on ? 'Opens ' + esc(name) + ' so you can sign in again' : 'Sign in so the app can apply for you'}"
+        >${on ? 'Re-sign in' : 'Sign in'}</button></div>`;
   }).join('');
 
   // An expired sign-in is silent otherwise: nothing fails until you try to apply, and the
