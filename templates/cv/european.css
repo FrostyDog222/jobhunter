@@ -19,6 +19,11 @@ body{font:10pt/1.38 Calibri,"Segoe UI",Arial,sans-serif;color:#1a1a1a;margin:0;
   border:.5pt solid #c9d3dd}
 h1{font-size:21pt;font-weight:600;margin:3mm 0 1px 44mm;line-height:1.15;color:#12344d}
 .role{font-size:11.5pt;color:#417ba1;margin:0 0 6px 44mm}
+/* With no photo the contact still began below the name and title, because a left float cannot
+   rise above the blocks that precede it - leaving the top third of the sidebar empty. Pull it
+   back up to where the photo would have started. It lives in its own 38mm column and the name
+   is indented past that, so this can never run into the text beside it however long the name. */
+body:not(.has-photo) .contact{margin-top:-16mm}
 .contact{float:left;clear:left;width:38mm;font-size:8pt;color:#3a4a57;line-height:1.5;
   padding:6px 4mm 6px 3mm;margin:2px 0 0;box-sizing:border-box}
 .contact span{display:block;overflow-wrap:anywhere;line-height:1.35;

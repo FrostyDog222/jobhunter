@@ -542,6 +542,15 @@ assert "template, photo})" in _dash, "the tailor call must pass it on"
 import inspect as _i10
 assert 'body.get("photo")' in _i10.getsource(app.tailor)
 
+# 2m. Without a photo, European's contact block still began below the name and title, because a
+# left float cannot rise above the blocks before it in the markup - leaving the top third of the
+# sidebar blank. It is pulled back up to where the photo would have been. Safe at any name
+# length: the contact is 38mm wide and the name column starts past it, so they cannot meet.
+_eu = (app.HERE / "templates" / "cv" / "european.css").read_text(encoding="utf-8")
+assert "body:not(.has-photo) .contact" in _eu, "the lift must only apply when there is no photo"
+assert ".contact{float:left;clear:left;width:38mm" in _eu
+assert "margin:0 0 1px 44mm" in _eu or "margin:3mm 0 1px 44mm" in _eu,     "the name has to stay clear of the sidebar column"
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during
