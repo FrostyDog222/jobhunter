@@ -665,8 +665,10 @@ async def search(body: dict = Body(...)):
     # holding a CV, exactly as with Clear results.
     with db() as c:
         expired = c.execute(
+            # bestjobs publishes no posted date at all, so falling back to when we first saw
+            # the ad is the difference between those rows expiring and living for ever
             "DELETE FROM jobs WHERE status IN ('new','vetoed') AND (cv IS NULL OR cv = '') "
-            "AND posted IS NOT NULL AND posted != '' AND posted < date('now', ?)",
+            "AND COALESCE(NULLIF(posted, ''), found) < date('now', ?)",
             (f"-{scrape.MAX_AGE_DAYS} days",)).rowcount
 
     with db() as c:
