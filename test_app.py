@@ -396,6 +396,19 @@ assert 'demand = ""' in _ssrc3, "no market means no extra prompt at all"
 # and the endpoint only passes things more than one ad asked for
 assert 'g["jobs"] > 1' in _i5.getsource(app.suggestions)
 
+# 2b. Salary lives in its own column. It used to share `note` with freehire's quality flags and
+# the "closed on the board" mark, so a warning could overwrite what a job pays and the dashboard
+# could not tell one from the other. It is shown, never scored: in this market a stated salary is
+# information the candidate wants, not a reason to rank a job lower.
+assert "salary" in app.LIST_COLS and "salary" not in app.llm.SCORE_KEYS
+# BestJobs' list API gives a bare number; only the ad page names the currency, and it repeats
+# other people's figures without one in the similar-jobs rail
+assert scrape._salary('"estimatedSalary":"1435 - 1590" x "estimatedSalary":"1135 - 1255 EUR/luna"')     == "1135 - 1255 EUR/luna"
+assert scrape._salary('"estimatedSalary":"900"') == "", "a bare number means nothing without a unit"
+assert scrape._salary("<html>no salary here</html>") == ""
+assert scrape._salary('"estimatedSalary":"4500 RON/luna"') == "4500 RON/luna"
+assert scrape._salary(None) == ""
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

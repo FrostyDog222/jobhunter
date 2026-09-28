@@ -134,6 +134,21 @@ def _find_jobposting(node):
     return None
 
 
+# BestJobs' list API gives a bare "1135 - 1255"; only the ad page says what that means, and it
+# says it more than once - the similar-jobs rail carries other people's numbers without a unit.
+# The ad's own figure is the one that names a currency.
+SALARY = re.compile(r'"estimatedSalary"\s*:\s*"([^"]{1,40})"')
+CURRENCY = re.compile(r"eur|ron|lei|€", re.I)
+
+
+def _salary(page):
+    """-> the ad's own pay, with its unit, or "" when the ad does not say."""
+    for hit in SALARY.findall(page or ""):
+        if CURRENCY.search(hit):
+            return _clean(hit)
+    return ""
+
+
 def _jobposting(page_html):
     """Pull the JobPosting node out of any ld+json block on the page."""
     for block in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', page_html, re.S):
@@ -410,7 +425,7 @@ def discover(board, query, location="", limit=25, timeout=30, country="ro", filt
     # drop event listings here, before phase 2 spends a request on each of them
     return [{"source": board, "url": p if p.startswith("http") else base + p,
              "title": t, "company": "", "location": "", "posted": "",
-             "description": "", "note": "", "lang": "", "_full": False}
+             "description": "", "note": "", "salary": "", "lang": "", "_full": False}
             for p, t in ((p, _slug_title(p)) for p in paths) if not NOISE.search(t)]
 
 
@@ -487,6 +502,9 @@ def hydrate(jobs, timeout=30, on_progress=None):
                 body = max(_ld_body(jp), markup, key=len)
                 if len(body) < MIN_AD:
                     continue                  # scoring a title is a guess dressed up as a number
+                pay = _salary(page)
+                if pay:
+                    j["salary"] = pay
                 j.update({
                     "title": _flat(jp.get("title")) or j["title"],
                     "company": _flat(jp.get("hiringOrganization")),

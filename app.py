@@ -51,7 +51,8 @@ def db():
         url TEXT PRIMARY KEY, source TEXT, title TEXT, company TEXT, location TEXT,
         posted TEXT, description TEXT, fit INTEGER, why TEXT, gaps TEXT,
         status TEXT DEFAULT 'new', cv TEXT, found TEXT DEFAULT (datetime('now')))""")
-    for col in ("note TEXT", "lang TEXT", "applied_at TEXT", "untapped TEXT"):   # added later
+    for col in ("note TEXT", "lang TEXT", "applied_at TEXT", "untapped TEXT",
+                "salary TEXT"):                                                 # added later
         try:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
         except sqlite3.OperationalError:
@@ -677,7 +678,7 @@ def apply_suggestion(s: dict = Body(...)):
 # on every action, and it is only read when someone opens one card - so it is fetched per job
 # instead, from /api/job/description.
 LIST_COLS = ("url, source, title, company, location, posted, fit, why, gaps, untapped, "
-             "status, cv, found, note, lang, applied_at, LENGTH(description) AS desc_len")
+             "status, cv, found, note, salary, lang, applied_at, LENGTH(description) AS desc_len")
 
 
 @app.get("/api/gaps")
@@ -866,9 +867,11 @@ async def search(body: dict = Body(...)):
         for j in fresh:
             if j.get("lang") in ("", None, "en", "ro"):     # keep freehire's 'de', 'nl', ...
                 j["lang"] = llm.ad_language(j)
-            c.execute("INSERT OR IGNORE INTO jobs(url,source,title,company,location,posted,description,note,lang) "
-                      "VALUES(:url,:source,:title,:company,:location,:posted,:description,:note,:lang)",
-                      {"note": "", "lang": "", **{k: v for k, v in j.items() if not k.startswith("_")}})
+            c.execute("INSERT OR IGNORE INTO jobs(url,source,title,company,location,posted,"
+                      "description,note,salary,lang) VALUES(:url,:source,:title,:company,"
+                      ":location,:posted,:description,:note,:salary,:lang)",
+                      {"note": "", "lang": "", "salary": "",
+                       **{k: v for k, v in j.items() if not k.startswith("_")}})
         todo = [dict(r) for r in c.execute("SELECT * FROM jobs WHERE fit IS NULL")]
 
     # Re-run the gate over every row a search could surface, not just the unscored ones. It is

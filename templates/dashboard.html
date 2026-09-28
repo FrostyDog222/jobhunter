@@ -1091,6 +1091,8 @@ function draw(){
           ${age}
           ${j.status === 'new' ? '' : `<span class="st st-${esc(j.status)}">${esc(j.status)}</span>`}
           ${applied ? `<span class="applied-when">· ${j.applied_at ? 'applied ' + esc(fmtWhen(j.applied_at)) : 'applied (date not recorded)'}</span>` : ''}
+          ${j.salary ? `<span class="pill" style="border-color:var(--good);color:var(--good);
+              font-weight:600" title="What the ad itself states. It does not affect the score.">${esc(j.salary)}</span>` : ''}
           ${j.note ? `<span class="pill" style="border-color:var(--mid);color:var(--mid)">${esc(j.note)}</span>` : ''}
           ${ATS.test(j.url) ? '<span class="pill">prefillable form</span>' : ''}
           ${HAND(j) ? '<span class="pill" title="This board has to be applied to by hand">manual apply</span>' : ''}
