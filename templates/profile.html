@@ -248,6 +248,8 @@ document.addEventListener('click', async e => {
 });
 
 $('#save').onclick = e => busy(e.target, async () => {
+  if(!LOADED) return toast('Your profile has not loaded, so there is nothing to save yet. '
+                         + 'Reload the page.', 9000);
   await api('/api/profile', collect()); $('#saved').textContent = 'saved ' + new Date().toLocaleTimeString();
 }, 'saving...');
 
@@ -340,7 +342,18 @@ $('#sugs').addEventListener('click', async e => {
   }, 'applying...');
 });
 
-api('/api/profile', undefined, 'GET').then(p => { P = p; render(); });
+// Until this lands, every field on the page is empty because nothing has filled them in yet -
+// which looks identical to a profile with nothing in it. Save stays shut until it arrives.
+let LOADED = false;
+api('/api/profile', undefined, 'GET')
+  .then(p => { P = p; LOADED = true; render(); })
+  .catch(e => {
+    const bar = document.querySelector('.bar');
+    if(bar) bar.insertAdjacentHTML('afterbegin',
+      '<b style="color:var(--bad);margin-right:12px">Could not load your profile — '
+      + 'nothing here is real, do not save. Reload the page.</b>');
+    toast('Could not load your profile: ' + (e.message || e) + '. Nothing was changed.', 12000);
+  });
 // Everything on this page that reads or rewrites a CV goes through the model, so say up front
 // when there is not one rather than letting the first click fail.
 api('/api/llm', undefined, 'GET')

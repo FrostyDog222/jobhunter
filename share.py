@@ -11,7 +11,7 @@ import zipfile
 HERE = pathlib.Path(__file__).parent
 
 # yours, never shared: secrets, sessions, your CV data, your job history, your generated CVs
-PRIVATE = {".env", "profile.json", "settings.json", "db.sqlite", ".session.json", ".boards.json",
+PRIVATE = {".env", "profile.json", "profile.previous.json", "settings.json", "db.sqlite", ".session.json", ".boards.json",
            # the write-ahead log holds the most recent job rows - it is the database too
            "db.sqlite-wal", "db.sqlite-shm",
            "signin.log", "srv.log", "srv.err.log",

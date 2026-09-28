@@ -423,10 +423,28 @@ def profile():
     return p
 
 
+PROFILE_BAK = HERE / "profile.previous.json"
+
+
+def _has_substance(p):
+    """-> True if this profile is worth something, so replacing it with nothing is a mistake."""
+    return bool((p or {}).get("experience") or (p or {}).get("skills")
+                or ((p or {}).get("summary") or "").strip()
+                or ((p or {}).get("name") or "").strip())
+
+
 def save_profile(p):
     p["languages"] = _langs(p.get("languages"))
     for k in STR_LIST_KEYS:
         p[k] = _strs(p.get(k))
+    # Keep the copy this one replaces. A refusal can only catch the wipes it knows to look for;
+    # a previous copy covers the ones it does not - half a CV overwritten, an upload that parsed
+    # badly, an edit regretted ten minutes later.
+    try:
+        if PROFILE.exists():
+            PROFILE_BAK.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
+    except OSError as e:
+        print(f"[profile] could not keep the previous copy: {e}")
     # write-then-replace: a crash or an overlapping save must not leave a half-written profile
     tmp = PROFILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -478,8 +496,27 @@ def get_profile():
 
 @app.post("/api/profile")
 def post_profile(p: dict = Body(...)):
-    save_profile({**llm.EMPTY, **p})
+    # A page that failed to render shows empty fields, and empty fields collect() as an empty
+    # profile. Clearing a CV on purpose is done field by field and leaves a name or a summary
+    # behind; arriving with nothing at all is a bug somewhere, not an intention.
+    incoming = {**llm.EMPTY, **p}
+    if _has_substance(profile()) and not _has_substance(incoming):
+        raise HTTPException(400, "That would have emptied your whole profile, so it was not "
+                                 "saved. Reload the page - if the fields come back, the page "
+                                 "had failed to load rather than your data being gone.")
+    save_profile(incoming)
     return {"ok": True}
+
+
+@app.post("/api/profile/restore")
+def restore_profile():
+    """Put back the copy from before the last save."""
+    try:
+        prev = json.loads(PROFILE_BAK.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise HTTPException(400, "There is no previous copy to go back to yet.")
+    save_profile({**llm.EMPTY, **prev})
+    return profile()
 
 
 def _untriple(line):

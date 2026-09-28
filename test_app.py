@@ -429,6 +429,33 @@ if _node:
         _r = _sp.run([_node, "--check", str(_f)], capture_output=True, text=True)
         assert _r.returncode == 0, f"{_page} has a JavaScript syntax error:\n{_r.stderr[:600]}"
 
+# 2d. A page that fails to render shows empty fields, and empty fields collect() as an empty
+# profile - so one click on Save would have replaced a real CV with nothing, permanently. That
+# is what nearly happened when a broken script drew the profile page blank; it only did not
+# because the script died before the Save button was wired up. Luck, not design.
+_rp, _rb = app.PROFILE, app.PROFILE_BAK
+import tempfile as _tf2
+_d = pathlib.Path(_tf2.mkdtemp())
+app.PROFILE, app.PROFILE_BAK = _d / "p.json", _d / "prev.json"
+try:
+    app.save_profile({**app.llm.EMPTY, "name": "Someone", "skills": ["CRM"],
+                      "experience": [{"role": "Agent", "bullets": ["did things"]}]})
+    _blank = {k: ("" if isinstance(v, str) else []) for k, v in app.llm.EMPTY.items()}
+    try:
+        app.post_profile(_blank)
+        raise AssertionError("a blank save must be refused when there is a real profile")
+    except _HE:
+        pass
+    assert app.profile()["experience"], "the refusal must leave the profile alone"
+    # clearing down on purpose leaves something behind, and is still allowed
+    app.post_profile({**app.llm.EMPTY, "name": "Someone", "summary": "starting over"})
+    assert not app.profile()["experience"]
+    # and the copy from before that save brings it back
+    _back = app.restore_profile()
+    assert _back["experience"] and _back["skills"], _back
+finally:
+    app.PROFILE, app.PROFILE_BAK = _rp, _rb
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during
