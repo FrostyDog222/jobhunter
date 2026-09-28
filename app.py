@@ -71,7 +71,7 @@ def _connect():
         posted TEXT, description TEXT, fit INTEGER, why TEXT, gaps TEXT,
         status TEXT DEFAULT 'new', cv TEXT, found TEXT DEFAULT (datetime('now')))""")
     for col in ("note TEXT", "lang TEXT", "applied_at TEXT", "untapped TEXT",
-                "salary TEXT"):                                                 # added later
+                "salary TEXT", "expires TEXT", "terms TEXT"):                                                 # added later
         try:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
         except sqlite3.OperationalError:
@@ -911,7 +911,30 @@ def apply_suggestion(s: dict = Body(...)):
 # on every action, and it is only read when someone opens one card - so it is fetched per job
 # instead, from /api/job/description.
 LIST_COLS = ("url, source, title, company, location, posted, fit, why, gaps, untapped, "
-             "status, cv, found, note, salary, lang, applied_at, LENGTH(description) AS desc_len")
+             "status, cv, found, note, salary, expires, terms, lang, applied_at, "
+             "LENGTH(description) AS desc_len")
+
+
+# Words that say nothing about WHAT is missing. "Experience with SQL", "SQL experience",
+# "knowledge of SQL" and "SQL" are one shortfall, and counting them apart is why the panel used
+# to report the commonest thing employers asked for as appearing in two ads.
+FILLER = re.compile(
+    r"^(?:prior|previous|proven|demonstrated|strong|solid|deep|good|basic|advanced|hands[\s-]?on|"
+    r"formal|relevant|direct|explicit|specific|some|extensive)\s+"
+    r"|\b(?:experience|knowledge|proficiency|expertise|familiarity|understanding|background|"
+    r"exposure|skills?|competency|competencies|ability)\b"
+    # "on" is deliberately absent: stripping it turned "on-site presence in Bucharest" into
+    # "site presence bucharest", and this tally is read by a person, not only counted
+    r"|\b(?:with|in|of|using|related to|as a|as an)\b", re.I)
+# a non-breaking and a non-breaking-hyphen reach us inside model output, and split the tally
+GAP_CHARS = str.maketrans({"\u2011": "-", "\u2013": "-", "\u2014": "-", "\u00a0": " ",
+                           "\u2019": "'"})
+
+
+def _gap_key(text):
+    """The missing thing itself: '' when nothing is left, which means the gap was all filler."""
+    t = FILLER.sub(" ", " ".join(str(text or "").translate(GAP_CHARS).split()).lower())
+    return " ".join(t.replace(",", " ").split()).strip(" -.")
 
 
 @app.get("/api/gaps")
@@ -925,7 +948,10 @@ def recurring_gaps(min_fit: int = 0, limit: int = 12):
     seen, jobs = collections.Counter(), collections.defaultdict(list)
     with db() as c:
         rows = c.execute("SELECT title, fit, gaps FROM jobs WHERE gaps IS NOT NULL "
-                         "AND gaps != '' AND fit >= ? AND status IN ('new','ready')",
+                         # applied and opened rows count too: those are the jobs this
+                         # person actually went after, which is exactly the signal wanted here
+                         "AND gaps != '' AND fit >= ? AND status IN "
+                         "('new','ready','opened','applied')",
                          (max(0, min(100, min_fit)),)).fetchall()
     for r in rows:
         try:
@@ -936,7 +962,9 @@ def recurring_gaps(min_fit: int = 0, limit: int = 12):
         # cleanly across ads; rows scored by the older prompt hold whole sentences, and no amount
         # of word-picking turns those into a tally - "experience" and "e.g." win every time. They
         # are skipped rather than mined, and the panel fills up as jobs are scored.
-        for g in {" ".join(str(x).split()).lower() for x in items if str(x).strip()}:
+        # normalise first, then judge the length: "experience with order processing systems"
+        # is five words of which two are filler, and it belongs in the tally
+        for g in {_gap_key(x) for x in items if str(x).strip()}:
             if 0 < len(g.split()) <= 4:
                 seen[g] += 1
                 jobs[g].append(r["title"])
@@ -956,9 +984,10 @@ def list_jobs():
     if home:
         for r in rows:
             loc = (r.get("location") or "").strip()
-            # an ad that names no location is unknown, not far - saying otherwise would put a
-            # warning on every bestjobs row, which publishes no location at all
-            r["far"] = bool(loc) and not scrape.in_county(loc, home)
+            # Three answers, not two. An ad that names no location is unknown: calling it
+            # far puts a warning on every row that omits one, and calling it near prints a
+            # "near you" badge this app has no grounds for.
+            r["far"] = (not scrape.in_county(loc, home)) if loc else None
     return rows
 
 
@@ -1095,7 +1124,10 @@ async def search(body: dict = Body(...)):
             # bestjobs publishes no posted date at all, so falling back to when we first saw
             # the ad is the difference between those rows expiring and living for ever
             "DELETE FROM jobs WHERE status IN ('new','vetoed') AND (cv IS NULL OR cv = '') "
-            "AND COALESCE(NULLIF(posted, ''), found) < date('now', ?)",
+            "AND (COALESCE(NULLIF(posted, ''), found) < date('now', ?) "
+            #    the employer's own closing date, once it is behind us: an ad that stopped
+            #    accepting people is not a stale ad, it is not an ad
+            "     OR (expires IS NOT NULL AND expires != '' AND expires < date('now')))",
             (f"-{scrape.MAX_AGE_DAYS} days",)).rowcount
 
     with db() as c:
@@ -1103,9 +1135,10 @@ async def search(body: dict = Body(...)):
             if j.get("lang") in ("", None, "en", "ro"):     # keep freehire's 'de', 'nl', ...
                 j["lang"] = llm.ad_language(j)
             c.execute("INSERT OR IGNORE INTO jobs(url,source,title,company,location,posted,"
-                      "description,note,salary,lang) VALUES(:url,:source,:title,:company,"
-                      ":location,:posted,:description,:note,:salary,:lang)",
-                      {"note": "", "lang": "", "salary": "",
+                      "description,note,salary,expires,terms,lang) VALUES(:url,:source,:title,"
+                      ":company,:location,:posted,:description,:note,:salary,:expires,:terms,"
+                      ":lang)",
+                      {"note": "", "lang": "", "salary": "", "expires": "", "terms": "",
                        **{k: v for k, v in j.items() if not k.startswith("_")}})
         todo = [dict(r) for r in c.execute("SELECT * FROM jobs WHERE fit IS NULL")]
 
@@ -1737,7 +1770,8 @@ if __name__ == "__main__":
             print(f"The app is already running. Opening http://127.0.0.1:{port}")
             webbrowser.open(f"http://127.0.0.1:{port}")
             sys.exit(0)
-    db().close()
+    with db():                 # create the schema before anything can ask for a row
+        pass
     # open the dashboard from here, once the server is about to listen - run.bat used to launch
     # the browser first, so the very first thing a new user saw was "connection refused"
     if os.environ.get("JOB_OPEN"):        # set by run.bat; a developer restart should not

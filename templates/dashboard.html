@@ -486,7 +486,9 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <option value="">All jobs</option><option value="new">New</option>
     <option value="ready">CV ready</option><option value="opened">Opened</option>
     <option value="applied">Applied</option>
-        <option value="@near">Near me / remote</option><option value="skipped">Skipped</option>
+        <option value="@near">Near me / remote</option>
+    <option value="@soon">Closing within a week</option>
+    <option value="skipped">Skipped</option>
     <option value="vetoed">Vetoed on language</option>
     <option value="@manual">Manual apply only</option>
   </select>
@@ -811,6 +813,11 @@ function pickTemplate(){
     document.addEventListener('keydown', onKey);
   });
 }
+// The employer's own closing date, in days from now. Most ads carry one; those that do not
+// are null, which is "unknown", never "closing today".
+const daysLeft = j => { if(!j.expires) return null;
+  const d = Math.ceil((new Date(j.expires + 'T23:59:59') - Date.now()) / 864e5);
+  return isNaN(d) ? null : d; };
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const cls = f => f>=75 ? 'g' : f>=50 ? 'm' : 'b';
 // compare without diacritics: NFD splits ă/â/î/ș/ț (and the legacy cedilla forms) into letter + mark
@@ -1055,7 +1062,10 @@ function draw(){
   // no need to harvest the DOM any more - SELECTED already holds it, across pages and filters
   const needle = fold($('#find').value.trim());
   let rows = JOBS.filter(j => (!f || (f === '@manual' ? HAND(j)
-                                    : f === '@near' ? j.far === false : j.status===f))
+                                    : f === '@near' ? j.far === false
+                              : f === '@soon' ? (daysLeft(j) !== null && daysLeft(j) <= 7
+                                                 && daysLeft(j) >= 0 && j.status !== 'applied')
+                              : j.status===f))
                           && (j.fit??0) >= mf
                           && (f === 'applied' || j.status !== 'applied')
                           && (!needle || fold(`${j.title} ${j.company} ${j.location} ${j.lang || ''}`).includes(needle)));
@@ -1086,6 +1096,8 @@ function draw(){
       // disagree with the list it opens
       ['Total', JOBS.filter(j => j.status !== 'applied').length, '', '0'],
       ['Best for you', JOBS.filter(j=>(j.fit??0)>=75 && j.status!=='applied').length, '', '75'],
+      ['Closing this week', JOBS.filter(j => { const d = daysLeft(j);
+          return d !== null && d >= 0 && d <= 7 && j.status !== 'applied'; }).length, '@soon', '0'],
       ['CV ready', n('ready'), 'ready', '0'],
       ['Applied', n('applied'), 'applied', '0'],
       ['Manual apply', JOBS.filter(j => HAND(j) && j.status!=='applied').length, '@manual', '0'],
@@ -1111,6 +1123,16 @@ function draw(){
             days <= 7 ? 'new' : 'old'}</span>`
         + `<span>· ${days <= 0 ? 'posted today' : days === 1 ? 'posted yesterday'
             : 'posted ' + days + ' days ago'}</span>`;
+    // A closing date is the one thing on a card that cannot wait, so it is red inside a
+    // week and silent beyond a month - a date five weeks out is not news.
+    const left = daysLeft(j);
+    const closes = left == null || left > 30 ? '' : (() => {
+      const c = left <= 7 ? 'bad' : 'mid';
+      return `<span class="pill" style="border-color:var(--${c});color:var(--${c});font-weight:600"
+        title="The closing date the employer published (${esc(j.expires)})">${
+          left < 0 ? 'closed' : left === 0 ? 'closes today' : left === 1 ? 'closes tomorrow'
+          : 'closes in ' + left + ' days'}</span>`;
+    })();
     const applied = j.status === 'applied';
     const canPick = BOARD(j) && !applied;
     const primary = applied
@@ -1139,6 +1161,9 @@ function draw(){
           ${applied ? `<span class="applied-when">· ${j.applied_at ? 'applied ' + esc(fmtWhen(j.applied_at)) : 'applied (date not recorded)'}</span>` : ''}
           ${j.salary ? `<span class="pill" style="border-color:var(--good);color:var(--good);
               font-weight:600" title="What the ad itself states. It does not affect the score.">${esc(j.salary)}</span>` : ''}
+          ${j.terms ? `<span class="pill" style="border-color:var(--mid);color:var(--mid)"
+              title="What the ad itself states about the job. It does not affect the score.">${esc(j.terms)}</span>` : ''}
+          ${closes}
           ${j.note ? `<span class="pill" style="border-color:var(--mid);color:var(--mid)">${esc(j.note)}</span>` : ''}
           ${ATS.test(j.url) ? '<span class="pill">prefillable form</span>' : ''}
           ${HAND(j) ? '<span class="pill" title="This board has to be applied to by hand">manual apply</span>' : ''}

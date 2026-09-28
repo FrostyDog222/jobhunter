@@ -611,4 +611,77 @@ for _p, _want in _expected.items():
     assert _p in _seen, f"route {_p} is missing"
     assert _want in _seen[_p], f"{_p} is served by {_seen[_p]}, expected {_want}"
 
+
+# 2o. db() must only ever be entered, never called and then used. It was a plain function that
+# returned a connection and is now a context manager, and one caller was left behind:
+# `db().close()` in __main__, which raised AttributeError before uvicorn ever listened. The
+# whole suite passed while the app could not start, so the shape of every call site is the test.
+_src = pathlib.Path(app.__file__).read_text(encoding="utf-8")
+for _mod in ("app.py", "auto.py", "auto_apply.py"):
+    for _n, _line in enumerate((app.HERE / _mod).read_text(encoding="utf-8").splitlines(), 1):
+        _t = _line.split("#")[0].strip()   # a trailing comment can mention db() in prose
+        if not _re.search(r"\bdb\(\)", _t) or "def db()" in _t:
+            continue
+        assert _re.search(r"with\s+(?:app\.)?db\(\)\s*(?:as\s+\w+\s*)?:", _t), \
+            f"{_mod}:{_n} calls db() without entering it: {_t}"
+
+# 2p. The pay, the closing date and the terms are on the ad in structured data. Every one of
+# these shapes came off a real eJobs or Hipo page; three quarters of the ads carrying a salary
+# were being shown as if they had none.
+assert scrape._pay({"baseSalary": {"currency": "RON", "value": {
+    "minValue": "5000", "maxValue": "7000"}}}) == "5000 - 7000 RON"
+assert scrape._pay({"baseSalary": {"currency": "EUR", "value": {
+    "minValue": "580", "maxValue": "700", "unitText": "MONTH"}}}) == "580 - 700 EUR/month"
+assert scrape._pay({"baseSalary": {"currency": "RON", "value": {
+    "minValue": "4000", "maxValue": "4000"}}}) == "4000 RON", "one figure, not '4000 - 4000'"
+for _bad in ({}, {"baseSalary": "negotiable"}, {"baseSalary": {"currency": "RON"}},
+             {"baseSalary": {"value": {"minValue": "competitive"}}}):
+    assert scrape._pay(_bad) == "", f"invented a salary from {_bad}"
+
+assert scrape._terms({"employmentType": ["FULL_TIME"]}) == "", "full time is not news"
+assert scrape._terms({"employmentType": ["INTERN"]}) == "internship"
+assert scrape._terms({"employmentType": "PART_TIME", "experienceRequirements": {
+    "monthsOfExperience": 24}}) == "part time \u00b7 wants 2+ years"
+assert scrape._terms({"experienceRequirements": {"monthsOfExperience": 12}}) == "wants 1+ year"
+assert scrape._terms({"experienceRequirements": {"monthsOfExperience": "lots"}}) == ""
+assert scrape._terms({"experienceRequirements": "5 years"}) == ""
+
+# both new fields have to survive the round trip into the database, or they are read off the
+# page and dropped on the floor - which is what happened to validThrough for months
+assert "expires" in app.LIST_COLS and "terms" in app.LIST_COLS
+assert ":expires" in _src and ":terms" in _src, "the INSERT does not carry the new columns"
+
+# 2q. An ad with no location is unknown, not near. bestjobs publishes no location on some rows
+# and they were getting a green "near you" badge on the strength of nothing.
+assert scrape.in_county("", "timis") is False      # cannot confirm - the caller decides
+_far = pathlib.Path(app.__file__).read_text(encoding="utf-8")
+assert 'r["far"] = (not scrape.in_county(loc, home)) if loc else None' in _far
+
+# 2r. A career fair is not a vacancy - but a Workshop Manager is a job, and was nearly lost to
+# the fix for the first half of that sentence.
+for _t in ("Workshop inspirational - Cum sa iti pui in valoare adevaratul potential",
+           "Conferinta gratuita de dezvoltare personala si profesionala - Inspiration 4U",
+           "Workshop by BAT Romania @ Top Talents", "Webinar: how to get hired"):
+    assert scrape.NOISE.search(_t), f"event got through as a job: {_t}"
+for _t in ("Workshop Manager", "Tehnician Workshop", "Mechanical Workshop Supervisor",
+           "Conferencing Support Specialist"):
+    assert not scrape.NOISE.search(_t), f"real job dropped as an event: {_t}"
+
+
+# 2s. The gaps panel is a tally, so the same shortfall has to land in the same bucket. It was
+# reporting the thing employers asked for most as appearing in two ads, because five phrasings
+# of one gap counted as five gaps.
+assert len({app._gap_key(g) for g in (
+    "ICH-GCP knowledge", "experience with ICH-GCP", "ICH-GCP experience",
+    "knowledge of ICH-GCP", "hands-on ICH-GCP expertise", "ICH-GCP")}) == 1
+assert app._gap_key("experience") == "", "a gap that is only filler is not a gap"
+assert app._gap_key("strong communication skills") == "communication"
+# five words, two of them filler - under the four-word cut once normalised, and it was being
+# thrown away before
+assert app._gap_key("experience with order processing systems") == "order processing systems"
+assert len(app._gap_key("experience with order processing systems").split()) <= 4
+# readability is part of the job: this is printed on the panel, not only counted
+assert app._gap_key("on‑site presence in Bucharest") == "on-site presence bucharest"
+assert "_gap_key(x)" in _i6.getsource(app.recurring_gaps), "the tally does not normalise"
+
 print("ok")

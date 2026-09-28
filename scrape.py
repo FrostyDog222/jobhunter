@@ -149,6 +149,68 @@ def _salary(page):
     return ""
 
 
+# schema.org units, as the boards actually write them.
+UNIT = {"HOUR": "hour", "DAY": "day", "WEEK": "week", "MONTH": "month", "YEAR": "year"}
+
+
+def _pay(jp):
+    """'4000 - 5000 RON/month' from schema.org baseSalary, or "" when the ad does not say.
+
+    Both eJobs and Hipo publish this - measured, 4 ads in 10 carry it - and neither repeats it
+    in the ad text, so it was the one hard number on the page that never reached the dashboard.
+    """
+    b = jp.get("baseSalary")
+    if not isinstance(b, dict):
+        return ""
+    v = b.get("value") if isinstance(b.get("value"), dict) else {}
+    lo, hi = (str(v.get(k) or "").strip() for k in ("minValue", "maxValue"))
+    amount = f"{lo} - {hi}" if lo and hi and lo != hi else (lo or hi
+                                                            or str(v.get("value") or "").strip())
+    # a figure, not prose: anything else here is a field we have misread, and a wrong number on
+    # a salary pill is worse than no pill
+    if not amount or not re.fullmatch(r"[\d][\d\s.,-]*", amount):
+        return ""
+    cur = _clean(str(b.get("currency") or v.get("currency") or ""))
+    unit = UNIT.get(str(v.get("unitText") or "").upper(), "")
+    return " ".join(x for x in (amount, cur) if x) + (f"/{unit}" if unit else "")
+
+
+# FULL_TIME is what nearly every ad says, and repeating it on every card is noise. The rest
+# change whether the job is worth an application at all.
+TERMS = {"PART_TIME": "part time", "TEMPORARY": "temporary", "CONTRACTOR": "contract",
+         "INTERN": "internship", "INTERNSHIP": "internship", "VOLUNTEER": "volunteer",
+         "PER_DIEM": "per diem", "SEASONAL": "seasonal"}
+
+
+def _years(months):
+    """'wants 2+ years' - the phrasing a person scanning a card can act on."""
+    try:
+        months = int(months)
+    except (TypeError, ValueError):
+        return ""
+    if months >= 12:
+        y = months // 12
+        return f"wants {y}+ year" + ("s" if y > 1 else "")
+    return f"wants {months}+ months" if months > 0 else ""
+
+
+def _terms(jp):
+    """The deal in a few words: anything other than a normal full-time job, plus the experience
+    the ad asks for. Both sit in the ad's own structured data and neither was ever shown, so an
+    internship looked exactly like a permanent role on the dashboard."""
+    raw = jp.get("employmentType")
+    out = []
+    for t in (raw if isinstance(raw, list) else [raw]):
+        word = TERMS.get(str(t or "").strip().upper().replace(" ", "_").replace("-", "_"), "")
+        if word and word not in out:
+            out.append(word)
+    exp = jp.get("experienceRequirements")
+    yrs = _years(exp.get("monthsOfExperience")) if isinstance(exp, dict) else ""
+    if yrs:
+        out.append(yrs)
+    return " · ".join(out)
+
+
 def _jobposting(page_html):
     """Pull the JobPosting node out of any ld+json block on the page."""
     for block in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', page_html, re.S):
@@ -279,6 +341,11 @@ def freehire(query, country="ro", limit=25, timeout=30, filters=None):
             "description": _text(j.get("description")),
             "note": " · ".join(flags),
             "lang": enr.get("posting_language") or "",
+            # freehire's own wording for the two facts the HTML boards put in JSON-LD
+            "terms": " · ".join(x for x in (
+                (enr.get("employment_type") or "").replace("_", " ")
+                if (enr.get("employment_type") or "") not in ("", "full_time") else "",
+                _years((enr.get("experience_years_min") or 0) * 12)) if x),
         })
     return jobs
 
@@ -304,6 +371,9 @@ def health(source, jobs, seen_before):
 # on the event phrasing, not the bare word, so a Workshop Manager or Workshop Technician survives.
 NOISE = re.compile(r"@\s*top\s+talents"
                    r"|\b(workshop|webinar|masterclass)\s+(by|with|de|cu)\b"
+                   # these three are never part of a job title; "workshop" is (a Workshop
+                   # Manager is a real job), so it still needs the "by X" shape above
+                   r"|\b(conferint[aţț]|webinar|masterclass|inspiration(al)?)\b"
                    r"|^\s*training\s+(by|with|de|cu)\b"
                    r"|\b(career fair|job fair|zilele carierei|t[aâ]rg de (joburi|cariere))\b", re.I)
 
@@ -502,9 +572,15 @@ def hydrate(jobs, timeout=30, on_progress=None):
                 body = max(_ld_body(jp), markup, key=len)
                 if len(body) < MIN_AD:
                     continue                  # scoring a title is a guess dressed up as a number
-                pay = _salary(page)
+                # JSON-LD first: it is the employer's own figure, with a currency and a
+                # unit. _salary() reads BestJobs' unlabelled range off the markup and is the
+                # fallback, not the other way round.
+                pay = _pay(jp) or _salary(page)
                 if pay:
                     j["salary"] = pay
+                terms = _terms(jp)
+                if terms:
+                    j["terms"] = terms
                 j.update({
                     "title": _flat(jp.get("title")) or j["title"],
                     "company": _flat(jp.get("hiringOrganization")),
@@ -512,8 +588,9 @@ def hydrate(jobs, timeout=30, on_progress=None):
                                 or ("Remote" if jp.get("jobLocationType") else ""),
                     "posted": _flat(jp.get("datePosted"))[:10],
                     "description": body,
-                    # leading underscore: this is for the filter below, not a database column
-                    "_expires": _flat(jp.get("validThrough"))[:10],
+                    # the employer's own closing date. eJobs publishes it on most ads and
+                    # it is the difference between "apply this week" and "apply sometime"
+                    "expires": _flat(jp.get("validThrough"))[:10],
                     "_full": True,
                 })
     # The real title only arrives with the detail page, so re-check the noise filter here - and
@@ -523,7 +600,7 @@ def hydrate(jobs, timeout=30, on_progress=None):
     out, seen = [], set()
     for j in jobs:
         if (not j.get("_full") or NOISE.search(j["title"]) or _too_old(j.get("posted"))
-                or _closed(j.get("_expires"))):
+                or _closed(j.get("expires"))):
             continue
         key = (j["title"].lower().strip(), (j.get("company") or "").lower().strip()[:18])
         if key[1] and key in seen:
