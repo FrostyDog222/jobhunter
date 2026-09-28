@@ -513,6 +513,14 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   they are searched, scored and you can tailor a CV to download and upload. They are never picked
   up by <i>Select all shown</i> or batch apply, so nothing here is sent by accident.
 </div>
+  <details id="gapsbox" class="card" style="display:none;margin:0 0 12px">
+    <summary style="cursor:pointer"><b>What employers keep asking for</b>
+      <span class="muted" id="gapscount"></span></summary>
+    <p class="muted" style="margin:8px 0 6px">Counted across the jobs already scored, not a new
+      question to the AI. A thing many employers want and your profile never mentions is either
+      the next thing to learn — or something you have and forgot to write down.</p>
+    <div id="gapslist"></div>
+  </details>
 <div id="list"></div>
 <div class="pager" id="pager"></div>
 {% endblock %}
@@ -976,6 +984,25 @@ $('#savellm').onclick = e => busy(e.target, async () => {
   $('#key').value = ''; await loadLlm(); toast('Saved, and it answered a test call.');
 }, 'testing...');
 
+/* ---------- what keeps coming up ---------- */
+// Every scored job already carries its gaps and they were only ever read one card at a time.
+// Together they say the thing no single card can.
+async function loadGaps(){
+  let d;
+  try { d = await api('/api/gaps?min_fit=50&limit=40', undefined, 'GET'); } catch(e){ return; }
+  const many = (d.gaps || []).filter(g => g.jobs > 1).slice(0, 10);
+  const box = $('#gapsbox');
+  if(!many.length){ box.style.display = 'none'; return; }
+  box.style.display = '';
+  $('#gapscount').textContent = ` — across ${d.scored} scored jobs`;
+  $('#gapslist').innerHTML = many.map(g => `<div style="display:flex;gap:10px;align-items:baseline;
+      padding:4px 0;border-bottom:1px solid var(--line)">
+      <b style="min-width:52px;color:var(--accent)">${g.jobs} ads</b>
+      <span>${esc(g.gap)}</span>
+      <span class="muted" style="font-size:12px;margin-left:auto">${esc((g.examples||[])[0]||'')}</span>
+    </div>`).join('');
+}
+
 /* ---------- the list ---------- */
 function draw(){
   const f = $('#filter').value, mf = +$('#minfit').value;
@@ -1355,7 +1382,18 @@ $('#list').addEventListener('click', async e => {
     }
     if(act === 'send'){
       const title = card.querySelector('.title').textContent.trim();
-      if(!confirm(`Send a real application to:\n\n${title}\n\nThis cannot be undone.`)) return;
+      // The batch confirmation said all of this and the single one did not - yet this is the
+      // button people actually press. The board-CV line matters most: the tailored PDF this app
+      // writes is NOT what the employer receives on a board apply.
+      const jj = JOBS.find(x => x.url === url) || {};
+      const where = jj.source || 'the board';
+      if(!confirm([
+        'Send a real application to:', '', title, '',
+        `It is sent as your ${where} profile — the CV stored on ${where}, not the tailored PDF.`,
+        'Your salary expectation and profile answers go with it.',
+        jj.far ? 'This one is outside the county you said you can work in.' : '',
+        'It cannot be taken back.',
+      ].filter(Boolean).join('\n'))) return;
       const r = await api('/api/apply', {url, submit:true});
       toast(r.already ? 'You had already applied — moved to Applied.'
             : r.submitted ? 'Application sent — moved to Applied.'
@@ -1385,6 +1423,7 @@ $('#list').addEventListener('click', async e => {
 loadLlm();
 loadSignins();
 api('/api/cv/templates', undefined, 'GET').then(t => { TPLS = t; return loadSettings(); }).catch(()=>{});
+loadGaps();
 api('/api/profile', undefined, 'GET')
   .then(p => { PROFILE = p || {}; drawPresets(); drawTerms(); steps(); }).catch(()=>{});
 loadAuto();

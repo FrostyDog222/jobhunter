@@ -1,5 +1,6 @@
 """jobhunter - a local job-hunting assistant. Run: run.bat  ->  http://127.0.0.1:8777"""
-import asyncio, hashlib, io, json, os, pathlib, re, sqlite3, subprocess, sys, time, webbrowser
+import asyncio
+import collections, hashlib, io, json, os, pathlib, re, sqlite3, subprocess, sys, time, webbrowser
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, UploadFile, File, Body, HTTPException
@@ -633,6 +634,37 @@ def apply_suggestion(s: dict = Body(...)):
 # instead, from /api/job/description.
 LIST_COLS = ("url, source, title, company, location, posted, fit, why, gaps, untapped, "
              "status, cv, found, note, lang, applied_at, LENGTH(description) AS desc_len")
+
+
+@app.get("/api/gaps")
+def recurring_gaps(min_fit: int = 0, limit: int = 12):
+    """What employers keep asking for that this profile does not answer.
+
+    Every scored job already carries its own gaps and they were only ever shown one card at a
+    time. Read together they say something no single card can: the one thing worth learning, or
+    the thing you do have and never wrote down. Pure counting - no model call, no quota.
+    """
+    seen, jobs = collections.Counter(), collections.defaultdict(list)
+    with db() as c:
+        rows = c.execute("SELECT title, fit, gaps FROM jobs WHERE gaps IS NOT NULL "
+                         "AND gaps != '' AND fit >= ? AND status IN ('new','ready')",
+                         (max(0, min(100, min_fit)),)).fetchall()
+    for r in rows:
+        try:
+            items = json.loads(r["gaps"]) or []
+        except (TypeError, ValueError):
+            continue
+        # Only the short ones. Scoring now asks for the missing thing in 1-4 words, which counts
+        # cleanly across ads; rows scored by the older prompt hold whole sentences, and no amount
+        # of word-picking turns those into a tally - "experience" and "e.g." win every time. They
+        # are skipped rather than mined, and the panel fills up as jobs are scored.
+        for g in {" ".join(str(x).split()).lower() for x in items if str(x).strip()}:
+            if 0 < len(g.split()) <= 4:
+                seen[g] += 1
+                jobs[g].append(r["title"])
+    return {"scored": len(rows), "counted": sum(seen.values()),
+            "gaps": [{"gap": g, "jobs": n, "examples": jobs[g][:3]}
+                     for g, n in seen.most_common(max(1, min(50, limit)))]}
 
 
 @app.get("/api/jobs")

@@ -717,7 +717,9 @@ def score(profile, job):
         # because the inner quotes have already ended the string.
         "Write plain text inside the JSON: no markdown, no asterisks, no quotation marks. "
         "Output ONLY JSON: {\"fit\": 0-100, \"why\": \"two sentences\", "
-        "\"gaps\": [\"requirement the candidate genuinely lacks\"], "
+        # short and concrete, so the same shortfall from twenty ads reads as the same thing
+        "\"gaps\": [\"the missing thing itself, 1-4 words, e.g. 'ITIL' or 'SQL reporting' - "
+        "not a sentence\"], "
         "\"untapped\": [\"requirement the posting asks for that the profile DOES support\"]}. "
         "'gaps' and 'untapped' are different: a gap is a real shortfall to be honest about, "
         "untapped is something they already have that a generic CV would fail to surface.",
