@@ -65,6 +65,7 @@ def run():
     try:
         found = asyncio.run(app.search({
             "query": s["auto_query"], "location": s.get("auto_location", ""),
+            "county": s.get("auto_county", ""),
             "country": s.get("auto_country", "ro"), "filters": {"reality": "fresh"}}))
         report["searched"] = found
         log(f"search: {found['found']} ads seen, {found['new']} new, {found['scored']} scored"

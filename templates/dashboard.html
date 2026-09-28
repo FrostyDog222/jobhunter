@@ -324,6 +324,11 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
         <option value="targu-mures">Târgu Mureș</option>
         <option value="remote">Remote</option>
       </select></div>
+    <div class="small"><label>County</label>
+      <select id="county" title="Judetul. Picking a city already narrows it further, so a city wins over this.">
+        <option value="" selected>Any county</option>
+        {% for slug, name in counties %}<option value="{{ slug }}">{{ name }}</option>
+        {% endfor %}</select></div>
     <div class="small"><label>Country</label>
       <select id="country">
         <option value="ro" selected>Romania</option>

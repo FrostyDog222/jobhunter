@@ -189,6 +189,29 @@ assert _probed and _note and "Not signed in to ejobs" in _note, _note
 _probed, _note = _weekly({}, {"ejobs": False, "bestjobs": True})
 assert _note and "Not signed in to ejobs" in _note, _note
 
+# 1r. links/skills/certifications/hobbies are lists of strings, but parse_cv reads a human CV and
+# sometimes returns [{"name": "Driving license Category B"}]. That showed on the profile page as
+# "[object Object]" and would have gone into a tailored CV exactly as literally.
+assert app._strs([{"name": "Driving license Category B"}]) == ["Driving license Category B"]
+assert app._strs([{"title": "ITIL"}, {"value": "AWS"}, {"text": "PMP"}, {"label": "Scrum"}]) == \
+       ["ITIL", "AWS", "PMP", "Scrum"]
+assert app._strs(["Excel", "  Salesforce  "]) == ["Excel", "Salesforce"]
+assert app._strs([None, "", "   ", {}, {"name": ""}, {"a": 1}]) == []   # never "{'a': 1}" on screen
+assert app._strs(None) == []
+
+# 1s. County filtering is checked against the ad's own location, because the boards disagree:
+# eJobs filters on a county slug, Hipo ignores one ("Cluj" returns the whole country, measured)
+# and only understands city names. Diacritics are folded on both sides - the boards write both.
+_ic = scrape.in_county
+assert _ic("Cluj-Napoca", "cluj") and _ic("Timișoara", "timis") and _ic("Timisoara", "timis")
+assert _ic("Iași", "iasi") and _ic("Bucharest", "bucuresti") and _ic("Voluntari", "ilfov")
+assert not _ic("Cluj-Napoca", "timis") and not _ic("Brașov", "bucuresti")
+assert not _ic("Ilfoveni", "ilfov")        # Ilfoveni is in Dambovita
+assert not _ic("Paradis Mall", "arad")     # "arad" sits inside "Paradis"
+assert not _ic("", "cluj")                 # no location cannot be confirmed local
+assert _ic("anywhere", "not-a-county") and _ic("x", "")   # unknown/blank never drops an ad
+assert len(scrape.COUNTIES) == 42, "41 counties plus Bucharest"
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

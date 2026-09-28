@@ -301,6 +301,82 @@ def _slug_title(path):
     return _clean(unquote(re.sub(r"[-_]+", " ", seg[-1]))).strip().title() if seg else ""
 
 
+
+# Romania's 41 counties and Bucharest. Each entry is (display name, towns whose ads should count
+# as that county) - the county seat first, then the other towns that actually turn up in job ads.
+#
+# This exists because the boards disagree about what a location IS. eJobs takes a county slug and
+# filters on it properly. Hipo takes CITY names: "Cluj-Napoca" filters, "Cluj" is ignored and it
+# returns the whole country instead, silently - measured, not assumed. So a county is sent to the
+# boards (it helps where it is understood) AND the ads that come back are checked here, which is
+# the only part that holds for every board.
+COUNTIES = {
+    "alba": ("Alba", ("Alba Iulia", "Sebes", "Aiud", "Cugir", "Blaj")),
+    "arad": ("Arad", ("Arad", "Ineu", "Lipova", "Chisineu-Cris")),
+    "arges": ("Argeș", ("Pitesti", "Mioveni", "Campulung", "Curtea de Arges")),
+    "bacau": ("Bacău", ("Bacau", "Onesti", "Moinesti", "Comanesti")),
+    "bihor": ("Bihor", ("Oradea", "Salonta", "Marghita", "Beius")),
+    "bistrita-nasaud": ("Bistrița-Năsăud", ("Bistrita", "Nasaud", "Beclean")),
+    "botosani": ("Botoșani", ("Botosani", "Dorohoi")),
+    "braila": ("Brăila", ("Braila", "Ianca")),
+    "brasov": ("Brașov", ("Brasov", "Fagaras", "Sacele", "Codlea", "Zarnesti", "Ghimbav")),
+    "bucuresti": ("București", ("Bucuresti", "Bucharest")),
+    "buzau": ("Buzău", ("Buzau", "Ramnicu Sarat")),
+    "calarasi": ("Călărași", ("Calarasi", "Oltenita")),
+    "caras-severin": ("Caraș-Severin", ("Resita", "Caransebes")),
+    "cluj": ("Cluj", ("Cluj-Napoca", "Turda", "Dej", "Campia Turzii", "Gherla", "Floresti")),
+    "constanta": ("Constanța", ("Constanta", "Mangalia", "Medgidia", "Navodari", "Cernavoda")),
+    "covasna": ("Covasna", ("Sfantu Gheorghe", "Targu Secuiesc", "Covasna")),
+    "dambovita": ("Dâmbovița", ("Targoviste", "Moreni", "Pucioasa")),
+    "dolj": ("Dolj", ("Craiova", "Bailesti", "Calafat")),
+    "galati": ("Galați", ("Galati", "Tecuci")),
+    "giurgiu": ("Giurgiu", ("Giurgiu", "Bolintin-Vale")),
+    "gorj": ("Gorj", ("Targu Jiu", "Motru", "Rovinari")),
+    "harghita": ("Harghita", ("Miercurea Ciuc", "Odorheiu Secuiesc", "Gheorgheni", "Toplita")),
+    "hunedoara": ("Hunedoara", ("Deva", "Hunedoara", "Petrosani", "Orastie", "Simeria")),
+    "ialomita": ("Ialomița", ("Slobozia", "Fetesti", "Urziceni")),
+    "iasi": ("Iași", ("Iasi", "Pascani", "Targu Frumos")),
+    "ilfov": ("Ilfov", ("Voluntari", "Popesti-Leordeni", "Buftea", "Otopeni", "Pantelimon",
+                        "Bragadiru", "Chitila", "Magurele", "Chiajna", "Mogosoaia")),
+    "maramures": ("Maramureș", ("Baia Mare", "Sighetu Marmatiei", "Borsa", "Viseu de Sus")),
+    "mehedinti": ("Mehedinți", ("Drobeta-Turnu Severin", "Orsova")),
+    "mures": ("Mureș", ("Targu Mures", "Reghin", "Sighisoara", "Ludus")),
+    "neamt": ("Neamț", ("Piatra Neamt", "Roman", "Targu Neamt")),
+    "olt": ("Olt", ("Slatina", "Caracal", "Bals")),
+    "prahova": ("Prahova", ("Ploiesti", "Campina", "Baicoi", "Mizil", "Sinaia", "Busteni")),
+    "salaj": ("Sălaj", ("Zalau", "Simleu Silvaniei", "Jibou")),
+    "satu-mare": ("Satu Mare", ("Satu Mare", "Carei", "Negresti-Oas")),
+    "sibiu": ("Sibiu", ("Sibiu", "Medias", "Cisnadie", "Avrig")),
+    "suceava": ("Suceava", ("Suceava", "Falticeni", "Radauti", "Campulung Moldovenesc")),
+    "teleorman": ("Teleorman", ("Alexandria", "Rosiori de Vede", "Turnu Magurele")),
+    "timis": ("Timiș", ("Timisoara", "Lugoj", "Sannicolau Mare", "Jimbolia", "Dumbravita",
+                        "Giroc", "Ghiroda")),
+    "tulcea": ("Tulcea", ("Tulcea", "Macin", "Babadag")),
+    "valcea": ("Vâlcea", ("Ramnicu Valcea", "Dragasani", "Balcesti")),
+    "vaslui": ("Vaslui", ("Vaslui", "Barlad", "Husi")),
+    "vrancea": ("Vrancea", ("Focsani", "Adjud", "Marasesti")),
+}
+
+
+def in_county(text, county):
+    """Does this ad's location sit in that county? Diacritics are folded on both sides, because
+    half the boards write "Timisoara" and half write "Timișoara", and people type either."""
+    entry = COUNTIES.get((county or "").lower())
+    if not entry:
+        return True                       # not a county we know - do not silently drop the ad
+    flat = _slug(text)
+    if not flat:
+        return False                      # an ad with no location cannot be confirmed as local
+    display, towns = entry
+    # word-boundary on the slug, so "Ilfov" does not match "Ilfoveni" and "Arad" does not
+    # match "Paradis"
+    for name in (display, county, *towns):
+        n = _slug(name)
+        if n and re.search(rf"(^|-){re.escape(n)}($|-)", flat):
+            return True
+    return False
+
+
 def discover(board, query, location="", limit=25, timeout=30, country="ro", filters=None):
     """Phase 1, cheap: one request per board, returning candidate urls with a slug-derived title.
     freehire answers in full from its API, so it needs no second phase at all."""

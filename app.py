@@ -83,7 +83,8 @@ SETTINGS = HERE / "settings.json"
 DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             # the weekly run (auto.py, started by Windows Task Scheduler)
             "auto_enabled": False, "auto_day": "SUN", "auto_time": "09:00",
-            "auto_query": "", "auto_location": "", "auto_country": "ro", "auto_min_fit": 75,
+            "auto_query": "", "auto_location": "", "auto_county": "", "auto_country": "ro",
+            "auto_min_fit": 75,
             # applying without you there: off unless you turn it on, and deliberately stricter
             # than the score you would use when reading the ad yourself
             "auto_apply": False, "auto_apply_min_fit": 85, "auto_apply_cap": 5}
@@ -187,7 +188,7 @@ def get_auto():
 def set_auto(body: dict = Body(...)):
     cur = settings()
     for k in ("auto_enabled", "auto_day", "auto_time", "auto_query", "auto_location",
-              "auto_country", "auto_min_fit", "auto_apply", "auto_apply_min_fit",
+              "auto_county", "auto_country", "auto_min_fit", "auto_apply", "auto_apply_min_fit",
               "auto_apply_cap"):
         if k in body:
             cur[k] = body[k]
@@ -298,6 +299,27 @@ def save_settings(body: dict = Body(...)):
 LEVEL_SPLIT = re.compile(r"^\s*(.+?)\s*(?:[(:]|\s[-–]\s)\s*([^)]+?)\s*\)?\s*$")
 
 
+# These four are plain lists of strings, but llm.parse_cv reads a CV written by a human and
+# sometimes hands back [{"name": "Driving license Category B"}] instead. That rendered on the
+# profile page as "[object Object]" and would have gone into a tailored CV just as literally.
+STR_LIST_KEYS = ("links", "skills", "certifications", "hobbies")
+
+
+def _strs(v):
+    """-> a list of non-empty strings, whatever shape the model used for them."""
+    out = []
+    for x in v or []:
+        if isinstance(x, dict):
+            # the usual shapes, in the order the models actually emit them
+            x = next((x[k] for k in ("name", "title", "value", "text", "label")
+                      if isinstance(x.get(k), str) and x[k].strip()), "")
+        elif not isinstance(x, str):
+            x = "" if x is None else str(x)
+        if x.strip():
+            out.append(x.strip())
+    return out
+
+
 def _langs(v):
     """Languages are {name, level}. Older profiles stored 'English (Advanced)' strings, and the
     model occasionally still returns one, so normalise both shapes here rather than at each caller."""
@@ -324,11 +346,15 @@ def profile():
         p = {}
     p = {**llm.EMPTY, **p}
     p["languages"] = _langs(p.get("languages"))
+    for k in STR_LIST_KEYS:
+        p[k] = _strs(p.get(k))
     return p
 
 
 def save_profile(p):
     p["languages"] = _langs(p.get("languages"))
+    for k in STR_LIST_KEYS:
+        p[k] = _strs(p.get(k))
     # write-then-replace: a crash or an overlapping save must not leave a half-written profile
     tmp = PROFILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -360,7 +386,11 @@ async def no_model(request: Request, exc: llm.NoModel):
 # ---------- pages ----------
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
-    return tpl.TemplateResponse(request, "dashboard.html")
+    # the county list lives in scrape.py, where the matching also happens - rendering the
+    # dropdown from it means the two can never drift apart
+    return tpl.TemplateResponse(request, "dashboard.html", {
+        "counties": [(slug, name) for slug, (name, _towns) in sorted(
+            scrape.COUNTIES.items(), key=lambda kv: kv[1][0])]})
 
 
 @app.get("/profile", response_class=HTMLResponse)
@@ -607,6 +637,12 @@ async def search(body: dict = Body(...)):
         raise HTTPException(400, "Fill in your profile first - there is nothing to match jobs against.")
     queries = [q.strip() for q in re.split(r"[,;]", body.get("query", "")) if q.strip()] or [""]
     loc = body.get("location", "")
+    county = (body.get("county") or "").strip().lower()
+    # A city is more specific than its county, so it wins. With only a county, send that: eJobs
+    # filters on it properly, Hipo understands some of them, and scrape.in_county below catches
+    # whatever neither of them honoured.
+    if county and not loc:
+        loc = county
     country = body.get("country", "ro")
     filters = body.get("filters") or {}
     boards = body.get("boards") or scrape.SOURCES
@@ -657,6 +693,12 @@ async def search(body: dict = Body(...)):
     # and a bar that does not move for a minute is the same as no bar at all
     fresh = await off(lambda: scrape.hydrate(
         new_urls, on_progress=lambda d, t: step("reading the ads", d, t)))
+
+    # Now that each ad declares where it is, hold the boards to the county that was asked for.
+    # Hipo ignores a county name outright and answers with the whole country instead - measured,
+    # not assumed - so without this the dropdown would quietly do nothing on half the results.
+    if county:
+        fresh = [j for j in fresh if scrape.in_county(j.get("location", ""), county)]
 
     for b in boards:
         rows = [j for j in fresh if j["source"] == b]
