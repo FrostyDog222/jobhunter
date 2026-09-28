@@ -230,6 +230,24 @@ assert not _ic("Bacău, Roman, Vaslui", "cluj")
 assert _ic("anywhere", "not-a-county") and _ic("x", "")   # unknown/blank never drops an ad
 assert len(scrape.COUNTIES) == 42, "41 counties plus Bucharest"
 
+# 1t. A board that offers a signed-in candidate no way to apply has closed the posting. That is
+# the only reliable signal: Hipo restamps datePosted to today on ads that are long closed (140
+# stored ads across 7 dates, all recent), publishes no validThrough, and shows the apply link to
+# a signed-out visitor either way - so a dead ad was being offered as applyable.
+import sqlite3 as _sq
+_c = _sq.connect(":memory:")
+_c.row_factory = _sq.Row
+_c.execute("CREATE TABLE jobs(url TEXT PRIMARY KEY, status TEXT, note TEXT, applied_at TEXT)")
+_c.executemany("INSERT INTO jobs VALUES(?,?,?,?)",
+               [("dead", "new", "", None), ("sent", "applied", "", "2026-09-28 17:08:00")])
+app._mark_closed(_c, "dead")
+app._mark_closed(_c, "sent")
+_dead = _c.execute("SELECT status, note FROM jobs WHERE url='dead'").fetchone()
+assert (_dead["status"], _dead["note"]) == ("skipped", "closed on the board"), tuple(_dead)
+# an application already sent must never be rewritten by this
+_sent = _c.execute("SELECT status, applied_at FROM jobs WHERE url='sent'").fetchone()
+assert _sent["status"] == "applied" and _sent["applied_at"], tuple(_sent)
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

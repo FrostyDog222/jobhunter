@@ -980,6 +980,13 @@ async def tailor(body: dict = Body(...)):
 BATCH_CAP = 20
 
 
+def _mark_closed(c, url):
+    """The board has taken this posting down. Keep the row - the person may have read it - but
+    stop offering it, and say why rather than leaving it looking like an ordinary skip."""
+    c.execute("UPDATE jobs SET status='skipped', note='closed on the board' "
+              "WHERE url=? AND status != 'applied'", (url,))
+
+
 @app.post("/api/apply_batch")
 async def apply_batch(body: dict = Body(...)):
     """Apply to the jobs you ticked, one after another.
@@ -1013,6 +1020,9 @@ async def apply_batch(body: dict = Body(...)):
         if res.get("submitted") or res.get("already"):
             with db() as c:
                 _mark_applied(c, url)
+        elif res.get("closed"):
+            with db() as c:
+                _mark_closed(c, url)
         elif res.get("needs_you"):
             # Screening questions: normally open it for the person, and take it out of the next
             # batch either way. hand_off=False is the scheduled run, where opening a window at
@@ -1106,6 +1116,10 @@ async def apply(body: dict = Body(...)):
             auto_send=body.get("auto_send", True)))
         if res["error"]:
             print("[apply]", j["title"], "->", res)      # full detail lands in srv.log
+            if res.get("closed"):
+                # take it off the list on the way out, so the next click is not the same dead end
+                with db() as c:
+                    _mark_closed(c, j["url"])
             raise HTTPException(400, res["error"])
         if res["needs_you"]:
             # the employer added screening questions, and answering them IS the application.

@@ -847,7 +847,7 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=True):
     """
     from playwright.sync_api import sync_playwright
     out = {"url": url, "submitted": False, "already": False, "needs_you": False,
-           "questions": [], "filled": [], "error": None}
+           "closed": False, "questions": [], "filled": [], "error": None}
     with sync_playwright() as pw:
         browser, ctx, page = _open(pw, headless)
         try:
@@ -872,7 +872,10 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=True):
 
             btn = apply_control(page, board)
             if not btn:
-                out["error"] = "no apply button found on this page"
+                # We got this far, so we are signed in and the page is not already-applied. A
+                # board that offers a candidate no way to apply has closed the posting.
+                out["closed"] = True
+                out["error"] = "this posting is closed - the board offers no way to apply"
                 return out
 
             btn.click()
