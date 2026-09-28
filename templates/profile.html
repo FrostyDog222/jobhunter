@@ -306,7 +306,12 @@ async function drawCvButtons(){
   // Each template carries its own photo choice, started at what suits it: a photo makes
   // European and Timeline, sits oddly on a Harvard-style Traditional, and Classic reads fine
   // either way. Said under the button, where the decision is actually made.
-  const ADVICE = {yes: 'better with a photo', no: 'better without', either: 'works either way'};
+  const ADVICE = {yes: 'better with a photo', no: 'better without photo',
+                  either: 'works either way'};
+  // your own answer wins once you have given one; the recommendation is only where it starts
+  let saved = {};
+  try { saved = (await api('/api/settings', undefined, 'GET')).cv_photo || {}; } catch(e){}
+  const wants = k => saved[k] === undefined ? (tpls[k].photo !== 'no') : !!saved[k];
   $('#cvbuttons').innerHTML = Object.entries(tpls).map(([k, v]) => `
     <div style="flex:0 0 auto;width:158px;display:flex;flex-direction:column;gap:8px;
       align-items:center;text-align:center;padding:12px 10px;border:1px solid var(--line);
@@ -316,7 +321,7 @@ async function drawCvButtons(){
       <label style="display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;
         font-size:12.5px;cursor:pointer">
         <input type="checkbox" class="cvphoto" data-for="${esc(k)}" style="width:auto"
-          ${v.photo === 'no' ? '' : 'checked'}> with photo</label>
+          ${wants(k) ? 'checked' : ''}> with photo</label>
       <span class="muted" style="font-size:11px;line-height:1.3">${ADVICE[v.photo] || ''}</span>
     </div>`).join('');
   try {
@@ -329,6 +334,12 @@ async function drawCvButtons(){
         + 'Photo above.';
   } catch(e){}
 }
+document.addEventListener('change', async e => {
+  if(!e.target.classList.contains('cvphoto')) return;
+  const all = {};
+  document.querySelectorAll('.cvphoto').forEach(b => all[b.dataset.for] = b.checked);
+  await api('/api/settings', {cv_photo: all});   // so a reload does not undo the choice
+});
 document.addEventListener('click', e => {
   const tpl = e.target.dataset && e.target.dataset.cv;
   if(!tpl) return;

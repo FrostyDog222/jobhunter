@@ -551,6 +551,16 @@ assert "body:not(.has-photo) .contact" in _eu, "the lift must only apply when th
 assert ".contact{float:left;clear:left;width:38mm" in _eu
 assert "margin:0 0 1px 44mm" in _eu or "margin:3mm 0 1px 44mm" in _eu,     "the name has to stay clear of the sidebar column"
 
+# 2n. Your own photo answer per template is remembered. The recommendation is where the tick
+# starts, not something that reasserts itself on every reload - changing it and coming back to a
+# page that had forgotten is the kind of small thing that makes an app feel broken.
+assert "cv_photo" in app.DEFAULTS and app.DEFAULTS["cv_photo"] == {}
+_prof = (app.HERE / "templates" / "profile.html").read_text(encoding="utf-8")
+assert "saved[k] === undefined" in _prof, "an unanswered template falls back to its advice"
+assert "api('/api/settings', {cv_photo: all})" in _prof, "and the answer has to be saved"
+# saveSettings lives on the dashboard only; calling it here threw and the save vanished silently
+assert "saveSettings(" not in _prof, "the profile page has no saveSettings"
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

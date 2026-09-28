@@ -109,6 +109,10 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             # A photo is normal on a CV in Romania and unwelcome in the UK or the US, so it is
             # the person's call, per CV, and ignored entirely when there is no photo.
             "photo_in_cv": True,
+            # Your own answer per template, once you have changed one. Empty means "use what
+            # suits each template" - so the recommendation is a starting point, not a rule that
+            # reasserts itself every time the page reloads.
+            "cv_photo": {},
             # What the search bar had last time. It lived in the browser's localStorage, so it
             # never moved with the profile to another machine, and the county dropdown was not
             # saved at all - it reset on every reload.
