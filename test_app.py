@@ -148,6 +148,9 @@ assert not _match("hipo", "apply with linkedin")
 # form and must NOT be scoped in as a question - it would read as unanswered and block
 # every send.
 assert "intrebari" in _pf.HIPO_Q and "scrisoare" not in _pf.HIPO_Q
+# Hipo confirms with "Ati aplicat deja la acest job" - the words the other way round from
+# "deja aplicat", so a real application read as "saw no confirmation" until this was added
+assert any(m in "ati aplicat deja la acest job" for m in _pf.BOARD_UI["hipo"]["applied"])
 # social apply is a different flow and must never be clicked
 assert not _match("hipo", "aplica cu linkedin")
 assert not _match("hipo", "aplica cu facebook")

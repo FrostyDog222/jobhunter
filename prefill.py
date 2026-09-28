@@ -623,8 +623,11 @@ BOARD_UI = {
         "apply":      (r"aplica la acest anun|aplică la acest anun|aplic[aă] f[aă]r[aă] cv"
                        r"|apply (to|for) this job|apply without (a )?cv"),
         "avoid":      r"linkedin|facebook|google",
-        "applied":    ("ai aplicat", "deja aplicat", "aplicare trimis", "candidatura ta",
-                       "ai candidat"),
+        # Hipo's own confirmation is "Ati aplicat deja la acest job" - the words the other way
+        # round from "deja aplicat", so that marker never fired and a genuinely successful
+        # application came back as "sent it but saw no confirmation".
+        "applied":    ("ai aplicat", "deja aplicat", "aplicat deja", "aplicare trimis",
+                       "candidatura ta", "ai candidat"),
     },
     "bestjobs": {
         # a React app, so page text is unreliable - but an unauthenticated /ro/profile answers
@@ -882,7 +885,11 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=True):
                 if board == "hipo":
                     _hipo_form(page, out)
                 fields = mini_interview(page, board)
-                if fields:
+                # Plenty of Hipo employers ask nothing at all. Gating the send on there being
+                # questions would leave those applications filled in and never sent - the form
+                # itself being open is what says we have somewhere to send.
+                on_form = board == "hipo" and "/candidat/aplica/" in page.url
+                if fields or on_form:
                     out["questions"] = [_question(f)[:160] for f in fields]
                     out["filled"] = _fill_mini(page, fields, profile, job_title)
                     blank = [_question(f)[:120] for f in fields
