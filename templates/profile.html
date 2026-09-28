@@ -140,6 +140,21 @@
   </div>
 </div>
 
+<b style="display:block;margin-top:18px">Download my CV</b>
+<div class="card">
+  <p class="muted" style="margin:0 0 10px">Your profile as it stands, in whichever style you
+    want — nothing is tailored to a job and no AI is used, so it is instant. The tailored ones
+    are written per posting, from the job list.</p>
+  <div class="row" style="align-items:flex-end">
+    <div class="small" style="flex:0 0 auto"><label>Language</label>
+      <select id="cvlang"><option value="en">English</option>
+        <option value="ro">Română</option></select></div>
+    <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"
+      id="cvbuttons"></div>
+  </div>
+  <p class="muted" id="cvphotonote" style="margin:8px 0 0"></p>
+</div>
+
 <b style="display:block;margin-top:18px">Erase everything</b>
 <div class="card" style="border-color:color-mix(in srgb,var(--bad) 45%,var(--line))">
   <p class="muted" style="margin:0 0 10px">Deletes everything this app holds about you — your
@@ -284,6 +299,33 @@ $('#save').onclick = e => busy(e.target, async () => {
                          + 'Reload the page.', 9000);
   await api('/api/profile', collect()); $('#saved').textContent = 'saved ' + new Date().toLocaleTimeString();
 }, 'saving...');
+
+/* ---------- download my CV ---------- */
+// The profile as it stands, in each template. No tailoring and no model call, so these are
+// instant and free - the tailored ones are per posting and live on the job list.
+async function drawCvButtons(){
+  let tpls = {};
+  try { tpls = await api('/api/cv/templates', undefined, 'GET'); } catch(e){ return; }
+  $('#cvbuttons').innerHTML = Object.entries(tpls).map(([k, v]) =>
+    `<button class="ghost" data-cv="${esc(k)}" title="${esc(v.blurb || '')}">${esc(v.name)}</button>`
+  ).join('');
+  try {
+    const st = await api('/api/settings', undefined, 'GET');
+    $('#cvphotonote').textContent = st.has_photo
+      ? (st.photo_in_cv ? 'Your photo will be on it — untick "Put my photo on the CV" above to leave it off.'
+                        : 'Your photo is saved but switched off, so these will have none.')
+      : 'No photo saved, so these will have none.';
+  } catch(e){}
+}
+document.addEventListener('click', e => {
+  const tpl = e.target.dataset && e.target.dataset.cv;
+  if(!tpl) return;
+  const lang = $('#cvlang').value;
+  // a plain link download: the PDF is built on request and streamed back
+  window.location.href = `/api/profile/cv?template=${encodeURIComponent(tpl)}&lang=${lang}`;
+  toast('Building your CV — the download starts in a moment.', 5000);
+});
+drawCvButtons();
 
 /* ---------- photo ---------- */
 async function loadPhoto(){

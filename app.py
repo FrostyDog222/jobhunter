@@ -642,6 +642,24 @@ def purge(body: dict = Body(...)):
     return {"ok": True, "removed": removed, "failed": failed}
 
 
+@app.get("/api/profile/cv")
+async def profile_cv(template: str = "", lang: str = "en"):
+    """The profile as a PDF, untailored. No model call, so it costs nothing and is instant."""
+    me = profile()
+    if not _has_substance(me):
+        raise HTTPException(400, "Fill in your profile first - there is nothing to put on a CV.")
+    if template not in cv_templates():
+        template = settings().get("cv_template") or "european"
+    if lang not in LABELS:
+        lang = "en"
+    OUT.mkdir(exist_ok=True)
+    who = "".join(ch if ch.isalnum() else "-" for ch in (me.get("name") or "CV")).strip("-")
+    path = OUT / f"{who or 'CV'}-{lang}-{template}.pdf"
+    await off(_pdf, me, path, lang, template)
+    return FileResponse(path, media_type="application/pdf", filename=path.name,
+                        headers={"Cache-Control": "no-store, must-revalidate"})
+
+
 @app.post("/api/profile")
 def post_profile(p: dict = Body(...)):
     # A page that failed to render shows empty fields, and empty fields collect() as an empty

@@ -495,6 +495,16 @@ for _fn in ("when=when", "howlong=howlong", "photo="):
     assert _fn in _csrc, f"_cv_html must pass {_fn}"
 assert _i7.getsource(app.cv_thumb).count("_cv_html") == 1, "thumbnails must reuse _cv_html"
 
+# 2i. The CV you download from the profile is the profile, not a tailored one. It must never call
+# the model: it is the thing to hand someone who simply asks for your CV, and a tailored CV is
+# written against one posting and would be wrong for anyone else.
+import inspect as _i8
+_pcv = _i8.getsource(app.profile_cv)
+assert "llm.tailor" not in _pcv and "llm." not in _pcv, "the profile CV must not go near the model"
+assert "_pdf" in _pcv and "profile()" in _pcv
+assert "no-store" in _pcv, "a rebuilt CV must not be served from cache"
+assert "_has_substance" in _pcv, "an empty profile should not render a blank CV"
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during
