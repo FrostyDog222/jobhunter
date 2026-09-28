@@ -96,6 +96,38 @@ def run():
     return report
 
 
+# The cookie that actually carries each board's session, and how long it had left. Hipo is the
+# interesting one: ctlyst_hp_sss is renewed by visiting, hhppctly is not, so if hhppctly's fixed
+# life is what ends the session there is nothing a keep-alive can do about it.
+SESSION_COOKIES = {
+    "hipo": ("ctlyst_hp_sss", "hhppctly"),
+    "ejobs": ("user-access-token", "user-refresh-token"),
+    "bestjobs": ("_ast",),
+}
+
+
+def _cookie_hours():
+    """-> {board: "name 5.9h, other 20.0h"} for the cookies that carry each session."""
+    import json as _json
+    import prefill
+    try:
+        jar = _json.loads(prefill.STATE.read_text(encoding="utf-8")).get("cookies", [])
+    except (OSError, ValueError):
+        return {}
+    now, out = datetime.datetime.now().timestamp(), {}
+    for board, names in SESSION_COOKIES.items():
+        host = {"hipo": "hipo.ro", "ejobs": "ejobs.ro", "bestjobs": "bestjobs"}[board]
+        bits = []
+        for c in jar:
+            if host in (c.get("domain") or "") and c.get("name") in names:
+                exp = c.get("expires") or -1
+                bits.append(f"{c['name']} {((exp - now) / 3600):.1f}h" if exp > 0
+                            else f"{c['name']} session")
+        if bits:
+            out[board] = ", ".join(sorted(bits))
+    return out
+
+
 def touch():
     """Load each board with the saved session, which renews it, and write the jar back.
 
@@ -103,9 +135,13 @@ def touch():
     the checking IS the refreshing, because a board renews its cookie when you visit.
     """
     import prefill
+    before = _cookie_hours()
     out = prefill.verify_boards()
+    after = _cookie_hours()
     log("keep-alive: " + ", ".join(f"{b}={'ok' if v else 'SIGNED OUT'}"
                                    for b, v in sorted(out.items())))
+    for board in sorted(set(before) | set(after)):
+        log(f"   {board:9s} before[{before.get(board, '-')}]  after[{after.get(board, '-')}]")
     return out
 
 
