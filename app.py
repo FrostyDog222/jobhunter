@@ -622,7 +622,11 @@ async def llm_models(provider: str = ""):
 
 @app.post("/api/suggest")
 async def suggestions():
-    return await off(llm.suggest, profile())
+    # What employers actually asked for, from the jobs already scored. Counted locally, so this
+    # costs nothing extra and the advice stops being generic CV polish.
+    top = recurring_gaps(min_fit=50, limit=15)["gaps"]
+    market = [(g["gap"], g["jobs"]) for g in top if g["jobs"] > 1]
+    return await off(lambda: llm.suggest(profile(), market))
 
 
 @app.post("/api/suggest/apply")

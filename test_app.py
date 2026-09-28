@@ -384,6 +384,18 @@ for _name in ("cv.doc", "cv.txt"):
     except _HE:
         pass
 
+# 2a. suggest() is handed what employers in the candidate's own results kept asking for. Showing
+# a model a list of wanted skills is exactly how a CV grows things the candidate cannot defend in
+# an interview, so the no-invention rule names that list specifically, and an empty market must
+# leave the prompt completely unchanged rather than mentioning an empty list.
+import inspect as _i5
+_ssrc3 = _i5.getsource(app.llm.suggest)
+assert "say NOTHING about it" in _ssrc3, "the rule against adding missing skills must be explicit"
+assert "market[:15]" in _ssrc3, "the list has to be capped"
+assert 'demand = ""' in _ssrc3, "no market means no extra prompt at all"
+# and the endpoint only passes things more than one ad asked for
+assert 'g["jobs"] > 1' in _i5.getsource(app.suggestions)
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

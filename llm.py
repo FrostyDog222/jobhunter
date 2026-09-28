@@ -532,8 +532,25 @@ def parse_cv(text):
     return {**EMPTY, **p}
 
 
-def suggest(profile):
-    """Review the profile and propose concrete improvements the user can accept one by one."""
+def suggest(profile, market=None):
+    """Review the profile and propose concrete improvements the user can accept one by one.
+
+    `market` is [(thing employers asked for, how many ads)] taken from the jobs already scored.
+    It is context for deciding what matters, never a shopping list: a model shown what employers
+    want will write it straight into the CV unless told plainly not to, which is why the rule
+    below names this list specifically.
+    """
+    demand = ""
+    if market:
+        demand = ("\n\nEmployers in THIS candidate's own search results kept asking for the "
+                  "following, with the number of ads that asked:\n"
+                  + "\n".join(f"- {t} ({n} ads)" for t, n in market[:15])
+                  + "\nUse this ONLY to decide what is worth surfacing. Where the profile "
+                    "already contains something that answers one of these and buries it, say so "
+                    "and lift it. Where the profile does not contain it, say NOTHING about it - "
+                    "do not add it, do not hint at it, do not write a bullet 'ready to learn' it. "
+                    "A suggestion that puts an unsupported skill into this CV is a lie the "
+                    "candidate will have to defend in an interview.")
     return ask(
         "You are a blunt, experienced technical recruiter reviewing someone's CV data. "
         "Find the weakest points and propose concrete rewrites. Rules: "
@@ -547,7 +564,7 @@ def suggest(profile):
         '"label": "short human label of what this is", '
         '"issue": "one sentence on what is wrong", '
         '"value": "the replacement value - a string, or an array of strings if the path points at a list"}',
-        "Profile:\n" + json.dumps(profile, ensure_ascii=False, indent=1),
+        "Profile:\n" + json.dumps(profile, ensure_ascii=False, indent=1) + demand,
     )
 
 
