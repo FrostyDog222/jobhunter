@@ -1274,6 +1274,12 @@ CV_DIR = HERE / "templates" / "cv"
 THUMBS = OUT / ".thumbs"
 
 
+# What each template is actually meant to carry. A photo makes European and Timeline; it sits
+# oddly on a Harvard-style Traditional, where a plain header is the convention; Classic reads
+# fine either way. Shown beside each download so the choice is made once, in the right place.
+PHOTO_ADVICE = {"european": "yes", "timeline": "yes", "traditional": "no", "classic": "either"}
+
+
 def cv_templates():
     """Template key -> {name, blurb}, read from the header comment of each templates/cv/*.css."""
     out = {}
@@ -1281,7 +1287,8 @@ def cv_templates():
         head = f.read_text(encoding="utf-8")[:400]
         m = re.search(r"/\*\s*(.+?)\s*[-–]\s*(.+?)\s*\*/", head, re.S)
         out[f.stem] = {"name": m.group(1).strip() if m else f.stem.title(),
-                       "blurb": re.sub(r"\s+", " ", m.group(2)).strip() if m else ""}
+                       "blurb": re.sub(r"\s+", " ", m.group(2)).strip() if m else "",
+                       "photo": PHOTO_ADVICE.get(f.stem, "either")}
     return out
 
 

@@ -519,6 +519,17 @@ assert "photo" in _i9.getsource(app.profile_cv) and "photo" in _i9.getsource(app
 # a template must be able to lay out around the photo, or place none
 assert "has-photo" in (app.HERE / "templates" / "cv.html").read_text(encoding="utf-8")
 
+# 2k. Each template says whether it wants a photo, and the profile page starts its tick there:
+# a photo makes European and Timeline, sits oddly on a Harvard-style Traditional where a plain
+# header is the convention, and Classic reads either way. Advice, not a rule - the tick can be
+# changed per download.
+assert app.PHOTO_ADVICE["traditional"] == "no"
+assert app.PHOTO_ADVICE["european"] == "yes" and app.PHOTO_ADVICE["timeline"] == "yes"
+assert app.PHOTO_ADVICE["classic"] == "either"
+for _k, _v in app.cv_templates().items():
+    assert _v["photo"] in ("yes", "no", "either"), (_k, _v)
+    assert _v["name"] and _v["blurb"], _k
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

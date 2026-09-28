@@ -149,11 +149,7 @@
     <div class="small" style="flex:0 0 auto"><label>Language</label>
       <select id="cvlang"><option value="en">English</option>
         <option value="ro">Română</option></select></div>
-    <div class="small" style="flex:0 0 auto"><label>Photo</label>
-      <select id="cvphoto" title="Decided per CV: a photo suits European and rarely suits Traditional">
-        <option value="">As set above</option>
-        <option value="1">With photo</option>
-        <option value="0">Without photo</option></select></div>
+
     <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"
       id="cvbuttons"></div>
   </div>
@@ -311,9 +307,19 @@ $('#save').onclick = e => busy(e.target, async () => {
 async function drawCvButtons(){
   let tpls = {};
   try { tpls = await api('/api/cv/templates', undefined, 'GET'); } catch(e){ return; }
-  $('#cvbuttons').innerHTML = Object.entries(tpls).map(([k, v]) =>
-    `<button class="ghost" data-cv="${esc(k)}" title="${esc(v.blurb || '')}">${esc(v.name)}</button>`
-  ).join('');
+  // Each template carries its own photo choice, started at what suits it: a photo makes
+  // European and Timeline, sits oddly on a Harvard-style Traditional, and Classic reads fine
+  // either way. Said under the button, where the decision is actually made.
+  const ADVICE = {yes: 'better with a photo', no: 'better without', either: 'works either way'};
+  $('#cvbuttons').innerHTML = Object.entries(tpls).map(([k, v]) => `
+    <div style="flex:0 0 auto;display:flex;flex-direction:column;gap:3px;align-items:flex-start">
+      <button class="ghost" data-cv="${esc(k)}" title="${esc(v.blurb || '')}">${esc(v.name)}</button>
+      <label style="display:flex;gap:5px;align-items:center;text-transform:none;letter-spacing:0;
+        font-size:12px;cursor:pointer;color:var(--dim)">
+        <input type="checkbox" class="cvphoto" data-for="${esc(k)}" style="width:auto"
+          ${v.photo === 'no' ? '' : 'checked'}> photo</label>
+      <span class="muted" style="font-size:11px">${ADVICE[v.photo] || ''}</span>
+    </div>`).join('');
   try {
     const st = await api('/api/settings', undefined, 'GET');
     $('#cvphotonote').textContent = st.has_photo
@@ -327,9 +333,11 @@ document.addEventListener('click', e => {
   if(!tpl) return;
   const lang = $('#cvlang').value;
   // a plain link download: the PDF is built on request and streamed back
-  const photo = $('#cvphoto').value;   // per CV: a photo suits European and rarely Traditional
+  // the tick belonging to this template, not a single answer for all of them
+  const box = document.querySelector(`.cvphoto[data-for="${CSS.escape(tpl)}"]`);
+  const photo = box && box.checked ? '1' : '0';
   window.location.href = `/api/profile/cv?template=${encodeURIComponent(tpl)}&lang=${lang}`
-                       + (photo === '' ? '' : `&photo=${photo}`);
+                       + `&photo=${photo}`;
   toast('Building your CV — the download starts in a moment.', 5000);
 });
 drawCvButtons();
