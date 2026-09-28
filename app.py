@@ -27,10 +27,21 @@ tpl = Jinja2Templates(directory=HERE / "templates")
 pool = ThreadPoolExecutor(max_workers=3)   # free LLM tiers rate-limit above this
 
 
+_SCHEMA_DONE = False
+
+
 def db():
+    global _SCHEMA_DONE
     c = sqlite3.connect(DB)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA busy_timeout=15000")   # the weekly run may be writing at the same time
+    if _SCHEMA_DONE:
+        return c
+    # Set the schema up once per process, not once per connection. ALTER TABLE needs a write
+    # lock, so doing this on every connection made every read - opening the dashboard, polling
+    # the progress bar - queue behind whatever the search was writing, for up to the full
+    # busy_timeout. That is what "it feels stuck, it needs a lot of refreshes" was.
+    c.execute("PRAGMA journal_mode=WAL")     # and with WAL, a reader never waits for the writer
     c.execute("""CREATE TABLE IF NOT EXISTS jobs(
         url TEXT PRIMARY KEY, source TEXT, title TEXT, company TEXT, location TEXT,
         posted TEXT, description TEXT, fit INTEGER, why TEXT, gaps TEXT,
@@ -40,6 +51,7 @@ def db():
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
         except sqlite3.OperationalError:
             pass
+    _SCHEMA_DONE = True
     return c
 
 
@@ -637,8 +649,10 @@ async def search(body: dict = Body(...)):
         known = {r[0] for r in c.execute("SELECT url FROM jobs")}
     new_urls = [j for j in found if j["url"] not in known]
     step("reading the ads", 0, max(1, len(new_urls)))
-    fresh = await off(scrape.hydrate, new_urls)
-    step("reading the ads", len(new_urls), max(1, len(new_urls)))
+    # hydrate reports each page as it lands: this phase is a minute or more on a real search,
+    # and a bar that does not move for a minute is the same as no bar at all
+    fresh = await off(lambda: scrape.hydrate(
+        new_urls, on_progress=lambda d, t: step("reading the ads", d, t)))
 
     for b in boards:
         rows = [j for j in fresh if j["source"] == b]

@@ -591,13 +591,28 @@ DEMAND = (r"fluen\w*", r"nativ\w*", r"proficien\w*", r"advanced", r"avansat\w*",
 NEAR = r"\b(?:" + "|".join(DEMAND) + r")\b"
 
 
+# Which language names appear at all, in one pass. Without this the gate scanned the whole ad
+# once per name pattern - about a hundred passes per ad, 69ms each - and because `re` holds the
+# GIL, a search re-running the gate over every stored row froze the whole app for ~40s.
+_MENTIONED = {canon: re.compile("|".join(rf"\b{n}\b" for n in names))
+              for canon, names in SPOKEN.items()}
+_ANY_LANG = re.compile("|".join(rf"\b{n}\b"
+                                for names in SPOKEN.values() for n in names))
+
+
 def required_languages(job):
     """Languages the ad demands. A language in the TITLE is always a demand ('Swedish Support
     Agent'); in the body it must sit next to a proficiency word, in a clause that does not mark
     it as a bonus, a choice, or something the employer teaches."""
     title, body = fold(job.get("title")), fold(job.get("description"))
+    if not (_ANY_LANG.search(title) or _ANY_LANG.search(body)):
+        return set()                   # the ad names no language: nothing to demand
+    here = {canon for canon, rx in _MENTIONED.items()
+            if rx.search(title) or rx.search(body)}
     spans = {}
     for canon, names in SPOKEN.items():
+        if canon not in here:
+            continue
         if any(re.search(rf"\b{n}\b", title) for n in names):
             spans[canon] = None
             continue

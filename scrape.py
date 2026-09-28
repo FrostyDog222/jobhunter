@@ -1,6 +1,7 @@
 """Job scraping. Every serious board emits schema.org JobPosting JSON-LD for Google Jobs,
 so one generic extractor covers them all - a new board is one entry in BOARDS."""
 import datetime, html, json, random, re, time, unicodedata
+from concurrent.futures import ThreadPoolExecutor
 import httpx
 from urllib.parse import unquote, urlsplit
 
@@ -341,39 +342,57 @@ def _too_old(posted):
         return False
 
 
-def hydrate(jobs, timeout=30):
+# How many detail pages to fetch at once. Sequential meant a minute and a half of nothing for a
+# normal search, because each page is about a second of waiting on the network and nothing else.
+# Kept low deliberately: these are small boards, the requests are spread across four of them,
+# and _get already backs off on a 429.
+FETCH_WORKERS = 5
+
+
+def hydrate(jobs, timeout=30, on_progress=None):
     """Phase 2: fetch the detail page only for jobs that survived deduplication. This is where
-    the requests are, so the caller should drop everything it already knows about first."""
+    the requests are, so the caller should drop everything it already knows about first.
+
+    on_progress(done, total) is called as pages arrive, so a caller can show where it is up to.
+    """
     todo = [j for j in jobs if not j.get("_full")]
     if not todo:
         return [dict(j, **{}) for j in jobs]
     with httpx.Client(headers=UA, follow_redirects=True, timeout=timeout) as c:
-        for j in todo:
+        def fetch(j):
             try:
-                page = _get(c, j["url"]).text
+                return j, _get(c, j["url"]).text
             except httpx.HTTPError:
-                continue
-            jp = _jobposting(page)
-            markup = _markup(j["source"], page)
-            if not jp:
-                # no JSON-LD: fall back to the board's own markup, keeping what phase 1 gave us
-                if markup:
-                    j.update(description=markup, _full=True)
-                continue
-            # whichever source carries more of the ad wins - a score computed from a third of
-            # a posting is confident and wrong
-            body = max(_ld_body(jp), markup, key=len)
-            if len(body) < MIN_AD:
-                continue                  # scoring a title is a guess dressed up as a number
-            j.update({
-                "title": _flat(jp.get("title")) or j["title"],
-                "company": _flat(jp.get("hiringOrganization")),
-                "location": _place(_flat(jp.get("jobLocation")))
-                            or ("Remote" if jp.get("jobLocationType") else ""),
-                "posted": _flat(jp.get("datePosted"))[:10],
-                "description": body,
-                "_full": True,
-            })
+                return j, None
+
+        with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
+            pages = pool.map(fetch, todo)
+            for done, (j, page) in enumerate(pages, 1):
+                if on_progress:
+                    on_progress(done, len(todo))
+                if page is None:
+                    continue
+                jp = _jobposting(page)
+                markup = _markup(j["source"], page)
+                if not jp:
+                    # no JSON-LD: fall back to the board's own markup, keeping what phase 1 gave us
+                    if markup:
+                        j.update(description=markup, _full=True)
+                    continue
+                # whichever source carries more of the ad wins - a score computed from a third of
+                # a posting is confident and wrong
+                body = max(_ld_body(jp), markup, key=len)
+                if len(body) < MIN_AD:
+                    continue                  # scoring a title is a guess dressed up as a number
+                j.update({
+                    "title": _flat(jp.get("title")) or j["title"],
+                    "company": _flat(jp.get("hiringOrganization")),
+                    "location": _place(_flat(jp.get("jobLocation")))
+                                or ("Remote" if jp.get("jobLocationType") else ""),
+                    "posted": _flat(jp.get("datePosted"))[:10],
+                    "description": body,
+                    "_full": True,
+                })
     # The real title only arrives with the detail page, so re-check the noise filter here - and
     # dedupe on (title, company) here rather than before hydrate, because phase 1 leaves company
     # empty for the HTML boards. Without this the same ad reaches the database from two sources,

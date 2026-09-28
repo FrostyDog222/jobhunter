@@ -2,6 +2,8 @@
 .env
 profile.json
 db.sqlite
+db.sqlite-wal
+db.sqlite-shm
 out/
 __pycache__/
 .venv/
