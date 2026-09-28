@@ -87,7 +87,16 @@
     you write here and leaves them blank if you do not. It never invents a figure.</p>
   <div class="row">
     <div><label>Salary expectation</label>
-      <input data-f="salary_expectation" placeholder="e.g. 5500 RON net / month"></div>
+      <div style="display:flex;gap:6px">
+        <input data-f="salary_expectation" placeholder="e.g. 5500 net / month" style="flex:1">
+        <select id="salary_currency" style="flex:0 0 auto;width:auto"
+          title="Writes the currency into the answer beside your figure">
+          <option value="">currency</option>
+          <option value="EUR">EUR</option>
+          <option value="USD">USD ($)</option>
+          <option value="RON">RON (lei)</option>
+        </select>
+      </div></div>
     <div><label>Notice period</label>
       <input data-f="notice_period" placeholder="e.g. 30 days"></div>
     <div><label>Earliest start</label>
@@ -242,6 +251,47 @@ $('#save').onclick = e => busy(e.target, async () => {
   await api('/api/profile', collect()); $('#saved').textContent = 'saved ' + new Date().toLocaleTimeString();
 }, 'saving...');
 
+/* ---------- currency beside the salary ---------- */
+// One stored string, not two fields: this answer is repeated to employers exactly as written,
+// so the picker edits the text rather than being assembled at apply time.
+const CUR_WORDS = {EUR: /\b(eur|euro|€)\b/i, USD: /\b(usd|dollars?|\$)/i,
+                   RON: /\b(ron|lei|lej)\b/i};
+
+function readCurrency(text){
+  for(const [code, re] of Object.entries(CUR_WORDS)) if(re.test(text || '')) return code;
+  return '';
+}
+
+function writeCurrency(text, code){
+  let t = (text || '').trim();
+  // take out whatever currency is already in there, however it was spelled
+  for(const re of Object.values(CUR_WORDS))
+    t = t.replace(new RegExp(re.source, 'gi'), ' ');
+  t = t.replace(/\s{2,}/g, ' ').trim();
+  if(!code) return t;
+  if(!t) return code;
+  // put it straight after the figure, which is how people write it: "5500 EUR net / month"
+  const m = t.match(/[\d][\d.,\s-]*/);
+  if(!m) return `${t} ${code}`.replace(/\s{2,}/g, ' ');
+  const at = m.index + m[0].replace(/\s+$/, '').length;
+  return (t.slice(0, at) + ' ' + code + ' ' + t.slice(at)).replace(/\s{2,}/g, ' ').trim();
+}
+
+function syncCurrency(){
+  const box = document.querySelector('[data-f="salary_expectation"]');
+  const sel = $('#salary_currency');
+  if(box && sel) sel.value = readCurrency(box.value);
+}
+
+$('#salary_currency').onchange = e => {
+  const box = document.querySelector('[data-f="salary_expectation"]');
+  box.value = writeCurrency(box.value, e.target.value);
+  box.dispatchEvent(new Event('input', {bubbles: true}));   // so the profile saves it
+};
+document.addEventListener('input', e => {
+  if(e.target.matches('[data-f="salary_expectation"]')) syncCurrency();
+});
+
 $('#up').onclick = e => busy(e.target, async () => {
   const f = $('#file').files[0];
   if(!f) return toast('Pick a file first');
@@ -258,6 +308,8 @@ $('#up').onclick = e => busy(e.target, async () => {
   const fd = new FormData(); fd.append('file', f);
   P = await unwrap(await fetch('/api/profile/upload', {method:'POST', body:fd})); render(); toast('Profile filled in from your CV — check every field before saving.', 7000);
 }, 'reading CV...');
+
+setTimeout(syncCurrency, 300);
 
 $('#pasteBtn').onclick = e => busy(e.target, async () => {
   P = await api('/api/profile/paste', {text: $('#paste').value}); render(); toast('Parsed — review the fields.');
