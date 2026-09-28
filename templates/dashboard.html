@@ -220,9 +220,11 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     </div>
     <div class="row">
       <div style="flex:3"><label>Search for</label>
-        <input id="auto_query" placeholder="the terms to run every week"></div>
-      <div class="small"><label>City</label><input id="auto_location" placeholder="anywhere"></div>
-      <div class="small"><label>Country</label><input id="auto_country" value="ro"></div>
+        <input id="auto_query" list="qterms" placeholder="the terms to run every week"
+          title="Pick from the suggestions or type your own, separated by commas"></div>
+      <div class="small"><label>City</label><select id="auto_location"></select></div>
+      <div class="small"><label>County</label><select id="auto_county"></select></div>
+      <div class="small"><label>Country</label><select id="auto_country"></select></div>
     </div>
     <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
       font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="auto_apply"
@@ -299,7 +301,9 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 <div class="card">
   <div class="searchbar">
     <div class="grow"><label>Search jobs for</label>
-      <input id="q" placeholder="customer support, suport clienti, relatii clienti"></div>
+      <input id="q" list="qterms" placeholder="customer support, suport clienti, relatii clienti"
+        title="Pick from the suggestions or type your own, separated by commas">
+      <datalist id="qterms"></datalist></div>
     <div class="small"><label>Preset</label>
       <select id="preset" title="Fills the box with terms for one role family. Edit before searching if you like.">
         <option value="">Pick a role family…</option>
@@ -476,7 +480,7 @@ $('#importhist').onclick = e => busy(e.target, async () => {
 
 /* ---------- the weekly run ---------- */
 const AUTO_FIELDS = ['auto_enabled', 'auto_day', 'auto_time', 'auto_query', 'auto_location',
-                     'auto_country', 'auto_min_fit', 'auto_apply', 'auto_apply_min_fit',
+                     'auto_county', 'auto_country', 'auto_min_fit', 'auto_apply', 'auto_apply_min_fit',
                      'auto_apply_cap'];
 // the floor and the cap only mean anything while applying is on
 const applyRow = () => $('#applyrow').style.opacity = $('#auto_apply').checked ? '1' : '.45';
@@ -564,6 +568,7 @@ async function loadAuto(){
 $('#autocopy').onclick = () => {
   $('#auto_query').value = $('#q').value;
   $('#auto_location').value = $('#loc').value;
+  $('#auto_county').value = $('#county').value;
   $('#auto_country').value = $('#country').value;
   toast('Copied. Press "Save the schedule" to keep it.');
 };
@@ -714,6 +719,35 @@ function drawPresets(){
     + '</optgroup>';
 }
 drawPresets();
+
+// The weekly run searches the same boards with the same rules, so it gets the same controls -
+// cloned from the ones above rather than a second copy of 42 counties to keep in step.
+function mirrorControls(){
+  for(const [from, to] of [['loc','auto_location'], ['county','auto_county'],
+                           ['country','auto_country']]){
+    const src = $('#' + from), dst = $('#' + to);
+    if(!src || !dst) continue;
+    const keep = dst.value;
+    dst.innerHTML = src.innerHTML;
+    [...dst.options].forEach(o => o.selected = false);
+    dst.value = keep || (to === 'auto_country' ? 'ro' : '');
+  }
+}
+
+// Suggestions for the search box: the job titles this person has actually held come first,
+// because they are the terms that find their own work, then the example families. Typing is
+// never blocked - a datalist suggests, it does not constrain.
+function drawTerms(){
+  const mine = [...new Set([PROFILE.title, ...(PROFILE.experience || []).map(e => e.role)]
+                  .map(x => (x || '').trim()).filter(Boolean))].slice(0, 6);
+  // one entry per example family, plus each individual term, so both work while typing
+  const examples = Object.values(PRESETS).flatMap(v => v.split(',').map(x => x.trim()));
+  $('#qterms').innerHTML = [...new Set([...mine, ...Object.values(PRESETS), ...examples])]
+    .filter(Boolean).map(t => `<option value="${esc(t)}">`).join('');
+}
+mirrorControls();
+drawTerms();
+
 $('#preset').onchange = e => {
   const v = e.target.value;
   const terms = v.startsWith('@') ? v.slice(1) : PRESETS[v];
@@ -1106,6 +1140,7 @@ $('#go').onclick = e => busy(e.target, async () => {
   const stopWatching = watchSearch();
   try {
     const r = await api('/api/search', {query:$('#q').value, location:$('#loc').value,
+                                        county:$('#county').value,
                                         country:$('#country').value,
                                         filters:{reality:$('#fresh').value,
                                                  work_mode:$('#work_mode').value,
@@ -1217,7 +1252,8 @@ $('#list').addEventListener('click', async e => {
 loadLlm();
 loadSignins();
 api('/api/cv/templates', undefined, 'GET').then(t => { TPLS = t; return loadSettings(); }).catch(()=>{});
-api('/api/profile', undefined, 'GET').then(p => { PROFILE = p || {}; drawPresets(); steps(); }).catch(()=>{});
+api('/api/profile', undefined, 'GET')
+  .then(p => { PROFILE = p || {}; drawPresets(); drawTerms(); steps(); }).catch(()=>{});
 loadAuto();
 // keep the auto/manual split in step with the server rather than hard-coding it twice
 api('/api/boards', undefined, 'GET')

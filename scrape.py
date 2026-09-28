@@ -367,6 +367,10 @@ def in_county(text, county):
     flat = _slug(text)
     if not flat:
         return False                      # an ad with no location cannot be confirmed as local
+    # A remote job is open to someone in any county, and the boards pad their county pages with
+    # them - dropping those would have thrown away the roles that suit a county search best.
+    if re.search(r"(^|-)(remote|telemunca|munca-de-acasa|work-from-home|anywhere)($|-)", flat):
+        return True
     display, towns = entry
     # word-boundary on the slug, so "Ilfov" does not match "Ilfoveni" and "Arad" does not
     # match "Paradis"

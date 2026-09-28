@@ -209,6 +209,11 @@ assert not _ic("Cluj-Napoca", "timis") and not _ic("Brașov", "bucuresti")
 assert not _ic("Ilfoveni", "ilfov")        # Ilfoveni is in Dambovita
 assert not _ic("Paradis Mall", "arad")     # "arad" sits inside "Paradis"
 assert not _ic("", "cluj")                 # no location cannot be confirmed local
+# remote is open to any county, and the boards pad their county pages with these
+assert _ic("Remote", "cluj") and _ic("Telemunca", "dolj") and _ic("Remote", "timis")
+# a multi-city ad counts if the county is anywhere in the list
+assert _ic("Bacău, Iași (Iași), Roman, Vaslui", "iasi")
+assert not _ic("Bacău, Roman, Vaslui", "cluj")
 assert _ic("anywhere", "not-a-county") and _ic("x", "")   # unknown/blank never drops an ad
 assert len(scrape.COUNTIES) == 42, "41 counties plus Bucharest"
 
