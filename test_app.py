@@ -169,6 +169,26 @@ import inspect as _i2
 assert "range(0, len(todo), WORKERS)" in _i2.getsource(app.search)
 assert app.pool._max_workers == app.WORKERS
 
+# 1q. The weekly run is unattended, and nothing ages out .boards.json - it can say "signed in"
+# days after the session died. It must ask the boards themselves before sending applications,
+# or an expired session means a week of applications silently going nowhere.
+import auto_apply as _aa
+class _FakeBoards:
+    AUTO_APPLY = ("ejobs", "bestjobs")
+    def __init__(self, live, cached): self.live, self.cached, self.probed = live, cached, False
+    def verify_boards(self, boards): self.probed = True; return self.live
+    def session_for(self, b): return self.cached[b]
+def _weekly(live, cached):
+    pf = _FakeBoards(live, cached)
+    r = _aa.run(None, pf, {"auto_apply_min_fit": 70, "auto_apply_cap": 5}, lambda *a: None)
+    return pf.probed, r["note"]
+# cache says signed in, the board says otherwise -> nothing is sent
+_probed, _note = _weekly({"ejobs": False, "bestjobs": True}, {"ejobs": True, "bestjobs": True})
+assert _probed and _note and "Not signed in to ejobs" in _note, _note
+# the probe itself failed (wifi blip) -> keep the cached answer, do not declare a live session dead
+_probed, _note = _weekly({}, {"ejobs": False, "bestjobs": True})
+assert _note and "Not signed in to ejobs" in _note, _note
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

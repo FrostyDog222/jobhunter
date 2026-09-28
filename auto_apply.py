@@ -36,8 +36,18 @@ def run(app, prefill, settings, log):
     """
     report = {"considered": 0, "applied": [], "note": None}
 
+    # session_for() reads the status the dashboard last verified, and nothing ages that file out
+    # - it can be days old. This run is unattended and about to send real applications, so ask
+    # the boards themselves first: a session that expired since the last time anyone opened the
+    # app would otherwise mean a week of applications silently going nowhere. A board the probe
+    # could not reach at all (wifi blip) keeps its cached answer rather than being called dead.
+    try:
+        live = prefill.verify_boards(prefill.AUTO_APPLY)
+    except Exception as e:                       # a browser that will not start is not "signed out"
+        log(f"could not re-check the boards ({type(e).__name__}), using the last known status")
+        live = {}
     for board in prefill.AUTO_APPLY:
-        if not prefill.session_for(board):
+        if not live.get(board, prefill.session_for(board)):
             report["note"] = (f"Not signed in to {board}, so nothing was sent. "
                               f"Sign in again under Settings.")
             log(report["note"])
