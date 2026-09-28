@@ -358,6 +358,32 @@ finally:
      app.llm.ad_language) = _real
     app.llm.QUOTA_EVENTS.clear()
 
+# 1z. A .docx laid out in a table - which is how a great many CVs are written - gave up only the
+# name, because python-docx's `paragraphs` never descends into tables. The profile was then built
+# from a name and nothing else, silently, and every job after that was scored against it.
+import io as _io3, docx as _docx
+_d = _docx.Document()
+_d.add_paragraph("Razvan Vuicin")
+_t = _d.add_table(rows=2, cols=2)
+_t.cell(0, 0).text = "2020 - 2024"
+_t.cell(0, 1).text = "Team Leader at ACME"
+_t.cell(1, 0).text = "2018 - 2020"
+_t.cell(1, 1).text = "Support Agent at Contoso"
+_b = _io3.BytesIO(); _d.save(_b)
+_txt = app._cv_text("cv.docx", _b.getvalue())
+assert "ACME" in _txt and "Contoso" in _txt, _txt
+assert "2020 - 2024  Team Leader at ACME" in _txt, "a date must stay beside its role"
+# a Word 97 .doc decoded as text gives ~170 chars of binary noise - long enough to pass the
+# "did we read anything" check and be parsed as a CV. It is refused, by signature as well as
+# by extension, so renaming it does not get it through.
+from fastapi import HTTPException as _HE
+for _name in ("cv.doc", "cv.txt"):
+    try:
+        app._cv_text(_name, bytes.fromhex("d0cf11e0a1b11ae1") + b"noise" * 40)
+        raise AssertionError(f"{_name}: a Word 97 file must be refused, not parsed")
+    except _HE:
+        pass
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

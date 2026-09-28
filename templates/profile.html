@@ -245,6 +245,19 @@ $('#save').onclick = e => busy(e.target, async () => {
 $('#up').onclick = e => busy(e.target, async () => {
   const f = $('#file').files[0];
   if(!f) return toast('Pick a file first');
+  // Reading a CV REPLACES the profile. Everything typed or accepted here - sharpened bullets,
+  // fixed dates, applied suggestions - goes, and there is no undo. Only worth asking about once
+  // there is something to lose.
+  const worth = (P.experience || []).length || (P.skills || []).length || (P.summary || '').trim();
+  if(worth && !confirm(
+      'Reading a CV replaces everything on this page.
+
+'
+      + 'Any wording you fixed here, and any suggestion you accepted, will be overwritten by '
+      + 'what the CV says. Your salary expectation, notice period and earliest start are kept.
+
+'
+      + 'There is no undo. Continue?')) return;
   const fd = new FormData(); fd.append('file', f);
   P = await unwrap(await fetch('/api/profile/upload', {method:'POST', body:fd})); render(); toast('Profile filled in from your CV — check every field before saving.', 7000);
 }, 'reading CV...');

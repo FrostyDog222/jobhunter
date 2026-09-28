@@ -471,14 +471,54 @@ def _untriple(line):
     return line
 
 
+def _docx_text(data):
+    """Every line of a .docx, tables included, in the order they appear on the page.
+
+    python-docx's `paragraphs` skips tables entirely, and a table is how a great many CVs are
+    laid out - dates in the left column, the job in the right. Reading only the paragraphs
+    returned the name and nothing else, and the profile was built from that without complaint.
+    Walking the body in document order keeps each date beside the role it belongs to, which is
+    what the parser needs.
+    """
+    import docx
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+    doc = docx.Document(io.BytesIO(data))
+    out = []
+    for child in doc.element.body.iterchildren():
+        tag = child.tag.rsplit("}", 1)[-1]
+        if tag == "p":
+            out.append(Paragraph(child, doc).text)
+        elif tag == "tbl":
+            for row in Table(child, doc).rows:
+                # a cell can hold its own paragraphs; join them before the row is joined
+                cells = [" ".join(x.text.strip() for x in c.paragraphs if x.text.strip())
+                         for c in row.cells]
+                # a merged cell repeats across the row, and repeating it in the text too makes
+                # the model read one job as several
+                seen, kept = set(), []
+                for c in cells:
+                    if c and c not in seen:
+                        seen.add(c)
+                        kept.append(c)
+                if kept:
+                    out.append("  ".join(kept))
+    return "\n".join(out)
+
+
 def _cv_text(name, data):
     ext = name.lower().rsplit(".", 1)[-1]
     if ext == "pdf":
         import pypdf
         raw = "\n".join(pg.extract_text() or "" for pg in pypdf.PdfReader(io.BytesIO(data)).pages)
     elif ext == "docx":
-        import docx
-        raw = "\n".join(p.text for p in docx.Document(io.BytesIO(data)).paragraphs)
+        raw = _docx_text(data)
+    elif ext == "doc" or data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
+        # Word 97. Decoding it as text yields a couple of hundred characters of binary noise,
+        # which is long enough to pass the "did we read anything" check and be parsed as a CV.
+        raise HTTPException(400, "That is an old Word (.doc) file, which this app cannot read. "
+                                 "Open it in Word and use Save As to make a .docx or a PDF - or "
+                                 "paste the text in instead.")
     else:
         raw = data.decode("utf-8", "ignore")
     return "\n".join(_untriple(l) for l in raw.splitlines())
