@@ -569,6 +569,7 @@ async function loadSettings(){
   $('#headless').value = S.headless || '';
   $('#cvask').checked = !!S.cv_ask;
   $('#home_county').value = S.home_county || '';
+  restoreSearch();
   drawTemplates();
 }
 async function saveSettings(patch){
@@ -1319,8 +1320,21 @@ $('#sendpicked').onclick = e => {
 };
 
 /* ---------- search ---------- */
-for(const id of ['q', 'loc', 'country']){
-  try { const v = localStorage.getItem('search.' + id); if(v !== null) $('#' + id).value = v; } catch(e){}
+// The search bar is part of the setup, not a browser preference: it lived in localStorage, so it
+// never followed the profile to another machine - and `county` was missing from the list
+// entirely, which is why that dropdown forgot itself on every reload.
+const SEARCH_FIELDS = {q: 'search_query', loc: 'search_location',
+                       county: 'search_county', country: 'search_country'};
+function restoreSearch(){
+  for(const [id, key] of Object.entries(SEARCH_FIELDS)){
+    const el = $('#' + id);
+    if(!el) continue;
+    let v = S[key];
+    // carry over whatever the old browser-only version remembered, once
+    if(v === undefined || v === '')
+      try { v = localStorage.getItem('search.' + id) ?? v; } catch(e){}
+    if(v !== undefined && v !== null && v !== '') el.value = v;
+  }
 }
 $('#find').oninput = draw;
 // The search is one long POST, so ask the server separately how far it has got. Scoring is one
@@ -1341,9 +1355,10 @@ function watchSearch(){
 }
 
 $('#go').onclick = e => busy(e.target, async () => {
-  for(const id of ['q', 'loc', 'country']){
-    try { localStorage.setItem('search.' + id, $('#' + id).value); } catch(e){}
-  }
+  const patch = {};
+  for(const [id, key] of Object.entries(SEARCH_FIELDS))
+    if($('#' + id)) patch[key] = $('#' + id).value;
+  saveSettings(patch).catch(()=>{});      // remembered for next time, and on any other machine
   const stopWatching = watchSearch();
   try {
     const r = await api('/api/search', {query:$('#q').value, location:$('#loc').value,

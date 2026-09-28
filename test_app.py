@@ -409,6 +409,26 @@ assert scrape._salary("<html>no salary here</html>") == ""
 assert scrape._salary('"estimatedSalary":"4500 RON/luna"') == "4500 RON/luna"
 assert scrape._salary(None) == ""
 
+# 2c. The pages' JavaScript has to parse. A \n escape that became a real newline broke a string
+# in profile.html, the whole script died, and the page drew every field empty - looking exactly
+# like a wiped profile while profile.json was untouched. Rendered here and handed to node, which
+# is already installed with the browser tooling; skipped quietly where it is not.
+import shutil as _sh, subprocess as _sp, tempfile as _tf, re as _re2
+_node = _sh.which("node")
+if _node:
+    from jinja2 import Environment as _Env, FileSystemLoader as _FSL
+    _env = _Env(loader=_FSL(str(app.HERE / "templates")))
+    _ctx = {"counties": [("timis", "Timis")], "request": None}
+    for _page in ("dashboard.html", "profile.html"):
+        _html = _env.get_template(_page).render(**_ctx)
+        _js = "\n;\n".join(_re2.findall(r"<script(?![^>]*src=)[^>]*>(.*?)</script>",
+                                          _html, _re2.S))
+        assert _js.strip(), f"{_page}: no inline script found to check"
+        _f = pathlib.Path(_tf.mkdtemp()) / "page.js"
+        _f.write_text(_js, encoding="utf-8")
+        _r = _sp.run([_node, "--check", str(_f)], capture_output=True, text=True)
+        assert _r.returncode == 0, f"{_page} has a JavaScript syntax error:\n{_r.stderr[:600]}"
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

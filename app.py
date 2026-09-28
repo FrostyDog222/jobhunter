@@ -87,6 +87,11 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             # "Saravale" is a village and no town list will place it, and guessing wrong here
             # would quietly mislabel every result. Blank means "do not judge distance".
             "home_county": "",
+            # What the search bar had last time. It lived in the browser's localStorage, so it
+            # never moved with the profile to another machine, and the county dropdown was not
+            # saved at all - it reset on every reload.
+            "search_query": "", "search_location": "", "search_county": "",
+            "search_country": "ro",
             # the weekly run (auto.py, started by Windows Task Scheduler)
             "auto_enabled": False, "auto_day": "SUN", "auto_time": "09:00",
             "auto_query": "", "auto_location": "", "auto_county": "", "auto_country": "ro",
@@ -100,8 +105,26 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
 def settings():
     try:
         return {**DEFAULTS, **json.loads(SETTINGS.read_text(encoding="utf-8"))}
-    except (OSError, json.JSONDecodeError):
+    except FileNotFoundError:
+        return dict(DEFAULTS)                 # first run: defaults are the answer, not a fault
+    except (OSError, json.JSONDecodeError) as e:
+        # Falling back silently would switch keep-signed-in off, blank the county and disable the
+        # weekly run - while the Windows tasks carry on existing - and nothing would say so.
+        print(f"[settings] {SETTINGS.name} is unreadable ({e}); using defaults until it is saved "
+              f"again. Anything you had set is in that file.")
         return dict(DEFAULTS)
+
+
+def save_settings_file(cur):
+    """Write settings the way the profile is written.
+
+    It was a plain write_text in two places: interrupt it and the file is left truncated, which
+    the loader then reads as "no settings at all". Same write-then-replace as save_profile, so a
+    half-finished save can never replace a good file.
+    """
+    tmp = SETTINGS.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cur, indent=1), encoding="utf-8")
+    os.replace(tmp, SETTINGS)
 
 
 @app.get("/api/settings")
@@ -250,7 +273,7 @@ def set_auto(body: dict = Body(...)):
         raise HTTPException(400, "Applying happens during the weekly run, so switch that on too.")
     if cur["auto_enabled"] and not (cur["auto_query"] or "").strip():
         raise HTTPException(400, "Type what the weekly run should search for.")
-    SETTINGS.write_text(json.dumps(cur, indent=1), encoding="utf-8")
+    save_settings_file(cur)
     problem = schedule(cur["auto_enabled"], cur["auto_day"], cur["auto_time"])
     if problem:
         raise HTTPException(400, problem)
@@ -339,7 +362,7 @@ def save_settings(body: dict = Body(...)):
             cur[k] = body[k]
     if cur["cv_template"] and cur["cv_template"] not in cv_templates():
         raise HTTPException(400, f"no such CV template: {cur['cv_template']}")
-    SETTINGS.write_text(json.dumps(cur, indent=1), encoding="utf-8")
+    save_settings_file(cur)
     return cur
 
 

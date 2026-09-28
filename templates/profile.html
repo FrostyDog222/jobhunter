@@ -250,13 +250,10 @@ $('#up').onclick = e => busy(e.target, async () => {
   // there is something to lose.
   const worth = (P.experience || []).length || (P.skills || []).length || (P.summary || '').trim();
   if(worth && !confirm(
-      'Reading a CV replaces everything on this page.
-
-'
-      + 'Any wording you fixed here, and any suggestion you accepted, will be overwritten by '
-      + 'what the CV says. Your salary expectation, notice period and earliest start are kept.
-
-'
+      'Reading a CV replaces everything on this page.\n\n'
+      + 'Any wording you fixed here, and any suggestion you accepted, will be overwritten '
+      + 'by what the CV says. Your salary expectation, notice period and earliest start '
+      + 'are kept.\n\n'
       + 'There is no undo. Continue?')) return;
   const fd = new FormData(); fd.append('file', f);
   P = await unwrap(await fetch('/api/profile/upload', {method:'POST', body:fd})); render(); toast('Profile filled in from your CV — check every field before saving.', 7000);
