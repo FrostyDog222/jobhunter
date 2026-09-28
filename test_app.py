@@ -530,6 +530,18 @@ for _k, _v in app.cv_templates().items():
     assert _v["photo"] in ("yes", "no", "either"), (_k, _v)
     assert _v["name"] and _v["blurb"], _k
 
+# 2l. Tailoring asks about the photo per job, not once for everyone, and the tick follows the
+# template just picked - Traditional unticks itself, Timeline ticks itself. pickTemplate must
+# therefore hand back both answers, including when the modal is skipped because a default is set.
+_dash = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "photoDefault" in _dash and "PHOTO_HINT" in _dash
+assert "{template: S.cv_template, photo: photoDefault(S.cv_template)}" in _dash,     "a saved default still has to carry a photo answer"
+assert "done({template: chosen, photo: $('#tplphoto').checked})" in _dash
+assert "template, photo})" in _dash, "the tailor call must pass it on"
+# and the tailor endpoint has to accept it
+import inspect as _i10
+assert 'body.get("photo")' in _i10.getsource(app.tailor)
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

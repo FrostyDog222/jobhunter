@@ -387,8 +387,11 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <div class="tpls" id="tplmodalpick"></div>
     <div class="foot">
       <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
-        font-size:13px;cursor:pointer"><input type="checkbox" id="tplremember" style="width:auto">
-        Remember this as my default</label>
+        font-size:13px;cursor:pointer"><input type="checkbox" id="tplphoto" style="width:auto">
+        Put my photo on it <span class="muted" id="tplphotohint" style="font-size:12px"></span></label>
+      <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
+        font-size:13px;cursor:pointer;margin-left:16px"><input type="checkbox" id="tplremember"
+        style="width:auto"> Remember this as my default</label>
       <span class="gap"></span>
       <button class="ghost" id="tplcancel">Cancel</button>
       <button id="tplgo" disabled>Tailor with this template</button>
@@ -763,22 +766,37 @@ $('#tplpick').addEventListener('click', e => {
   toast(`Default template: ${TPLS[c.dataset.tpl].name}.`);
 });
 // -> a template key, or null if cancelled. Asks only when there is no default or you asked it to.
+const PHOTO_HINT = {yes: 'better with one', no: 'this one is better without',
+                    either: 'works either way'};
+function photoDefault(tpl){
+  // start where the template belongs, not on one answer for all of them
+  const advice = (TPLS[tpl] || {}).photo || 'either';
+  return advice !== 'no';
+}
 function pickTemplate(){
-  if(S.cv_template && !S.cv_ask) return Promise.resolve(S.cv_template);
+  if(S.cv_template && !S.cv_ask)
+    return Promise.resolve({template: S.cv_template, photo: photoDefault(S.cv_template)});
   return new Promise(resolve => {
     let chosen = S.cv_template || '';
     $('#tplmodalpick').innerHTML = tplCards(chosen);
     $('#tplgo').disabled = !chosen;
     $('#tplremember').checked = false;
+    const syncPhoto = () => {
+      const advice = (TPLS[chosen] || {}).photo || 'either';
+      $('#tplphoto').checked = chosen ? photoDefault(chosen) : false;
+      $('#tplphotohint').textContent = chosen ? '— ' + (PHOTO_HINT[advice] || '') : '';
+    };
+    syncPhoto();
     $('#tplmodal').classList.add('open');
     const done = v => { $('#tplmodal').classList.remove('open'); cleanup(); resolve(v); };
     const onPick = e => { const c = e.target.closest('.tpl'); if(!c) return;
       chosen = c.dataset.tpl;
       [...$('#tplmodalpick').children].forEach(x => x.classList.toggle('on', x.dataset.tpl === chosen));
-      $('#tplgo').disabled = false; };
+      $('#tplgo').disabled = false;
+      syncPhoto(); };          // the tick follows the template you just picked
     const onGo = async () => {
       if($('#tplremember').checked) await saveSettings({cv_template: chosen, cv_ask: false});
-      done(chosen); };
+      done({template: chosen, photo: $('#tplphoto').checked}); };
     const onCancel = () => done(null);
     const onKey = e => { if(e.key === 'Escape') onCancel(); };
     function cleanup(){
@@ -1419,9 +1437,10 @@ $('#list').addEventListener('click', async e => {
   const card = btn.closest('.job'), url = card.dataset.url;
   await busy(btn, async () => {
     if(act === 'tailor'){
-      const template = await pickTemplate();
-      if(!template) return;
-      const r = await api('/api/tailor', {url, lang:$('#lang').value, template});
+      const pick = await pickTemplate();
+      if(!pick) return;
+      const {template, photo} = pick;
+      const r = await api('/api/tailor', {url, lang:$('#lang').value, template, photo});
       toast(`CV ready in ${r.lang === 'ro' ? 'Romanian' : 'English'} (${TPLS[r.template]?.name || r.template}): ${r.cv}`);
     }
     if(act === 'apply'){

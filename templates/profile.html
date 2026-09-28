@@ -145,15 +145,11 @@
   <p class="muted" style="margin:0 0 10px">Your profile as it stands, in whichever style you
     want — nothing is tailored to a job and no AI is used, so it is instant. The tailored ones
     are written per posting, from the job list.</p>
-  <div class="row" style="align-items:flex-end">
-    <div class="small" style="flex:0 0 auto"><label>Language</label>
-      <select id="cvlang"><option value="en">English</option>
-        <option value="ro">Română</option></select></div>
-
-    <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"
-      id="cvbuttons"></div>
-  </div>
-  <p class="muted" id="cvphotonote" style="margin:8px 0 0"></p>
+  <div class="small" style="max-width:190px;margin-bottom:12px"><label>Language</label>
+    <select id="cvlang"><option value="en">English</option>
+      <option value="ro">Română</option></select></div>
+  <div id="cvbuttons" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+  <p class="muted" id="cvphotonote" style="margin:12px 0 0"></p>
 </div>
 
 <b style="display:block;margin-top:18px">Erase everything</b>
@@ -312,20 +308,25 @@ async function drawCvButtons(){
   // either way. Said under the button, where the decision is actually made.
   const ADVICE = {yes: 'better with a photo', no: 'better without', either: 'works either way'};
   $('#cvbuttons').innerHTML = Object.entries(tpls).map(([k, v]) => `
-    <div style="flex:0 0 auto;display:flex;flex-direction:column;gap:3px;align-items:flex-start">
-      <button class="ghost" data-cv="${esc(k)}" title="${esc(v.blurb || '')}">${esc(v.name)}</button>
-      <label style="display:flex;gap:5px;align-items:center;text-transform:none;letter-spacing:0;
-        font-size:12px;cursor:pointer;color:var(--dim)">
+    <div style="flex:0 0 auto;width:158px;display:flex;flex-direction:column;gap:8px;
+      align-items:center;text-align:center;padding:12px 10px;border:1px solid var(--line);
+      border-radius:10px;background:var(--bg)">
+      <button class="ghost" data-cv="${esc(k)}" style="width:100%"
+        title="${esc(v.blurb || '')}">${esc(v.name)}</button>
+      <label style="display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;
+        font-size:12.5px;cursor:pointer">
         <input type="checkbox" class="cvphoto" data-for="${esc(k)}" style="width:auto"
-          ${v.photo === 'no' ? '' : 'checked'}> photo</label>
-      <span class="muted" style="font-size:11px">${ADVICE[v.photo] || ''}</span>
+          ${v.photo === 'no' ? '' : 'checked'}> with photo</label>
+      <span class="muted" style="font-size:11px;line-height:1.3">${ADVICE[v.photo] || ''}</span>
     </div>`).join('');
   try {
     const st = await api('/api/settings', undefined, 'GET');
+    // the ticks above decide these downloads, so the note must not point at the other checkbox
     $('#cvphotonote').textContent = st.has_photo
-      ? (st.photo_in_cv ? 'Your photo will be on it — untick "Put my photo on the CV" above to leave it off.'
-                        : 'Your photo is saved but switched off, so these will have none.')
-      : 'No photo saved, so these will have none.';
+      ? 'Each tick above decides that download on its own — the suggestion under it is what '
+        + 'usually suits that style.'
+      : 'No photo saved yet, so these will have none whatever the ticks say. Add one under '
+        + 'Photo above.';
   } catch(e){}
 }
 document.addEventListener('click', e => {
