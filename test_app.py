@@ -279,6 +279,16 @@ assert _pf._probe_signed_in(_p, "ejobs") is True and _p.loads == 2    # renewed 
 _p = _FakePage([_IN])
 assert _pf._probe_signed_in(_p, "ejobs") is True and _p.loads == 1    # healthy costs one load
 
+# 1w. The keep-signed-in switch lives in the sign-in panel, not the weekly one, and its key does
+# not start with auto_ - so it has to be let through /api/auto explicitly and saved on its own.
+# Without either, ticking it looked like it worked and changed nothing.
+import inspect as _i3
+_src = _i3.getsource(app.get_auto)
+assert 'k == "keep_signed_in"' in _src, "get_auto must return the switch, or it draws unticked"
+assert "keep_signed_in" in _i3.getsource(app.set_auto), "set_auto must accept it"
+assert "keep_signed_in" in _i3.getsource(app.keep_signed_in)
+assert app.KEEP_HOURS * 3600 < 6 * 3600, "must touch more often than Hipo's ~6h session"
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

@@ -214,7 +214,10 @@ def get_auto():
         last = json.loads((HERE / "auto_last.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         last = None
-    return {"settings": {k: v for k, v in s.items() if k.startswith("auto_")},
+    # keep_signed_in is not an auto_ key but the same panel owns it: without it here the
+    # checkbox always drew itself unticked, however the scheduled task was actually set
+    return {"settings": {k: v for k, v in s.items()
+                         if k.startswith("auto_") or k == "keep_signed_in"},
             "task": task_state(), "last": last}
 
 
