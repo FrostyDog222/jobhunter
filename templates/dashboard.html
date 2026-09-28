@@ -490,6 +490,8 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <label><input type="checkbox" class="band" data-band="weak"> Weak &lt;50</label>
   </span>
   <button id="selall" class="ghost">Select all shown</button>
+  <b id="seltally" style="display:none;color:var(--accent);align-self:center;font-size:13.5px"
+    title="Counts everything you have ticked, including jobs on other pages"></b>
   <button id="clear" class="ghost" title="Delete results you never acted on, so a new search
     starts from a clean list. Applied, opened, tailored and skipped jobs stay.">Clear results</button>
 </div>
@@ -1006,7 +1008,7 @@ async function loadGaps(){
 /* ---------- the list ---------- */
 function draw(){
   const f = $('#filter').value, mf = +$('#minfit').value;
-  const keep = new Set(picked());        // the redraw below destroys every checkbox
+  // no need to harvest the DOM any more - SELECTED already holds it, across pages and filters
   const needle = fold($('#find').value.trim());
   let rows = JOBS.filter(j => (!f || (f === '@manual' ? HAND(j)
                                     : f === '@near' ? j.far === false : j.status===f))
@@ -1125,8 +1127,8 @@ function draw(){
       : 'Nothing matches these filters. Try Any fit, or All jobs.'}</div>`;
 
   // restore what was ticked and re-count, so the batch bar can never claim a stale number
-  keep.forEach(u => { const c = document.querySelector(`.sel[data-url="${CSS.escape(u)}"]`);
-                      if(c) c.checked = true; });
+  SELECTED.forEach(u => { const c = document.querySelector(`.sel[data-url="${CSS.escape(u)}"]`);
+                          if(c) c.checked = true; });
   drawPicked();
 }
 
@@ -1174,14 +1176,31 @@ function steps(){
 }
 
 /* ---------- batch selection ---------- */
-function picked(){ return [...document.querySelectorAll('.sel:checked')].map(c => c.dataset.url); }
+// The selection outlives the page you made it on. Twenty jobs fit on a page; ticking six and
+// turning to page two used to lose all six, because this was read straight off the rendered
+// checkboxes. A job that is no longer in the list at all - deleted, or applied to - drops out.
+const SELECTED = new Set();
+function picked(){ return [...SELECTED].filter(u => JOBS.some(j => j.url === u)); }
 function drawPicked(){
   const p = picked();
+  const onPage = new Set([...document.querySelectorAll('.sel')].map(c => c.dataset.url));
+  const elsewhere = p.filter(u => !onPage.has(u)).length;
   $('#picked').style.display = p.length ? 'block' : 'none';
-  $('#pickedn').textContent = `${p.length} selected`;
+  $('#pickedn').textContent = `${p.length} selected`
+    + (elsewhere ? ` (${elsewhere} on other pages)` : '');
   $('#pickedlist').textContent = p.map(u => (JOBS.find(j => j.url === u) || {}).title).join(' · ');
+  // a running total on the toolbar, so the number is visible without scrolling to the bar
+  const tally = $('#seltally');
+  if(tally){
+    tally.textContent = p.length ? `${p.length} selected` : '';
+    tally.style.display = p.length ? '' : 'none';
+  }
 }
-document.addEventListener('change', e => { if(e.target.classList.contains('sel')) drawPicked(); });
+document.addEventListener('change', e => {
+  if(!e.target.classList.contains('sel')) return;
+  SELECTED[e.target.checked ? 'add' : 'delete'](e.target.dataset.url);
+  drawPicked();
+});
 
 $('#pager').addEventListener('click', e => {
   const b = e.target.closest('[data-page]'); if(!b || b.disabled) return;
@@ -1219,7 +1238,7 @@ $('#selall').onclick = () => {
   if(!boxes.length) return toast(
     'Nothing on screen matches those bands. Applied rows, ATS jobs and manual-apply'
     + ' boards are never selectable.');
-  boxes.slice(0, cap).forEach(c => c.checked = true);
+  boxes.slice(0, cap).forEach(c => { c.checked = true; SELECTED.add(c.dataset.url); });
   drawPicked();
   if(boxes.length > cap)
     toast(`${boxes.length} match, selected the first ${cap} — that is the most one run will send.`, 8000);
@@ -1239,6 +1258,7 @@ $('#clear').onclick = e => busy(e.target, async () => {
 }, 'clearing...');
 
 $('#clearpicked').onclick = () => {
+  SELECTED.clear();
   document.querySelectorAll('.sel:checked').forEach(c => c.checked = false); drawPicked(); };
 
 $('#sendpicked').onclick = e => {
