@@ -138,6 +138,16 @@ def _match(board, text):
 assert _match("ejobs", "aplică") and _match("ejobs", "aplică rapid")
 assert not _match("ejobs", "aplicările mele")          # nav link, not the apply button
 assert _match("hipo", "aplica la acest anunt")
+# Hipo labels the same endpoint two ways; the second one hid the button on 4 of 11 ads
+assert _match("hipo", "aplica fara cv") and _match("hipo", "aplică fără cv")
+# and the label follows the language of the AD, not the site - an English ad says this
+assert _match("hipo", "apply to this job") and _match("hipo", "apply without cv")
+# a nearby-but-wrong control must still not match
+assert not _match("hipo", "apply with linkedin")
+# Hipo's question fields are named intrebari[<id>]. The cover-letter box sits on the same
+# form and must NOT be scoped in as a question - it would read as unanswered and block
+# every send.
+assert "intrebari" in _pf.HIPO_Q and "scrisoare" not in _pf.HIPO_Q
 # social apply is a different flow and must never be clicked
 assert not _match("hipo", "aplica cu linkedin")
 assert not _match("hipo", "aplica cu facebook")

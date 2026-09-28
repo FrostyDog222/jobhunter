@@ -616,7 +616,12 @@ BOARD_UI = {
         "denied":     ("logincontcandidat", "/login"),
         "signed_in":  (),
         "signed_out": ("intra in cont", "intră în cont", "cont nou"),
-        "apply":      r"aplica la acest anun|aplică la acest anun",
+        # Hipo labels the same /candidat/aplica/ endpoint several ways, and the label follows the
+        # LANGUAGE OF THE AD as well as whether the employer waived the CV: "Aplica la acest
+        # anunt", "Aplica fara CV", and on English ads "Apply to this job". Matching only the
+        # first hid the button on 4 of 11 Romanian ads sampled, and on every English one.
+        "apply":      (r"aplica la acest anun|aplică la acest anun|aplic[aă] f[aă]r[aă] cv"
+                       r"|apply (to|for) this job|apply without (a )?cv"),
         "avoid":      r"linkedin|facebook|google",
         "applied":    ("ai aplicat", "deja aplicat", "aplicare trimis", "candidatura ta",
                        "ai candidat"),
@@ -752,6 +757,11 @@ def apply_control(page, board):
             continue
     return None
 MINI = ("mini interviu", "mini-interviu")
+# Hipo asks the same kind of screening questions on its own /candidat/aplica/ page, and names
+# every one of them intrebari[<id>]. Scoping to that name is what keeps the cover-letter box on
+# the same form from being read as an unanswered question, which would block every send.
+HIPO_Q = ('textarea[name^="intrebari"], input[type=text][name^="intrebari"], '
+          'select[name^="intrebari"]')
 # Questions no CV answers. The app never guesses these - it only repeats what you wrote on the
 # profile page, and leaves the box empty when you have not.
 PERSONAL = (
@@ -770,12 +780,21 @@ def personal_answer(question, profile):
     return ""
 
 
-def mini_interview(page):
-    """-> the employer's screening inputs if the Mini interviu dialog is open, else [].
+def mini_interview(page, board=""):
+    """-> the employer's screening inputs if a screening form is open, else [].
 
     Scoped to the dialog. Matching the whole page would pick up the site's own search box and
     type an LLM answer into it, then count it as an unanswered question and refuse to send.
     """
+    if board == "hipo":
+        out = []
+        for el in page.query_selector_all(HIPO_Q):
+            try:
+                if el.is_visible() and el.is_editable():
+                    out.append(el)
+            except Exception:
+                continue
+        return out
     if not any(m in page.inner_text("body").lower() for m in MINI):
         return []
     sel = "textarea, input[type=text], select"
@@ -793,6 +812,26 @@ def mini_interview(page):
         except Exception:
             continue
     return out
+
+
+def _hipo_form(page, out):
+    """Hipo's application page asks for a CV and a cover letter as well as the questions.
+
+    The CV is the one already on the Hipo profile - a board apply has always sent that rather
+    than the tailored PDF. The cover letter is left OUT rather than generated: writing one in
+    the candidate's name without being asked is not this app's call.
+    """
+    try:
+        cvs = [e for e in page.query_selector_all('input[name="idcv"]') if e.is_visible()]
+        if cvs and not any(c.is_checked() for c in cvs):
+            cvs[0].check()
+            out.setdefault("filled", [])
+            out["notes"] = (out.get("notes") or []) + ["picked the CV on your Hipo profile"]
+        none_letter = page.query_selector("#scrisoareFara")
+        if none_letter and none_letter.is_visible() and not none_letter.is_checked():
+            none_letter.check()
+    except Exception as e:
+        print(f"[hipo] could not preselect the form: {type(e).__name__}: {e}")
 
 
 def board_apply(url, headless=True, profile=None, job_title="", auto_send=True):
@@ -840,7 +879,9 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=True):
                 if any(m in body for m in markers):
                     out["submitted"] = True
                     return out
-                fields = mini_interview(page)
+                if board == "hipo":
+                    _hipo_form(page, out)
+                fields = mini_interview(page, board)
                 if fields:
                     out["questions"] = [_question(f)[:160] for f in fields]
                     out["filled"] = _fill_mini(page, fields, profile, job_title)
@@ -850,9 +891,11 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=True):
                     if blank or not auto_send:
                         out["needs_you"] = True
                         return out
-                    send = next((e for e in page.query_selector_all("button")
+                    send = next((e for e in page.query_selector_all(
+                                     "button, input[type=submit], a")
                                  if e.is_visible()
-                                 and "trimite" in (e.inner_text() or "").lower()), None)
+                                 and "trimite" in ((e.inner_text() or "")
+                                                   + (e.get_attribute("value") or "")).lower()), None)
                     if not send:
                         out["needs_you"] = True
                         out["error"] = "filled the mini interviu but found no send button"
