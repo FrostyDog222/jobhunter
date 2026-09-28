@@ -605,6 +605,10 @@ BOARD_UI = {
         "signed_in":  ("cv-ul meu", "aplicările mele"),
         "signed_out": ("intră în contul tău", "creează-ți un cont"),
         "apply":      r"^aplic[ăa]( rapid)?$",
+        # "Aplică extern" hands you to the employer's own site. Deliberately NOT in `apply` -
+        # we do not click through to an arbitrary careers system - but it does mean the posting
+        # is alive, so it must not be mistaken for a closed one.
+        "external":   r"aplic[ăa] extern",
         "avoid":      r"linkedin|facebook|google|apple",
         "applied":    APPLIED_MARKERS,
     },
@@ -622,6 +626,8 @@ BOARD_UI = {
         # first hid the button on 4 of 11 Romanian ads sampled, and on every English one.
         "apply":      (r"aplica la acest anun|aplică la acest anun|aplic[aă] f[aă]r[aă] cv"
                        r"|apply (to|for) this job|apply without (a )?cv"),
+        # Hipo's equivalent: the apply link 302s out to the employer (Lidl, Leroy Merlin, ...)
+        "external":   r"aplica la acest anun|aplică la acest anun|apply (to|for) this job",
         "avoid":      r"linkedin|facebook|google",
         # Hipo's own confirmation is "Ati aplicat deja la acest job" - the words the other way
         # round from "deja aplicat", so that marker never fired and a genuinely successful
@@ -743,6 +749,28 @@ def signed_in_to(page, board):
                                      # sign-in prompt is the best signal we have
 
 
+def external_apply(page, board):
+    """Does this posting hand the application off to the employer's own site?
+
+    Hipo says so in the href (redirectAnuntExtern); eJobs says so in the button's words. Either
+    way the posting is live and simply cannot be one-clicked from here.
+    """
+    pat = BOARD_UI.get(board, {}).get("external")
+    for el in page.query_selector_all("a, button"):
+        try:
+            if not el.is_visible():
+                continue
+            href = el.get_attribute("href") or ""
+            if "redirectanuntextern" in href.lower():
+                return True
+            if pat and re.search(pat, (el.inner_text() or "").strip().lower()) and \
+                    "/candidat/aplica/" not in href:
+                return True
+        except Exception:
+            continue
+    return False
+
+
 def apply_control(page, board):
     """The board's own apply control, never a social-login variant of it."""
     ui = BOARD_UI[board]
@@ -847,7 +875,7 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=True):
     """
     from playwright.sync_api import sync_playwright
     out = {"url": url, "submitted": False, "already": False, "needs_you": False,
-           "closed": False, "questions": [], "filled": [], "error": None}
+           "closed": False, "external": False, "questions": [], "filled": [], "error": None}
     with sync_playwright() as pw:
         browser, ctx, page = _open(pw, headless)
         try:
@@ -872,10 +900,17 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=True):
 
             btn = apply_control(page, board)
             if not btn:
-                # We got this far, so we are signed in and the page is not already-applied. A
-                # board that offers a candidate no way to apply has closed the posting.
-                out["closed"] = True
-                out["error"] = "this posting is closed - the board offers no way to apply"
+                # We got this far, so we are signed in and the page is not already-applied. That
+                # leaves two very different cases, and they look identical from here: the board
+                # has taken the posting down, or the employer takes applications on their own
+                # site. Only the first one should be hidden from the list.
+                if external_apply(page, board):
+                    out["external"] = True
+                    out["error"] = ("this employer takes applications on their own site - "
+                                    "open the posting and apply there")
+                else:
+                    out["closed"] = True
+                    out["error"] = "this posting is closed - the board offers no way to apply"
                 return out
 
             btn.click()

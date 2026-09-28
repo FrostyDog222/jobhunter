@@ -422,6 +422,20 @@ def _too_old(posted):
         return False
 
 
+def _closed(valid_through):
+    """schema.org validThrough: the date the employer said the posting stops accepting people.
+
+    eJobs publishes it, Hipo does not - which is why a dead Hipo ad can only be caught at apply
+    time. Unset means unknown, never closed: most ads carry no date at all and dropping those
+    would empty the list. It is also a floor, not a guarantee - an employer can fill a role
+    early, and that case still shows up as "closed on the board" when an apply is attempted.
+    """
+    try:
+        return datetime.date.fromisoformat((valid_through or "")[:10]) < datetime.date.today()
+    except ValueError:
+        return False
+
+
 # How many detail pages to fetch at once. Sequential meant a minute and a half of nothing for a
 # normal search, because each page is about a second of waiting on the network and nothing else.
 # Kept low deliberately: these are small boards, the requests are spread across four of them,
@@ -471,6 +485,8 @@ def hydrate(jobs, timeout=30, on_progress=None):
                                 or ("Remote" if jp.get("jobLocationType") else ""),
                     "posted": _flat(jp.get("datePosted"))[:10],
                     "description": body,
+                    # leading underscore: this is for the filter below, not a database column
+                    "_expires": _flat(jp.get("validThrough"))[:10],
                     "_full": True,
                 })
     # The real title only arrives with the detail page, so re-check the noise filter here - and
@@ -479,7 +495,8 @@ def hydrate(jobs, timeout=30, on_progress=None):
     # gets scored twice, and can be applied to twice.
     out, seen = [], set()
     for j in jobs:
-        if not j.get("_full") or NOISE.search(j["title"]) or _too_old(j.get("posted")):
+        if (not j.get("_full") or NOISE.search(j["title"]) or _too_old(j.get("posted"))
+                or _closed(j.get("_expires"))):
             continue
         key = (j["title"].lower().strip(), (j.get("company") or "").lower().strip()[:18])
         if key[1] and key in seen:

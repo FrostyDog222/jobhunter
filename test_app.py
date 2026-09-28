@@ -248,6 +248,17 @@ assert (_dead["status"], _dead["note"]) == ("skipped", "closed on the board"), t
 _sent = _c.execute("SELECT status, applied_at FROM jobs WHERE url='sent'").fetchone()
 assert _sent["status"] == "applied" and _sent["applied_at"], tuple(_sent)
 
+# 1u. "Closed" and "applies on the employer's own site" look identical to apply_control - it
+# finds nothing either way, because the external control is deliberately NOT matched: clicking
+# it leads to an arbitrary careers system. Telling them apart is what keeps live external ads
+# from being hidden as dead ones.
+_ej = _pf.BOARD_UI["ejobs"]
+assert not _re.search(_ej["apply"], "aplică extern"), "must not be clicked as a one-click apply"
+assert _re.search(_ej["external"], "aplică extern"), "but must be recognised as live"
+assert _re.search(_ej["apply"], "aplică") and _re.search(_ej["apply"], "aplică rapid")
+assert not _re.search(_ej["external"], "aplică")        # a plain apply is not an external one
+assert _pf.BOARD_UI["hipo"].get("external"), "hipo hands off too, via redirectAnuntExtern"
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

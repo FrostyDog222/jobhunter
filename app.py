@@ -1023,6 +1023,11 @@ async def apply_batch(body: dict = Body(...)):
         elif res.get("closed"):
             with db() as c:
                 _mark_closed(c, url)
+        elif res.get("external"):
+            # live, just not one-clickable from here - say so on the card instead of hiding it
+            with db() as c:
+                c.execute("UPDATE jobs SET note='apply on the employer site' "
+                          "WHERE url=? AND status != 'applied'", (url,))
         elif res.get("needs_you"):
             # Screening questions: normally open it for the person, and take it out of the next
             # batch either way. hand_off=False is the scheduled run, where opening a window at
