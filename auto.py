@@ -96,10 +96,24 @@ def run():
     return report
 
 
+def touch():
+    """Load each board with the saved session, which renews it, and write the jar back.
+
+    This is the whole keep-alive. It is the same call the dashboard makes to check sign-ins -
+    the checking IS the refreshing, because a board renews its cookie when you visit.
+    """
+    import prefill
+    out = prefill.verify_boards()
+    log("keep-alive: " + ", ".join(f"{b}={'ok' if v else 'SIGNED OUT'}"
+                                   for b, v in sorted(out.items())))
+    return out
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    mode = "touch" if "--touch" in sys.argv else "run"
     try:
-        run()
+        touch() if mode == "touch" else run()
     except Exception:
-        log("the weekly run crashed:\n" + traceback.format_exc())
+        log(f"the {mode} run crashed:\n" + traceback.format_exc())
         raise

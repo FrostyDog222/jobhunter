@@ -84,6 +84,7 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             # the weekly run (auto.py, started by Windows Task Scheduler)
             "auto_enabled": False, "auto_day": "SUN", "auto_time": "09:00",
             "auto_query": "", "auto_location": "", "auto_county": "", "auto_country": "ro",
+            "keep_signed_in": False,
             "auto_min_fit": 75,
             # applying without you there: off unless you turn it on, and deliberately stricter
             # than the score you would use when reading the ad yourself
@@ -106,6 +107,11 @@ def get_settings():
 # One scheduled task, owned by this folder. Windows keeps it after the app is closed, which is
 # the whole point: the search happens whether or not anyone opens the dashboard.
 TASK = "jobhunter weekly search"
+KEEP_TASK = "jobhunter keep signed in"
+# Hipo's session cookie is the shortest at about six hours, and it is renewed to a full
+# six every time the site is visited. Four hours leaves room for a laptop that was asleep
+# when a run was due without letting the window close.
+KEEP_HOURS = 4
 DAYS = {"MON": "Monday", "TUE": "Tuesday", "WED": "Wednesday", "THU": "Thursday",
         "FRI": "Friday", "SAT": "Saturday", "SUN": "Sunday"}
 
@@ -173,6 +179,34 @@ def schedule(on, day, at):
     return "" if code == 0 else f"Windows refused to create the scheduled task: {err[:200]}"
 
 
+def keep_signed_in(on):
+    """Create or remove the timer that keeps the board sign-ins alive.
+
+    Board sessions are renewed by being visited - measured on all three - so a visit every few
+    hours is enough to stay signed in without typing a password again. Nothing is applied for
+    and nothing is searched: it loads each board and saves the refreshed cookies.
+    """
+    _TASK[1] = None
+    if not on:
+        _ps(f"Unregister-ScheduledTask -TaskName '{KEEP_TASK}' -Confirm:$false "
+            f"-ErrorAction SilentlyContinue")
+        return ""
+    pyw = HERE / ".venv" / "Scripts" / "pythonw.exe"
+    if not pyw.exists():
+        return "The Python environment is missing - start the app once through run.bat first."
+    code, _, err = _ps(
+        f"$a = New-ScheduledTaskAction -Execute '{pyw}' -Argument 'auto.py --touch' "
+        f"-WorkingDirectory '{HERE}';"
+        f"$t = New-ScheduledTaskTrigger -Once -At (Get-Date) "
+        f"-RepetitionInterval (New-TimeSpan -Hours {KEEP_HOURS});"
+        f"$s = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries "
+        f"-DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew "
+        f"-ExecutionTimeLimit (New-TimeSpan -Minutes 10);"
+        f"Register-ScheduledTask -TaskName '{KEEP_TASK}' -Action $a -Trigger $t -Settings $s "
+        f"-Description 'jobhunter: keep the board sign-ins alive' -Force | Out-Null")
+    return "" if code == 0 else f"Windows refused to create the keep-alive task: {err[:200]}"
+
+
 @app.get("/api/auto")
 def get_auto():
     s = settings()
@@ -188,7 +222,8 @@ def get_auto():
 def set_auto(body: dict = Body(...)):
     cur = settings()
     for k in ("auto_enabled", "auto_day", "auto_time", "auto_query", "auto_location",
-              "auto_county", "auto_country", "auto_min_fit", "auto_apply", "auto_apply_min_fit",
+              "auto_county", "auto_country", "keep_signed_in",
+              "auto_min_fit", "auto_apply", "auto_apply_min_fit",
               "auto_apply_cap"):
         if k in body:
             cur[k] = body[k]
@@ -208,6 +243,11 @@ def set_auto(body: dict = Body(...)):
         raise HTTPException(400, "Type what the weekly run should search for.")
     SETTINGS.write_text(json.dumps(cur, indent=1), encoding="utf-8")
     problem = schedule(cur["auto_enabled"], cur["auto_day"], cur["auto_time"])
+    if problem:
+        raise HTTPException(400, problem)
+    # independent of the weekly run on purpose: staying signed in is useful even to someone who
+    # never switches the automation on, because it is what stops "not signed in" mid-apply
+    problem = keep_signed_in(bool(cur.get("keep_signed_in")))
     if problem:
         raise HTTPException(400, problem)
     return {"ok": True, "task": task_state()}

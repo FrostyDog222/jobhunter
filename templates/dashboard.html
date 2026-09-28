@@ -183,6 +183,14 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       it re-checks before it applies, rather than trusting this panel. Use the button below.</p>
   </div>
   <div class="row" id="signinrow"></div>
+  <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
+    font-size:13.5px;cursor:pointer;margin-top:10px"><input type="checkbox" id="keep_signed_in"
+    style="width:auto"> Keep me signed in to the boards</label>
+  <p class="muted" style="margin:4px 0 0">Boards renew a sign-in whenever the site is opened, so
+    Windows visits them every few hours in the background and the session never lapses. Hipo's
+    lasts about six hours on its own, so without this it is signed out most of the time. It sends
+    nothing and applies to nothing — it only loads each board. Turn it off and sign-ins expire on
+    their own again.</p>
   <p class="muted" style="margin-top:10px">A board apply sends the CV stored on your board
     profile, not the tailored PDF — so keep those profiles current:
     <span id="boardprofiles"></span></p>
@@ -488,7 +496,8 @@ $('#importhist').onclick = e => busy(e.target, async () => {
 
 /* ---------- the weekly run ---------- */
 const AUTO_FIELDS = ['auto_enabled', 'auto_day', 'auto_time', 'auto_query', 'auto_location',
-                     'auto_county', 'auto_country', 'auto_min_fit', 'auto_apply', 'auto_apply_min_fit',
+                     'auto_county', 'auto_country', 'keep_signed_in',
+                     'auto_min_fit', 'auto_apply', 'auto_apply_min_fit',
                      'auto_apply_cap'];
 // the floor and the cap only mean anything while applying is on
 const applyRow = () => $('#applyrow').style.opacity = $('#auto_apply').checked ? '1' : '.45';
