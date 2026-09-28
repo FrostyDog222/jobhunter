@@ -673,6 +673,18 @@ def search_progress():
     return PROGRESS
 
 
+def _next_width(width, quota_hits, cap):
+    """How many jobs to score at once next, given how the last batch went.
+
+    Halve on any quota error - stepping down one at a time would keep hammering a provider that
+    is already refusing - and creep back up one at a time once it stops complaining, so a single
+    blip does not cost the rest of the run its speed.
+    """
+    if quota_hits:
+        return max(1, width // 2)
+    return min(cap, width + 1)
+
+
 @app.post("/api/search")
 async def search(body: dict = Body(...)):
     p = profile()
@@ -800,9 +812,31 @@ async def search(body: dict = Body(...)):
     # and a partial result is worth keeping if a later chunk fails
     scored = []
     step("scoring", 0, len(todo))
-    for i in range(0, len(todo), WORKERS):
-        scored += await asyncio.gather(
-            *(off(llm.score, p, j) for j in todo[i:i + 6]), return_exceptions=True)
+    # Six at a time measured twice as fast on a 12-ad sample, but a 144-ad run outran mistral's
+    # free tier: 15 calls came back "spent", the breaker parked the provider for 300s each time,
+    # and the run averaged 4.8s an ad against the 1.1s measured on 38. No fixed number is right
+    # for both sizes, so start wide and back off when the provider says to.
+    width, i = WORKERS, 0
+    while i < len(todo):
+        chunk = todo[i:i + width]
+        # count quota refusals across the batch, not exceptions: ask() recovers by moving down
+        # the chain, so a job still gets scored and nothing is raised - but the provider did
+        # refuse, and that is the thing worth slowing down for
+        q0 = len(llm.QUOTA_EVENTS)
+        got = await asyncio.gather(*(off(llm.score, p, j) for j in chunk),
+                                   return_exceptions=True)
+        scored += got
+        i += len(chunk)
+        spent = (len(llm.QUOTA_EVENTS) - q0) + sum(1 for g in got
+                                                   if isinstance(g, llm.QuotaError))
+        nxt = _next_width(width, spent, WORKERS)
+        if nxt != width:
+            # flushed: stdout is block-buffered when the weekly run redirects it to a file,
+            # and a backoff line stuck in a buffer is a backoff nobody can diagnose
+            print(f"[score] {width} -> {nxt} at a time"
+                  + (f" ({spent} said spent)" if spent else " (provider is keeping up)"),
+                  flush=True)
+            width = nxt
         step("scoring", len(scored), len(todo))
     failed = 0
     with db() as c:

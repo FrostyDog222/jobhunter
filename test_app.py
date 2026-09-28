@@ -176,11 +176,23 @@ for _junk in ("no json at all", "", "{unclosed"):
     except RuntimeError:
         pass
 
-# 1p. The scoring chunk must match the pool, or every chunk runs in two rounds and the progress
-# bar jumps in steps the pool cannot actually deliver at once.
+# 1p. Scoring width answers to the provider. Six at a time measured twice as fast on 12 ads, but
+# a 144-ad run outran mistral's free tier - 15 "spent" replies, the breaker parking it 300s each
+# time, 4.8s an ad against 1.1s on 38 - so no fixed number suits both sizes.
 import inspect as _i2
-assert "range(0, len(todo), WORKERS)" in _i2.getsource(app.search)
-assert app.pool._max_workers == app.WORKERS
+assert app.pool._max_workers == app.WORKERS      # the pool still has to be able to deliver it
+_w, _CAP = app._next_width, app.WORKERS
+assert _w(6, 1, 6) == 3 and _w(3, 2, 6) == 1 and _w(1, 1, 6) == 1   # halve, never reach zero
+assert _w(1, 0, 6) == 2 and _w(6, 0, 6) == 6                        # creep back, never past cap
+_width, _seen = 6, []
+for _spent in (0, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0):                    # a bumpy run
+    _width = _w(_width, _spent, 6); _seen.append(_width)
+assert _seen == [6, 3, 4, 5, 2, 3, 4, 5, 6, 6, 6], _seen
+assert max(_seen) <= 6 and min(_seen) >= 1
+# and the loop must actually use it, not a hard-coded slice - the step and the slice drifted
+# apart once already, agreeing only because both happened to say 6
+_ssrc2 = _i2.getsource(app.search)
+assert "todo[i:i + width]" in _ssrc2 and "todo[i:i + 6]" not in _ssrc2
 
 # 1q. The weekly run is unattended, and nothing ages out .boards.json - it can say "signed in"
 # days after the session died. It must ask the boards themselves before sending applications,
@@ -296,6 +308,48 @@ _ssrc = _i4.getsource(app.search)
 assert "isinstance(s, list) and len(s) == 1" in _ssrc, "a single-item list must be unwrapped"
 # and the prompt now asks for plain text, because the markdown is what breaks the JSON
 assert "no markdown" in _i4.getsource(app.llm.score)
+
+# 1y. The real scoring loop, driven end to end. The unit test above only covers the arithmetic,
+# and the wiring underneath it was wrong once already: ask() recovers from a quota refusal by
+# moving down the chain, so the loop saw no exception and never backed off. Network and model are
+# stubbed and the database is a throwaway, so this costs nothing.
+import asyncio as _asyncio, io as _io, contextlib as _ctx, tempfile as _tmp
+_realdb, _realdone = app.DB, app._SCHEMA_DONE
+_real = (scrape.discover, scrape.hydrate, app.llm.score, app.llm.language_gate,
+         app.llm.ad_language)
+try:
+    app.DB, app._SCHEMA_DONE = pathlib.Path(_tmp.mkdtemp()) / "t.sqlite", False
+    with app.db() as _c:
+        for _n in range(40):
+            _c.execute("INSERT INTO jobs(url,source,title,company,location,posted,description,"
+                       "status,note,lang) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                       (f"https://www.ejobs.ro/user/locuri-de-munca/x/{_n}", "ejobs", f"Job {_n}",
+                        "ACME", "Bucuresti", "2026-09-28", "long enough to score " * 12,
+                        "new", "", "en"))
+    scrape.discover = lambda *a, **k: []
+    scrape.hydrate = lambda jobs, **k: []
+    app.llm.language_gate = lambda p, j: (True, "")
+    app.llm.ad_language = lambda j: "en"
+    _calls = {"n": 0}
+    def _fake_score(profile, job):
+        _calls["n"] += 1
+        if 7 <= _calls["n"] <= 18:                  # a stretch of refusals, then recovery
+            app.llm.QUOTA_EVENTS.append("test")     # ask() recovers; the provider still refused
+        return {"fit": 70, "why": "ok", "gaps": [], "untapped": []}
+    app.llm.score = _fake_score
+    _buf = _io.StringIO()
+    with _ctx.redirect_stdout(_buf):
+        _out = _asyncio.run(app.search({"query": "x", "country": "ro"}))
+    _moves = [l for l in _buf.getvalue().splitlines() if l.startswith("[score]")]
+    assert _moves, "the width never moved - the loop is not reacting to refusals"
+    assert any("6 -> 3" in l for l in _moves), _moves      # halves when refused
+    assert any("keeping up" in l for l in _moves), _moves  # widens again afterwards
+    assert _out["scored"] == 40, f"every row must still be scored, got {_out['scored']}"
+finally:
+    app.DB, app._SCHEMA_DONE = _realdb, _realdone
+    (scrape.discover, scrape.hydrate, app.llm.score, app.llm.language_gate,
+     app.llm.ad_language) = _real
+    app.llm.QUOTA_EVENTS.clear()
 
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version

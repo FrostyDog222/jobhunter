@@ -121,6 +121,9 @@ class NoModel(RuntimeError):
 # briefly so a 100-job search fails over in milliseconds instead of retrying 100 times.
 _BLOWN = {}
 BREAKER_SECONDS = 300
+# Every time a provider refused for quota, even when the chain recovered from it. The
+# scoring loop watches this to decide how hard to push.
+QUOTA_EVENTS = []
 
 
 def _breaker(key, err=None):
@@ -335,8 +338,12 @@ def ask(system, user, max_tokens=8000, tries=5):
         try:
             return _call(provider, model, key, system, user, max_tokens, tries)
         except QuotaError as e:
+            # Counted as well as logged: ask() recovers by moving down the chain, so a caller
+            # never sees this unless EVERY provider is spent - yet it is exactly the signal a
+            # caller needs to slow down. Appending is atomic; an exact count is not needed.
+            QUOTA_EVENTS.append(provider)
             spent.append(str(e).split(":")[0])
-            print(f"[llm] {provider}/{model} spent, trying next")
+            print(f"[llm] {provider}/{model} spent, trying next", flush=True)
             continue
         except (RuntimeError, ValueError) as e:
             # a 400 from one provider (retired model, prose instead of JSON) must not strand the
