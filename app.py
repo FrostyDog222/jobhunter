@@ -759,7 +759,9 @@ def search_progress():
     # A search that crashed - or a server restarted mid-search - would otherwise leave this
     # saying "62%, still going" for ever, and the page would sit there waiting on it. Nothing
     # updates for a minute means nothing is running.
-    if PROGRESS["active"] and time.monotonic() - PROGRESS.get("at", 0) > 60:
+    # Longer than a provider's breaker wait (300s), because a search that is backing off is
+    # still a search that is running - a minute was short enough to declare a healthy one dead.
+    if PROGRESS["active"] and time.monotonic() - PROGRESS.get("at", 0) > 360:
         PROGRESS.update(active=False, phase="", done=0, total=0)
     return PROGRESS
 
@@ -916,8 +918,18 @@ async def search(body: dict = Body(...)):
         # the chain, so a job still gets scored and nothing is raised - but the provider did
         # refuse, and that is the thing worth slowing down for
         q0 = len(llm.QUOTA_EVENTS)
-        got = await asyncio.gather(*(off(llm.score, p, j) for j in chunk),
-                                   return_exceptions=True)
+
+        async def one(job, _done=[0]):
+            # progress per job, not per batch: when a provider backs off, its breaker parks it
+            # for 300s and a batch can outlast the staleness rule that decides a search has
+            # died. It had, twice, on a search that was working perfectly well.
+            try:
+                return await off(llm.score, p, job)
+            finally:
+                _done[0] += 1
+                step("scoring", len(scored) + _done[0], len(todo))
+
+        got = await asyncio.gather(*(one(j) for j in chunk), return_exceptions=True)
         scored += got
         i += len(chunk)
         spent = (len(llm.QUOTA_EVENTS) - q0) + sum(1 for g in got
