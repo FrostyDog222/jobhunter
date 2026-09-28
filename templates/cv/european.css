@@ -1,0 +1,36 @@
+/* European - the two-column CV most people here mean when they say CV: photo and contact in a
+   tinted sidebar, experience in the wide column. Familiar to a human reader, and still one
+   plain column of text underneath - the sidebar is made with floats, not a table, so an
+   applicant tracking system reads it top to bottom in the right order. */
+@page{size:A4}
+body{font:10pt/1.38 Calibri,"Segoe UI",Arial,sans-serif;color:#1a1a1a;margin:0;
+  font-variant-ligatures:none}
+
+/* The sidebar is drawn by floating the photo and the contact block left and giving the rest a
+   margin. Nothing is positioned absolutely, so the text order in the file is the reading order. */
+.photo{float:left;width:32mm;height:40mm;object-fit:cover;margin:0 0 6px;
+  border:.5pt solid #c9d3dd}
+h1{font-size:21pt;font-weight:600;margin:0 0 1px 38mm;line-height:1.15;color:#12344d}
+.role{font-size:11.5pt;color:#417ba1;margin:0 0 6px 38mm}
+.contact{float:left;clear:left;width:32mm;font-size:8.5pt;color:#3a4a57;line-height:1.5;
+  background:#eef3f7;padding:6px 7px;margin:2px 0 0;box-sizing:border-box}
+.contact span{display:block;word-break:break-word}
+.contact span:not(:last-child):after{content:""}   /* one per line here, so no separator */
+
+/* everything after the header sits to the right of the sidebar */
+h2,.item,.tags,p,ul{margin-left:38mm}
+h2{font-size:10pt;font-weight:600;text-transform:uppercase;letter-spacing:.4pt;color:#12344d;
+   border-bottom:1pt solid #c9d3dd;padding-bottom:2px;margin-top:10px;margin-bottom:5px;
+   break-after:avoid}
+h2:first-of-type{margin-top:4px}
+.item{margin-bottom:7px;page-break-inside:avoid}
+.line{display:flex;justify-content:space-between;gap:10px}
+.line b{font-size:10.5pt;color:#12344d}
+.when{font-size:9pt;color:#5a6b78;white-space:nowrap}
+.where{font-size:9.5pt;color:#417ba1}
+ul{padding-left:15px;margin-top:2px;margin-bottom:0} li{margin-bottom:1px}
+.tags{font-size:10pt}
+p{margin-top:0;margin-bottom:0}
+
+/* If the sidebar outruns the page the floats would strand the last section, so release it. */
+body:after{content:"";display:block;clear:both}

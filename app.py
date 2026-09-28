@@ -1,6 +1,9 @@
 """jobhunter - a local job-hunting assistant. Run: run.bat  ->  http://127.0.0.1:8777"""
 import asyncio
+import contextlib
+import base64
 import collections, hashlib, io, json, os, pathlib, re, sqlite3, subprocess, sys, time, webbrowser
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, UploadFile, File, Body, HTTPException
@@ -35,7 +38,22 @@ pool = ThreadPoolExecutor(max_workers=WORKERS)
 _SCHEMA_DONE = False
 
 
+@contextlib.contextmanager
 def db():
+    """A connection that commits, rolls back AND closes.
+
+    sqlite3's own context manager does the first two and not the third, so every caller was
+    leaving a handle open. Nothing complained - until a delete failed on Windows.
+    """
+    c = _connect()
+    try:
+        with c:                       # sqlite3's own: commit on success, roll back on error
+            yield c
+    finally:
+        c.close()
+
+
+def _connect():
     global _SCHEMA_DONE
     c = sqlite3.connect(DB)
     c.row_factory = sqlite3.Row
@@ -87,6 +105,9 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             # "Saravale" is a village and no town list will place it, and guessing wrong here
             # would quietly mislabel every result. Blank means "do not judge distance".
             "home_county": "",
+            # A photo is normal on a CV in Romania and unwelcome in the UK or the US, so it is
+            # the person's call, per CV, and ignored entirely when there is no photo.
+            "photo_in_cv": True,
             # What the search bar had last time. It lived in the browser's localStorage, so it
             # never moved with the profile to another machine, and the county dropdown was not
             # saved at all - it reset on every reload.
@@ -129,7 +150,10 @@ def save_settings_file(cur):
 
 @app.get("/api/settings")
 def get_settings():
-    return settings()
+    # `has_photo` rides along so the profile page can ask once instead of fetching the image and
+    # taking a 404 in the console every time there is none
+
+    return {**(settings()), "has_photo": bool(photo_path())}
 
 
 # ---------- the weekly run ----------
@@ -492,6 +516,129 @@ def profile_page(request: Request):
 @app.get("/api/profile")
 def get_profile():
     return profile()
+
+
+# Only what a browser will reliably draw and Chromium will embed. Checked by signature, not by
+# the name: a .png that is really something else is either a mistake or an attack.
+PHOTO_KINDS = {b"\xff\xd8\xff": ("jpg", "image/jpeg"),
+               b"\x89PNG\r\n\x1a\n": ("png", "image/png")}
+PHOTO_MAX = 6 * 1024 * 1024
+
+
+def photo_path():
+    """-> the stored photo, or None."""
+    for ext in ("jpg", "png"):
+        f = HERE / f"photo.{ext}"
+        if f.exists():
+            return f
+    return None
+
+
+def photo_data_uri():
+    """-> the photo as a data: URI for the CV, or "" when there is none or it is switched off.
+
+    A data URI rather than a file path: the PDF is rendered with set_content, which has no base
+    url, so a relative src would silently draw nothing and the first anyone would know is a CV
+    with a blank square where a face should be.
+    """
+    if not settings().get("photo_in_cv"):
+        return ""
+    f = photo_path()
+    if not f:
+        return ""
+    kind = "image/jpeg" if f.suffix == ".jpg" else "image/png"
+    return f"data:{kind};base64," + base64.b64encode(f.read_bytes()).decode()
+
+
+@app.post("/api/profile/photo")
+async def upload_photo(file: UploadFile = File(...)):
+    data = await file.read()
+    if len(data) > PHOTO_MAX:
+        raise HTTPException(400, f"That image is {len(data)//1024//1024} MB. Please use one "
+                                 f"under {PHOTO_MAX//1024//1024} MB.")
+    kind = next((v for sig, v in PHOTO_KINDS.items() if data.startswith(sig)), None)
+    if not kind:
+        raise HTTPException(400, "That does not look like a JPG or a PNG. Those are the two a "
+                                 "CV can carry safely.")
+    ext, _mime = kind
+    for old_file in (HERE / "photo.jpg", HERE / "photo.png"):
+        old_file.unlink(missing_ok=True)          # one photo, not a collection
+    (HERE / f"photo.{ext}").write_bytes(data)
+    return {"ok": True, "kind": ext, "bytes": len(data)}
+
+
+@app.get("/api/profile/photo")
+def get_photo():
+    f = photo_path()
+    if not f:
+        raise HTTPException(404, "no photo saved")
+    return FileResponse(f, media_type="image/jpeg" if f.suffix == ".jpg" else "image/png")
+
+
+@app.delete("/api/profile/photo")
+def delete_photo():
+    for f in (HERE / "photo.jpg", HERE / "photo.png"):
+        f.unlink(missing_ok=True)
+    return {"ok": True}
+
+
+@app.post("/api/purge")
+def purge(body: dict = Body(...)):
+    """Delete every trace of this person from this folder. Not undoable, by design."""
+    if (body or {}).get("confirm") != "ERASE":
+        raise HTTPException(400, "Not confirmed, so nothing was erased.")
+    removed, failed = [], []
+
+    # the scheduled tasks first: a weekly run that fires after the data is gone would search
+    # against an empty profile and quietly log a failure every week
+    for on, fn in ((False, lambda: schedule(False, "SUN", "09:00")),
+                   (False, lambda: keep_signed_in(False))):
+        try:
+            fn()
+        except Exception as e:
+            failed.append(f"scheduled task: {type(e).__name__}")
+
+    # Empty it before deleting it. A handle held anywhere - another request in flight, a weekly
+    # run - would otherwise leave every job and every application on disk while the button said
+    # it had erased them.
+    try:
+        con = sqlite3.connect(DB)
+        con.executescript("DROP TABLE IF EXISTS jobs;")
+        con.commit()
+        con.close()
+    except sqlite3.Error as e:
+        failed.append(f"emptying the database: {e}")
+
+    files = [PROFILE, PROFILE_BAK, SETTINGS, DB,
+             DB.with_name(DB.name + "-wal"), DB.with_name(DB.name + "-shm"),
+             HERE / "photo.jpg", HERE / "photo.png",
+             prefill.STATE, prefill.BOARD_STATE,
+             HERE / "auto.log", HERE / "auto_last.json",
+             HERE / "signin.log", HERE / "srv.log", HERE / "srv.err.log"]
+    for f in files:
+        try:
+            if f.exists():
+                f.unlink()
+                removed.append(f.name)
+        except OSError as e:
+            failed.append(f"{f.name}: {e}")
+
+    # the tailored CVs, and the browser profile the sign-ins live in
+    for d in (OUT, HERE / ".browser"):
+        try:
+            if d.exists():
+                shutil.rmtree(d, ignore_errors=True)
+                removed.append(d.name + "/")
+        except OSError as e:
+            failed.append(f"{d.name}: {e}")
+
+    # the next request rebuilds an empty database, and the process must not serve the old schema
+    global _SCHEMA_DONE
+    _SCHEMA_DONE = False
+    print(f"[purge] removed {len(removed)} item(s): {', '.join(removed)}")
+    if failed:
+        print(f"[purge] could not remove: {failed}")
+    return {"ok": True, "removed": removed, "failed": failed}
 
 
 @app.post("/api/profile")
@@ -1122,8 +1269,9 @@ def _cv_html(cv, lang, template):
         return f"{a} - {b}" if a and b else (a or b or "")
     if template not in cv_templates():
         template = "classic"
-    return tpl.get_template("cv.html").render(cv=cv, L=LABELS[lang], when=when, lang=lang,
-                                              style=(CV_DIR / f"{template}.css").read_text(encoding="utf-8"))
+    return tpl.get_template("cv.html").render(
+        cv=cv, L=LABELS[lang], when=when, lang=lang, photo=photo_data_uri(),
+        style=(CV_DIR / f"{template}.css").read_text(encoding="utf-8"))
 
 
 # A fictional CV used only to draw the template thumbnails, so the picker shows what each style

@@ -1,6 +1,10 @@
 <!doctype html><html lang="{{ lang }}"><head><meta charset="utf-8">
 <style>{{ style | safe }}</style></head><body>
 
+{# The photo is a plain <img> before the name, so a template that wants it beside the header
+   can float it and one that does not can hide it with display:none - no second template file,
+   and an ATS reading the text layer never sees it either way. #}
+{% if photo %}<img class="photo" src="{{ photo }}" alt="">{% endif %}
 <h1>{{ cv.name }}</h1>
 {% if cv.title %}<div class="role">{{ cv.title }}</div>{% endif %}
 <div class="contact">

@@ -117,6 +117,38 @@
   <div id="sugs"></div>
 </div>
 
+
+<b style="display:block;margin-top:18px">Photo</b>
+<div class="card">
+  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+    <img id="photoimg" alt="" style="display:none;width:88px;height:110px;object-fit:cover;
+      border:1px solid var(--line);border-radius:4px;background:var(--bg)">
+    <div style="flex:1;min-width:240px">
+      <div class="row" style="margin:0">
+        <div style="flex:1"><input type="file" id="photofile" accept="image/jpeg,image/png"></div>
+        <div style="flex:0 0 auto"><button class="ghost" id="photoup">Upload photo</button></div>
+        <div style="flex:0 0 auto"><button class="ghost" id="photodel">Remove</button></div>
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:10px;text-transform:none;
+        letter-spacing:0;font-size:13.5px;cursor:pointer">
+        <input type="checkbox" id="photo_in_cv" style="width:auto"> Put my photo on the CV</label>
+      <p class="muted" style="margin:6px 0 0">JPG or PNG. With no photo saved this is ignored, so
+        the CV simply has none. A photo is normal on a CV in Romania and most of Europe; for the
+        UK, Ireland or the US it is usually better left off, which is what the tick is for.
+        <b>European</b> is the template built around one.</p>
+    </div>
+  </div>
+</div>
+
+<b style="display:block;margin-top:18px">Erase everything</b>
+<div class="card" style="border-color:color-mix(in srgb,var(--bad) 45%,var(--line))">
+  <p class="muted" style="margin:0 0 10px">Deletes everything this app holds about you — your
+    profile and photo, every job it found and scored, your applied history, the CVs it wrote,
+    the board sign-ins, your settings and the weekly schedule. It cannot be undone, and it does
+    not touch anything on eJobs, BestJobs or Hipo: applications you have already sent stay sent.</p>
+  <button id="purge" style="background:var(--bad)">Erase all my data</button>
+</div>
+
 <div class="bar"><button id="save">Save profile</button><span class="muted" id="saved"></span></div>
 {% endblock %}
 
@@ -252,6 +284,56 @@ $('#save').onclick = e => busy(e.target, async () => {
                          + 'Reload the page.', 9000);
   await api('/api/profile', collect()); $('#saved').textContent = 'saved ' + new Date().toLocaleTimeString();
 }, 'saving...');
+
+/* ---------- photo ---------- */
+async function loadPhoto(){
+  const img = $('#photoimg');
+  // ask settings whether there is one, rather than fetching the image and taking a 404 in the
+  // console on every load of a profile that has no photo
+  try {
+    const st = await api('/api/settings', undefined, 'GET');
+    if(st.has_photo){ img.src = '/api/profile/photo?t=' + Date.now(); img.style.display = ''; }
+    else { img.style.display = 'none'; img.removeAttribute('src'); }
+  } catch(e){ img.style.display = 'none'; }
+}
+$('#photoup').onclick = e => busy(e.target, async () => {
+  const f = $('#photofile').files[0];
+  if(!f) return toast('Pick a JPG or PNG first.');
+  const fd = new FormData(); fd.append('file', f);
+  await unwrap(await fetch('/api/profile/photo', {method: 'POST', body: fd}));
+  await loadPhoto();
+  toast('Photo saved. It shows on the CV while the tick below is on.', 6000);
+}, 'uploading...');
+$('#photodel').onclick = e => busy(e.target, async () => {
+  await api('/api/profile/photo', undefined, 'DELETE');
+  await loadPhoto();
+  toast('Photo removed. CVs will simply have none.');
+}, 'removing...');
+$('#photo_in_cv').onchange = async e => {
+  await api('/api/settings', {photo_in_cv: e.target.checked});
+  toast(e.target.checked ? 'Your photo will be put on new CVs.'
+                         : 'New CVs will be written without a photo.');
+};
+api('/api/settings', undefined, 'GET')
+  .then(st => { $('#photo_in_cv').checked = !!st.photo_in_cv; })
+  .catch(()=>{});
+loadPhoto();
+
+/* ---------- erase everything ---------- */
+$('#purge').onclick = e => busy(e.target, async () => {
+  // Two questions on purpose, and the second one has to be typed: this is the only button in
+  // the app that destroys something no backup here can bring back.
+  if(!confirm('Erase everything?\n\n'
+    + 'Your profile and photo, every job found and scored, your applied history, the CVs '
+    + 'written for you, the board sign-ins, your settings and the weekly schedule.\n\n'
+    + 'Applications already sent to employers stay sent — this cannot reach them.\n\n'
+    + 'There is no undo.')) return;
+  const typed = prompt('Type ERASE to confirm.');
+  if((typed || '').trim().toUpperCase() !== 'ERASE') return toast('Nothing was erased.');
+  const r = await api('/api/purge', {confirm: 'ERASE'});
+  toast(`Erased ${r.removed.length} item(s). Starting fresh.`, 8000);
+  setTimeout(() => location.reload(), 1200);
+}, 'erasing...');
 
 /* ---------- currency beside the salary ---------- */
 // One stored string, not two fields: this answer is repeated to employers exactly as written,

@@ -456,6 +456,27 @@ try:
 finally:
     app.PROFILE, app.PROFILE_BAK = _rp, _rb
 
+# 2e. db() must close. sqlite3's own context manager commits and rolls back and does NOT close -
+# so every request leaked a handle, and on Windows an open handle is enough to make the file
+# undeletable: "Erase all my data" removed the profile, the photo and the sign-ins and left the
+# database of every job and every application sitting on disk.
+import inspect as _i6
+assert "c.close()" in _i6.getsource(app.db), "db() has to close the connection"
+assert "contextmanager" in _i6.getsource(app.db) or "contextlib" in _i6.getsource(app.db)
+# and purge empties the table as well as unlinking the file, for the case where something else
+# still holds it open
+_psrc = _i6.getsource(app.purge)
+assert "DROP TABLE" in _psrc, "purge must empty the database, not only try to delete it"
+assert 'confirm") != "ERASE"' in _psrc, "purge must refuse without the typed confirmation"
+for _needed in ("PROFILE", "SETTINGS", "photo.jpg", "auto.log"):
+    assert _needed in _psrc, f"purge should remove {_needed}"
+
+# 2f. A photo is accepted by signature, never by file name: a .png that is really something else
+# is a mistake at best.
+assert app.PHOTO_KINDS[bytes.fromhex("ffd8ff")][0] == "jpg"
+assert any(sig.startswith(bytes.fromhex("89504e47")) for sig in app.PHOTO_KINDS)
+assert app.PHOTO_MAX <= 10 * 1024 * 1024
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during
