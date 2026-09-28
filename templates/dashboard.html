@@ -303,12 +303,25 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
         min="0" max="100" step="5" value="75" title="Jobs scoring this or higher are counted in the summary"></div>
     </div>
     <div class="row">
-      <div style="flex:3"><label>Search for</label>
-        <input id="auto_query" list="qterms" placeholder="the terms to run every week"
-          title="Pick from the suggestions or type your own, separated by commas"></div>
+      <div style="flex:3"><label>Job titles to search for</label>
+        <input id="auto_query" list="qterms"
+          placeholder="customer support, suport clienti, technical support"
+          title="Job titles, separated by commas. Each one is searched on its own."></div>
       <div class="small"><label>City</label><select id="auto_location"></select></div>
       <div class="small"><label>County</label><select id="auto_county"></select></div>
       <div class="small"><label>Country</label><select id="auto_country"></select></div>
+    </div>
+    <p class="muted" style="margin:6px 0 0">The job titles you would type into the search bar at
+      the top — <b>not</b> a description of yourself. Separate them with commas: each one is
+      searched on its own, so listing a job in both Romanian and English finds ads the other
+      wording misses. Click the box for suggestions from your own CV.</p>
+    <div class="row" style="margin-top:6px">
+      <div style="flex:0 0 auto">
+        <button class="ghost" id="auto_from_cv" title="Fill this with the job titles on your profile">Use my job titles</button>
+      </div>
+      <div style="flex:0 0 auto">
+        <button class="ghost" id="autocopy2" title="Copy whatever is in the search bar at the top of the page">Copy the search above</button>
+      </div>
     </div>
     <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
       font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="auto_apply"
@@ -706,6 +719,18 @@ $('#keep_signed_in').onchange = async e => {
     e.target.disabled = false;
   }
 };
+
+// "I did not know what to type there" - so offer the two answers that are already on the page:
+// the titles this person has actually held, and whatever they just searched for.
+$('#auto_from_cv').onclick = () => {
+  const mine = [...new Set([PROFILE.title, ...(PROFILE.experience || []).map(x => x.role)]
+                  .map(x => (x || '').trim()).filter(Boolean))].slice(0, 4);
+  if(!mine.length) return toast('Your profile has no job titles yet — fill it in first, or type '
+                              + 'the roles you are looking for.', 7000);
+  $('#auto_query').value = mine.join(', ');
+  toast('Filled from your CV. Edit it, then Save the schedule.', 6000);
+};
+$('#autocopy2').onclick = () => $('#autocopy').click();
 
 $('#autonow').onclick = e => busy(e.target, async () => {
   if(!$('#auto_query').value.trim())
