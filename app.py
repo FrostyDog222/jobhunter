@@ -81,6 +81,10 @@ SETTINGS = HERE / "settings.json"
 # what the dashboard remembers between visits. Secrets stay in .env; these are preferences,
 # and they travel with a folder copy while .env deliberately does not.
 DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
+            # The county you could actually take a job in. Not derived from the profile address:
+            # "Saravale" is a village and no town list will place it, and guessing wrong here
+            # would quietly mislabel every result. Blank means "do not judge distance".
+            "home_county": "",
             # the weekly run (auto.py, started by Windows Task Scheduler)
             "auto_enabled": False, "auto_day": "SUN", "auto_time": "09:00",
             "auto_query": "", "auto_location": "", "auto_county": "", "auto_country": "ro",
@@ -633,9 +637,19 @@ LIST_COLS = ("url, source, title, company, location, posted, fit, why, gaps, unt
 
 @app.get("/api/jobs")
 def list_jobs():
+    # `far` is computed here rather than stored: the answer changes the moment someone moves, and
+    # a stored flag would keep the old answer on every row already scored.
+    home = (settings().get("home_county") or "").strip().lower()
     with db() as c:
-        return [dict(r) for r in c.execute(
+        rows = [dict(r) for r in c.execute(
             f"SELECT {LIST_COLS} FROM jobs ORDER BY (fit IS NULL), fit DESC, found DESC")]
+    if home:
+        for r in rows:
+            loc = (r.get("location") or "").strip()
+            # an ad that names no location is unknown, not far - saying otherwise would put a
+            # warning on every bestjobs row, which publishes no location at all
+            r["far"] = bool(loc) and not scrape.in_county(loc, home)
+    return rows
 
 
 @app.get("/api/job/description")

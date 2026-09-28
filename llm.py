@@ -695,7 +695,10 @@ def language_gate(profile, job):
 # What a fit score actually needs. Your name, email, phone, address, links and the three
 # application answers (salary expectation, notice period, earliest start) do not change whether
 # you match a job, so they are not sent - and a search can score a hundred rows in one go.
-SCORE_KEYS = ("title", "summary", "experience", "education", "skills", "languages",
+# `location` earns its place here: without it the model is told where the JOB is and never where
+# the candidate is, so it cannot tell a commute from a relocation. It was scoring on-site roles
+# 400km away at 85. The rest stay out - a phone number does not change whether you fit a job.
+SCORE_KEYS = ("title", "location", "summary", "experience", "education", "skills", "languages",
               "certifications", "projects")
 
 
@@ -705,6 +708,10 @@ def score(profile, job):
     return ask(
         TRUST +
         "You match candidates to jobs. Be strict and realistic - most jobs are not a great fit. "
+        "Where the work happens counts. Compare the posting's location with the candidate's: a "
+        "daily commute they could not make is a real shortfall, and belongs in 'gaps' and in the "
+        "score, not glossed over. Remote or fully-hybrid work is location-independent - do not "
+        "penalise it. If the posting names no location, say nothing about location at all. "
         # Prevention, not repair: models write **bold** into the JSON and sometimes put the
         # asterisks outside the string - `**\"documentation\"**` - which no salvage can unpick,
         # because the inner quotes have already ended the string.

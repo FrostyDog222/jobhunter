@@ -238,6 +238,13 @@ assert not _ic("", "cluj")                 # no location cannot be confirmed loc
 assert _ic("Remote", "cluj") and _ic("Telemunca", "dolj") and _ic("Remote", "timis")
 # a multi-city ad counts if the county is anywhere in the list
 assert _ic("Bacău, Iași (Iași), Roman, Vaslui", "iasi")
+# "Romania" alone is the whole country; as a suffix it is just the postal address, and most ads
+# carry it - treating the suffix as nationwide marked every job reachable from every county
+assert _ic("Romania", "timis") and _ic("România", "cluj")
+assert not _ic("Sector 6, București, România", "timis"), "a country suffix is not nationwide"
+assert not _ic("Iași, România", "timis")
+assert _ic("Timișoara, Lugoj", "timis")
+assert _ic("Hybrid", "timis") and _ic("Hibrid", "dolj")
 assert not _ic("Bacău, Roman, Vaslui", "cluj")
 assert _ic("anywhere", "not-a-county") and _ic("x", "")   # unknown/blank never drops an ad
 assert len(scrape.COUNTIES) == 42, "41 counties plus Bucharest"

@@ -366,10 +366,19 @@ def in_county(text, county):
         return True                       # not a county we know - do not silently drop the ad
     flat = _slug(text)
     if not flat:
-        return False                      # an ad with no location cannot be confirmed as local
+        # An ad that names no location cannot be confirmed local - but it cannot be called far
+        # away either, so callers asking "is this out of reach" must treat it as unknown.
+        return False
     # A remote job is open to someone in any county, and the boards pad their county pages with
     # them - dropping those would have thrown away the roles that suit a county search best.
-    if re.search(r"(^|-)(remote|telemunca|munca-de-acasa|work-from-home|anywhere)($|-)", flat):
+    if re.search(r"(^|-)(remote|telemunca|munca-de-acasa|work-from-home|anywhere"
+                 r"|toata-tara|nationwide|hybrid|hibrid)($|-)", flat):
+        return True
+    # "Romania" alone means the whole country; as a suffix it is just the postal address, and
+    # most ads carry it. Treating the suffix as nationwide marked every job in the country
+    # reachable from every county.
+    bare = re.sub(r"(^|-)(romania|national)($|-)", "-", flat).strip("-")
+    if not bare:
         return True
     display, towns = entry
     # word-boundary on the slug, so "Ilfov" does not match "Ilfoveni" and "Arad" does not

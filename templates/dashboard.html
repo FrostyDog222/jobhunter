@@ -248,6 +248,19 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       </select></div>
   </div>
 
+  <b style="display:block;margin-top:18px">Where you can work</b>
+  <p class="muted">Most boards are nationwide, so a search from a village in Timiș fills up with
+    jobs in București. Pick your county and anything outside it is marked <i>far from you</i> —
+    marked, not hidden, because a job worth moving for is your call. Remote and hybrid ads are
+    never flagged, and ads that name no location are left alone.</p>
+  <div class="row">
+    <div class="small"><label>My county</label>
+      <select id="home_county">
+        <option value="">Do not judge distance</option>
+        {% for slug, name in counties %}<option value="{{ slug }}">{{ name }}</option>
+        {% endfor %}</select></div>
+  </div>
+
   <div class="autobox">
   <b style="display:block">⚙ Automation — what runs without you</b>
   <p class="muted" style="margin:6px 0 0">Two separate things, both off unless you switch them
@@ -456,7 +469,8 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   <select id="filter">
     <option value="">All jobs</option><option value="new">New</option>
     <option value="ready">CV ready</option><option value="opened">Opened</option>
-    <option value="applied">Applied</option><option value="skipped">Skipped</option>
+    <option value="applied">Applied</option>
+        <option value="@near">Near me / remote</option><option value="skipped">Skipped</option>
     <option value="vetoed">Vetoed on language</option>
     <option value="@manual">Manual apply only</option>
   </select>
@@ -531,6 +545,7 @@ async function loadSettings(){
   $('#lang').value = S.lang || 'auto';
   $('#headless').value = S.headless || '';
   $('#cvask').checked = !!S.cv_ask;
+  $('#home_county').value = S.home_county || '';
   drawTemplates();
 }
 async function saveSettings(patch){
@@ -538,6 +553,13 @@ async function saveSettings(patch){
   drawTemplates();
 }
 $('#lang').onchange = e => saveSettings({lang: e.target.value});
+// redraw after saving: every card's "far from you" pill depends on this answer
+$('#home_county').onchange = async e => {
+  await saveSettings({home_county: e.target.value});
+  await load();
+  toast(e.target.value ? 'Jobs outside that county are now marked.'
+                       : 'Distance is no longer judged.');
+};
 $('#headless').onchange = e => saveSettings({headless: e.target.value});
 $('#cvask').onchange = e => saveSettings({cv_ask: e.target.checked});
 
@@ -959,7 +981,8 @@ function draw(){
   const f = $('#filter').value, mf = +$('#minfit').value;
   const keep = new Set(picked());        // the redraw below destroys every checkbox
   const needle = fold($('#find').value.trim());
-  let rows = JOBS.filter(j => (!f || (f === '@manual' ? HAND(j) : j.status===f))
+  let rows = JOBS.filter(j => (!f || (f === '@manual' ? HAND(j)
+                                    : f === '@near' ? j.far === false : j.status===f))
                           && (j.fit??0) >= mf
                           && (f === 'applied' || j.status !== 'applied')
                           && (!needle || fold(`${j.title} ${j.company} ${j.location} ${j.lang || ''}`).includes(needle)));
@@ -1044,6 +1067,8 @@ function draw(){
           ${j.note ? `<span class="pill" style="border-color:var(--mid);color:var(--mid)">${esc(j.note)}</span>` : ''}
           ${ATS.test(j.url) ? '<span class="pill">prefillable form</span>' : ''}
           ${HAND(j) ? '<span class="pill" title="This board has to be applied to by hand">manual apply</span>' : ''}
+          ${j.far === false ? `<span class="pill" style="border-color:var(--good);color:var(--good)"
+              title="In the county you said you can work in, or remote/nationwide">near you</span>` : ''}
         </div>
         ${j.why ? `<div class="why">${esc(j.why)}</div>` : ''}
         ${brings.length ? `<div class="brings">You bring: ${brings.map(esc).join(' · ')}</div>` : ''}
