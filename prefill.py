@@ -1126,23 +1126,39 @@ def run_signin(url):
 BOARD_STATE = HERE / ".boards.json"
 
 
-def _probe_signed_in(page, board):
-    """Ask for a page only a member can see. Where it lands is the answer."""
+def _probe_signed_in(page, board, _retry=True):
+    """Ask for a page only a member can see. Where it lands is the answer.
+
+    A "signed out" answer is checked twice. Boards keep a short-lived token next to a long-lived
+    one - eJobs' access token lasts about an hour against a 400-day refresh token - and renew it
+    with a request the page makes once it has loaded. Reading the body too early therefore
+    catches the gap and condemns a session that is about to renew itself. Saying "signed out"
+    now raises an alert and makes the weekly run send nothing, so it is worth the second look.
+    """
     ui = BOARD_UI[board]
     page.goto(ui["probe"], wait_until="domcontentloaded", timeout=45000)
     page.wait_for_timeout(2500)
     dismiss_consent(page)
     page.wait_for_timeout(800)
-    if any(d in page.url.lower() for d in ui["denied"]):
-        return False
-    # A board with no positive marker passes on "nothing said no" - so its error page, served
-    # with HTTP 200, used to read as signed in. An outage is not an answer either way.
-    low = page.inner_text("body").lower()
-    if any(m in low for m in ("momentan indisponibil", "pagina accesata nu exista",
-                              "temporarily unavailable", "service unavailable", "bad gateway")):
-        raise RuntimeError(f"{board} is showing an error page")
-    verdict = signed_in_to(page, board)
-    return True if verdict is None else verdict
+
+    def read():
+        if any(d in page.url.lower() for d in ui["denied"]):
+            return False
+        # A board with no positive marker passes on "nothing said no" - so its error page, served
+        # with HTTP 200, used to read as signed in. An outage is not an answer either way.
+        low = page.inner_text("body").lower()
+        if any(m in low for m in ("momentan indisponibil", "pagina accesata nu exista",
+                                  "temporarily unavailable", "service unavailable", "bad gateway")):
+            raise RuntimeError(f"{board} is showing an error page")
+        verdict = signed_in_to(page, board)
+        return True if verdict is None else verdict
+
+    ok = read()
+    if ok or not _retry:
+        return ok
+    # give the page time to make its refresh call, then load it again and ask once more
+    page.wait_for_timeout(2500)
+    return _probe_signed_in(page, board, _retry=False)
 
 
 def verify_boards(boards=tuple(BOARD_UI)):
@@ -1174,6 +1190,20 @@ def verify_boards(boards=tuple(BOARD_UI)):
     except OSError:
         pass
     return out
+
+
+# A saved sign-in does not last for ever, and nothing about the cached answer says how old it
+# is. Twelve hours is the line: long enough that opening the app repeatedly does not launch a
+# browser each time, short enough that a session which died overnight is caught before a search.
+BOARD_CHECK_STALE = 12 * 3600
+
+
+def board_checked_ago():
+    """-> seconds since the last live verification, or None if it has never run."""
+    try:
+        return max(0.0, time.time() - BOARD_STATE.stat().st_mtime)
+    except OSError:
+        return None
 
 
 def board_status():

@@ -1073,8 +1073,15 @@ def boards():
 
 @app.get("/api/signin")
 def signin_status():
-    """Last known sign-in state per board (cheap - reads the cached verification)."""
-    return {"saved": prefill.STATE.exists(), "boards": prefill.board_status()}
+    """Last known sign-in state per board (cheap - reads the cached verification).
+
+    `stale` is the important part: the cached answer has no expiry of its own, so without it the
+    page happily showed "signed in" for a session that had died the day before.
+    """
+    ago = prefill.board_checked_ago()
+    return {"saved": prefill.STATE.exists(), "boards": prefill.board_status(),
+            "checked_ago": ago,
+            "stale": ago is None or ago > prefill.BOARD_CHECK_STALE}
 
 
 @app.post("/api/signin/check")

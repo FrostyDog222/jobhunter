@@ -259,6 +259,26 @@ assert _re.search(_ej["apply"], "aplică") and _re.search(_ej["apply"], "aplică
 assert not _re.search(_ej["external"], "aplică")        # a plain apply is not an external one
 assert _pf.BOARD_UI["hipo"].get("external"), "hipo hands off too, via redirectAnuntExtern"
 
+# 1v. A "signed out" verdict is checked twice. Boards keep a short-lived token beside a
+# long-lived one - eJobs' access token lasts about an hour against a 400-day refresh token - and
+# renew it with a request the page makes after it loads, so reading the body too early condemns
+# a session that is about to renew itself. That verdict now raises an alert and makes the weekly
+# run send nothing, so it has to be right.
+class _FakePage:
+    def __init__(self, bodies): self.bodies, self.loads, self.url = list(bodies), 0, "https://x/"
+    def goto(self, url, **k): self.loads += 1; self.url = url
+    def wait_for_timeout(self, ms): pass
+    def inner_text(self, sel): return self.bodies[min(self.loads - 1, len(self.bodies) - 1)]
+    def query_selector_all(self, sel): return []
+    def query_selector(self, sel): return None
+_OUT, _IN = "intră în contul tău", "cv-ul meu aplicările mele"
+_p = _FakePage([_OUT, _OUT])
+assert _pf._probe_signed_in(_p, "ejobs") is False and _p.loads == 2   # one retry, then it stops
+_p = _FakePage([_OUT, _IN])
+assert _pf._probe_signed_in(_p, "ejobs") is True and _p.loads == 2    # renewed on the second look
+_p = _FakePage([_IN])
+assert _pf._probe_signed_in(_p, "ejobs") is True and _p.loads == 1    # healthy costs one load
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

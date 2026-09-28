@@ -174,6 +174,14 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     (test)</i> is there to find out - if it shows <i>signed in</i> afterwards, it worked. Until
     then those jobs open in your own browser and you send them yourself. They are
     never picked up by <i>Select all shown</i> or batch apply.</p>
+  <div id="signedout" style="display:none;margin:10px 0;padding:10px 12px;border-radius:8px;
+    border:1px solid color-mix(in srgb,var(--bad) 45%,var(--line));
+    background:color-mix(in srgb,var(--bad) 8%,transparent)">
+    <b style="color:var(--bad)">⚠ <span id="signedoutwho"></span></b>
+    <p class="muted" style="margin:6px 0 0">Board sign-ins expire on their own after a while.
+      Until you sign in again, applying to those jobs fails and the weekly run sends nothing —
+      it re-checks before it applies, rather than trusting this panel. Use the button below.</p>
+  </div>
   <div class="row" id="signinrow"></div>
   <p class="muted" style="margin-top:10px">A board apply sends the CV stored on your board
     profile, not the tailored PDF — so keep those profiles current:
@@ -791,9 +799,17 @@ async function loadLlm(){
 
 const SBOARDS = {ejobs:'eJobs', bestjobs:'BestJobs', hipo:'Hipo (test)'};
 const NAMES = {...SBOARDS, hipo:'Hipo'};   // every board, including manual ones
+let recheckedOnce = false;
 async function loadSignins(){
   let st = {boards:{}};
   try { st = await api('/api/signin', undefined, 'GET'); } catch(e){}
+  // The cached answer has no expiry of its own, so it happily said "signed in" for a session
+  // that had died overnight. When it is old, ask the boards for real - in the background, once
+  // per page load, because it launches a browser and takes a few seconds.
+  if(st.stale && !recheckedOnce){
+    recheckedOnce = true;
+    api('/api/signin/check', {}).then(() => loadSignins()).catch(()=>{});
+  }
   $('#boardstate').innerHTML = Object.entries(SBOARDS).map(([k,name]) => {
     const on = st.boards && st.boards[k];
     return `<span style="margin-right:12px"><span class="dot ${on?'on':'off'}"></span>${name}</span>`;
@@ -804,6 +820,14 @@ async function loadSignins(){
       <button class="${on ? 'ghost' : ''}" data-signin="${k}">${on ? 'Re-sign in to' : 'Sign in to'} ${name}</button>
       <span class="st ${on ? 'st-applied' : 'st-skipped'}">${on ? 'signed in' : 'not signed in'}</span></div>`;
   }).join('');
+
+  // An expired sign-in is silent otherwise: nothing fails until you try to apply, and the
+  // weekly run just sends nothing that week.
+  const out = Object.entries(SBOARDS).filter(([k]) => st.boards && !st.boards[k]).map(([,n]) => n);
+  $('#signedout').style.display = out.length ? 'block' : 'none';
+  if(out.length)
+    $('#signedoutwho').textContent = out.length === 1
+      ? `You are signed out of ${out[0]}` : `You are signed out of ${out.join(' and ')}`;
 }
 document.addEventListener('click', async e => {
   const board = e.target.dataset.signin; if(!board) return;
