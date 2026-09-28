@@ -639,6 +639,25 @@ const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>
 const cls = f => f>=75 ? 'g' : f>=50 ? 'm' : 'b';
 // compare without diacritics: NFD splits ă/â/î/ș/ț (and the legacy cedilla forms) into letter + mark
 const fold = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+// Ad text is fetched when a card is opened, not shipped with the list: 500 ads is well over a
+// megabyte, and it was being re-sent and re-rendered on every click.
+const DESC = new Map();
+async function showDescription(pre){
+  const url = pre.dataset.desc;
+  if(!url || pre.dataset.loaded) return;
+  pre.dataset.loaded = '1';
+  if(!DESC.has(url)){
+    try { DESC.set(url, (await api('/api/job/description?url=' + encodeURIComponent(url),
+                                   undefined, 'GET')).description); }
+    catch(e){ pre.textContent = 'Could not load the ad. ' + friendly(e.message); return; }
+  }
+  pre.textContent = DESC.get(url);
+}
+document.addEventListener('toggle', e => {
+  if(e.target.matches('details.desc') && e.target.open)
+    showDescription(e.target.querySelector('pre[data-desc]'));
+}, true);   // capture: toggle does not bubble
 // "2026-09-26 21:14:03" -> "26 Sep 2026, 21:14"
 const fmtWhen = s => { const d = new Date(String(s).replace(' ', 'T'));
   return isNaN(d) ? s : d.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'})
@@ -882,7 +901,8 @@ function draw(){
         ${j.why ? `<div class="why">${esc(j.why)}</div>` : ''}
         ${brings.length ? `<div class="brings">You bring: ${brings.map(esc).join(' · ')}</div>` : ''}
         ${gaps.length ? `<div class="gaps">Gaps: ${gaps.map(esc).join(' · ')}</div>` : ''}
-        <details class="desc"><summary>Read the job ad</summary><pre>${esc(j.description)}</pre></details>
+        ${j.desc_len ? `<details class="desc"><summary>Read the job ad</summary>
+            <pre data-desc="${esc(j.url)}">Loading…</pre></details>` : ''}
         <div class="more">
           ${j.cv ? `<a class="cv" href="/api/cv/${encodeURIComponent(j.cv)}" download
               title="The CV written for this job">⬇ Download tailored CV</a>` : ''}
@@ -907,6 +927,16 @@ function draw(){
   keep.forEach(u => { const c = document.querySelector(`.sel[data-url="${CSS.escape(u)}"]`);
                       if(c) c.checked = true; });
   drawPicked();
+}
+
+// Update one card from what the server just told us, instead of re-downloading every job.
+// `job` null removes the row. Keeps the page responsive: acting on a card used to mean
+// fetching the whole list again and rebuilding it.
+function touch(url, job){
+  const i = JOBS.findIndex(x => x.url === url);
+  if(i < 0) return load();
+  if(job === null) JOBS.splice(i, 1); else Object.assign(JOBS[i], job);
+  draw();
 }
 
 async function load(){
@@ -1047,23 +1077,45 @@ for(const id of ['q', 'loc', 'country']){
   try { const v = localStorage.getItem('search.' + id); if(v !== null) $('#' + id).value = v; } catch(e){}
 }
 $('#find').oninput = draw;
+// The search is one long POST, so ask the server separately how far it has got. Scoring is one
+// model call per job and by far the longest part, which is exactly when a percentage helps.
+function watchSearch(){
+  let stop = false;
+  const tick = async () => {
+    if(stop) return;
+    try {
+      const p = await api('/api/search/progress', undefined, 'GET');
+      if(!stop && p.active)
+        progress(p.pct, p.total ? `${p.pct}% · ${p.phase} ${p.done}/${p.total}` : `${p.pct}%`);
+    } catch(e){ /* a slow reply is not worth a message */ }
+    if(!stop) setTimeout(tick, 1000);
+  };
+  tick();
+  return () => { stop = true; };
+}
+
 $('#go').onclick = e => busy(e.target, async () => {
   for(const id of ['q', 'loc', 'country']){
     try { localStorage.setItem('search.' + id, $('#' + id).value); } catch(e){}
   }
-  const r = await api('/api/search', {query:$('#q').value, location:$('#loc').value,
-                                      country:$('#country').value,
-                                      filters:{reality:$('#fresh').value,
-                                               work_mode:$('#work_mode').value,
-                                               seniority:$('#seniority').value,
-                                               auto_apply_available:$('#ats').value}});
-  toast(`${r.found} ads seen, ${r.new} new. Scored ${r.scored}.` +
-        (r.vetoed ? ` ${r.vetoed} skipped on language.` : '') +
-        (r.freed ? ` ${r.freed} re-opened by the language check.` : '') +
-        (r.expired ? ` ${r.expired} dropped as over two weeks old.` : '') +
-        ((r.warnings || []).length ? ' ⚠ ' + r.warnings.map(friendly).join('; ') : '') +
-        (r.failed ? ` ${r.failed} failed — search again to retry them.` : ''), 8000);
-  await load();
+  const stopWatching = watchSearch();
+  try {
+    const r = await api('/api/search', {query:$('#q').value, location:$('#loc').value,
+                                        country:$('#country').value,
+                                        filters:{reality:$('#fresh').value,
+                                                 work_mode:$('#work_mode').value,
+                                                 seniority:$('#seniority').value,
+                                                 auto_apply_available:$('#ats').value}});
+    toast(`${r.found} ads seen, ${r.new} new. Scored ${r.scored}.` +
+          (r.vetoed ? ` ${r.vetoed} skipped on language.` : '') +
+          (r.freed ? ` ${r.freed} re-opened by the language check.` : '') +
+          (r.expired ? ` ${r.expired} dropped as over two weeks old.` : '') +
+          ((r.warnings || []).length ? ' ⚠ ' + r.warnings.map(friendly).join('; ') : '') +
+          (r.failed ? ` ${r.failed} failed — search again to retry them.` : ''), 8000);
+    await load();
+  } finally {
+    stopWatching();          // also on failure, or the bar keeps counting a search that stopped
+  }
 }, 'searching...');
 
 $('#minfit').onchange = draw;
@@ -1138,16 +1190,21 @@ $('#list').addEventListener('click', async e => {
                           + 'Opening it with your answers filled in — read it and press Trimite.'
             : 'Clicked, but the board did not confirm. Open the posting and check.', 10000);
     }
+    // These three change one row, so update that row rather than fetching the whole list again
     if(act === 'done'){
       const was = (JOBS.find(j => j.url === url) || {}).status || 'new';
-      await api('/api/status', {url, status:'applied'});
+      touch(url, (await api('/api/status', {url, status:'applied'})).job);
       undoable('Marked as applied.', async () => {
-        await api('/api/status', {url, status: was === 'applied' ? 'new' : was, undo: true});
-        await load();
+        const r = await api('/api/status', {url, status: was === 'applied' ? 'new' : was, undo: true});
+        touch(url, r.job);
       });
+      return;
     }
-    if(act === 'skip'){ await api('/api/status', {url, status:'skipped'}); }
-    if(act === 'del'){ await api('/api/delete', {url}); }
+    if(act === 'skip'){
+      touch(url, (await api('/api/status', {url, status:'skipped'})).job);
+      return;
+    }
+    if(act === 'del'){ await api('/api/delete', {url}); touch(url, null); return; }
     await load();
   }, {tailor:'writing CV...', send:'sending, ~15s...', apply:'opening...'}[act] || '...');
 });

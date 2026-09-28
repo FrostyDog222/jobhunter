@@ -39,6 +39,8 @@ button:disabled .spin{opacity:.9}
 #bar.on{display:block}
 #bar i{position:absolute;top:0;height:100%;width:45%;background:var(--accent);
   animation:slide 1.15s ease-in-out infinite}
+/* once the server can say how far along it is, the bar stops sliding and fills instead */
+#bar.known i{animation:none;left:0;width:var(--pct,0%);transition:width .4s ease}
 @media(prefers-reduced-motion:reduce){
   .spin,#bar i{animation-duration:0s}
   #bar i{width:100%;opacity:.5}
@@ -70,6 +72,16 @@ h2{font-size:15px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06e
 <script>
 const $ = s => document.querySelector(s);
 let _t;
+// Show a real percentage while something long is running, or fall back to the sliding bar.
+// `pct` null puts it back to indeterminate.
+function progress(pct, label){
+  const bar = document.getElementById('bar');
+  if(pct == null){ bar.classList.remove('known'); bar.style.removeProperty('--pct'); }
+  else { bar.classList.add('known'); bar.style.setProperty('--pct', pct + '%'); }
+  const b = document.getElementById('busylabel');
+  if(b) b.textContent = label || '';
+}
+
 function toast(m, ms=3200){ const t=$('#toast'); t.textContent=m; t.style.display='block';
   clearTimeout(_t); _t=setTimeout(()=>t.style.display='none', ms); }
 async function api(url, body, method){
@@ -106,12 +118,14 @@ const friendly = m => { const hit = FRIENDLY.find(([re]) => re.test(String(m)));
 let _busy = 0;   // ref-counted: two things running at once must not switch the bar off early
 async function busy(btn, fn, label){
   const old = btn.innerHTML; btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span>' + (label || 'working...');
+  btn.innerHTML = '<span class="spin"></span>' + (label || 'working...')
+                + '<span id="busylabel" style="margin-left:6px;opacity:.85"></span>';
   if(++_busy === 1) document.getElementById('bar').classList.add('on');
   try { return await fn(); } catch(e){ toast('⚠ ' + friendly(e.message), 8000); }
   finally {
     btn.disabled = false; btn.innerHTML = old;
-    if(--_busy === 0) document.getElementById('bar').classList.remove('on');
+    if(--_busy === 0){ const bar = document.getElementById('bar');
+      bar.classList.remove('on'); progress(null); }
   }
 }
 {% block js %}{% endblock %}

@@ -1,5 +1,5 @@
 """jobhunter - a local job-hunting assistant. Run: run.bat  ->  http://127.0.0.1:8777"""
-import asyncio, hashlib, io, json, os, pathlib, re, sqlite3, subprocess, sys, webbrowser
+import asyncio, hashlib, io, json, os, pathlib, re, sqlite3, subprocess, sys, time, webbrowser
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, UploadFile, File, Body, HTTPException
@@ -102,8 +102,22 @@ def _ps(script):
     return r.returncode, (r.stdout or "").strip(), (r.stderr or "").strip()
 
 
+_TASK = [0.0, None]
+
+
 def task_state():
-    """-> what Windows knows about the scheduled task right now."""
+    """-> what Windows knows about the scheduled task right now.
+
+    Cached briefly: asking costs a PowerShell process, about a second, and it runs on every
+    dashboard load for a value that changes only when you press Save.
+    """
+    if _TASK[1] is not None and time.monotonic() - _TASK[0] < 15:
+        return _TASK[1]
+    _TASK[:] = [time.monotonic(), _task_state()]
+    return _TASK[1]
+
+
+def _task_state():
     code, out, _ = _ps(
         f"$ErrorActionPreference='SilentlyContinue';"
         f"$t = Get-ScheduledTask -TaskName '{TASK}';"
@@ -120,6 +134,7 @@ def task_state():
 
 def schedule(on, day, at):
     """Create or remove the weekly task. Returns "" or a message explaining why it failed."""
+    _TASK[1] = None                  # we are about to change it, so do not serve the old answer
     if not on:
         _ps(f"Unregister-ScheduledTask -TaskName '{TASK}' -Confirm:$false "
             f"-ErrorAction SilentlyContinue")
@@ -520,11 +535,53 @@ def apply_suggestion(s: dict = Body(...)):
 
 
 # ---------- jobs ----------
+# Every column except the ad itself. The full text of 500 ads is over a megabyte, it is re-sent
+# on every action, and it is only read when someone opens one card - so it is fetched per job
+# instead, from /api/job/description.
+LIST_COLS = ("url, source, title, company, location, posted, fit, why, gaps, untapped, "
+             "status, cv, found, note, lang, applied_at, LENGTH(description) AS desc_len")
+
+
 @app.get("/api/jobs")
 def list_jobs():
     with db() as c:
         return [dict(r) for r in c.execute(
-            "SELECT * FROM jobs ORDER BY (fit IS NULL), fit DESC, found DESC")]
+            f"SELECT {LIST_COLS} FROM jobs ORDER BY (fit IS NULL), fit DESC, found DESC")]
+
+
+@app.get("/api/job/description")
+def job_description(url: str):
+    """The ad text for one job, fetched when you actually open it."""
+    with db() as c:
+        row = c.execute("SELECT description FROM jobs WHERE url=?", (url,)).fetchone()
+    if not row:
+        raise HTTPException(404, "unknown job")
+    return {"description": row["description"] or ""}
+
+
+# How far the running search has got. A search is one long POST, so the only way the page can
+# show progress is to ask separately while it waits. Three phases, weighted by how long they
+# actually take: asking each board is quick, reading the ads is slower, and scoring - one model
+# call per job - is most of the wait.
+PHASES = {"searching the boards": (0, 10), "reading the ads": (10, 30), "scoring": (30, 100)}
+PROGRESS = {"active": False, "phase": "", "done": 0, "total": 0, "pct": 0}
+
+
+def step(phase, done=0, total=0):
+    lo, hi = PHASES.get(phase, (0, 100))
+    share = (done / total) if total else 0
+    PROGRESS.update(active=True, phase=phase, done=done, total=total, at=time.monotonic(),
+                    pct=round(lo + (hi - lo) * min(1.0, share)))
+
+
+@app.get("/api/search/progress")
+def search_progress():
+    # A search that crashed - or a server restarted mid-search - would otherwise leave this
+    # saying "62%, still going" for ever, and the page would sit there waiting on it. Nothing
+    # updates for a minute means nothing is running.
+    if PROGRESS["active"] and time.monotonic() - PROGRESS.get("at", 0) > 60:
+        PROGRESS.update(active=False, phase="", done=0, total=0)
+    return PROGRESS
 
 
 @app.post("/api/search")
@@ -541,6 +598,8 @@ async def search(body: dict = Body(...)):
 
     # Phase 1: discover cheaply - one request per board per query, no detail pages yet.
     found, warnings = [], []
+    asked, to_ask = 0, max(1, len(boards) * len(queries))
+    step("searching the boards", 0, to_ask)
     with db() as c:
         prior = {r[0]: r[1] for r in c.execute("SELECT source, COUNT(*) FROM jobs GROUP BY source")}
     for b in boards:
@@ -552,6 +611,9 @@ async def search(body: dict = Body(...)):
             except Exception as e:
                 warnings.append(f"{b} did not answer this time ({type(e).__name__})")
                 print(f"[scrape] {b} failed: {type(e).__name__}: {e}")
+            finally:
+                asked += 1
+                step("searching the boards", asked, to_ask)
         if not got and prior.get(b):
             warnings.append(f"{b}: 0 results but {prior[b]} stored previously - parser may be broken")
         found += got
@@ -573,7 +635,10 @@ async def search(body: dict = Body(...)):
     # one request per board instead of one per posting.
     with db() as c:
         known = {r[0] for r in c.execute("SELECT url FROM jobs")}
-    fresh = await off(scrape.hydrate, [j for j in found if j["url"] not in known])
+    new_urls = [j for j in found if j["url"] not in known]
+    step("reading the ads", 0, max(1, len(new_urls)))
+    fresh = await off(scrape.hydrate, new_urls)
+    step("reading the ads", len(new_urls), max(1, len(new_urls)))
 
     for b in boards:
         rows = [j for j in fresh if j["source"] == b]
@@ -629,9 +694,11 @@ async def search(body: dict = Body(...)):
     # score in small chunks: the pool is shared with tailoring, applying and PDF rendering,
     # and a partial result is worth keeping if a later chunk fails
     scored = []
+    step("scoring", 0, len(todo))
     for i in range(0, len(todo), 6):
         scored += await asyncio.gather(
             *(off(llm.score, p, j) for j in todo[i:i + 6]), return_exceptions=True)
+        step("scoring", len(scored), len(todo))
     failed = 0
     with db() as c:
         for j, s in zip(todo, scored):
@@ -658,6 +725,7 @@ async def search(body: dict = Body(...)):
     # only rows this search actually moved into 'vetoed': the gate now re-runs over every
     # stored row, so counting the whole list would report the standing total as if it had just
     # happened ("113 skipped on language" on a search that skipped none)
+    PROGRESS.update(active=False, phase="", done=0, total=0, pct=100)
     newly_vetoed = sum(1 for j, _ in vetoed if j["status"] != "vetoed")
     return {"found": len(found), "new": len(fresh), "freed": len(freed), "expired": expired,
             "scored": len(todo) - failed,
@@ -1013,6 +1081,13 @@ async def apply(body: dict = Body(...)):
     return {"ok": True, "ats": host, "cv": j["cv"], "report": report}
 
 
+def one_job(c, url):
+    """The list-shaped row for a single job, so the page can update one card instead of
+    re-downloading every ad it already has."""
+    r = c.execute(f"SELECT {LIST_COLS} FROM jobs WHERE url=?", (url,)).fetchone()
+    return dict(r) if r else None
+
+
 @app.post("/api/status")
 def set_status(body: dict = Body(...)):
     status = body.get("status")
@@ -1036,7 +1111,8 @@ def set_status(body: dict = Body(...)):
             if not n and c.execute("SELECT 1 FROM jobs WHERE url=? AND status='applied'",
                                    (body["url"],)).fetchone():
                 raise HTTPException(400, "Applied jobs stay in the history and cannot be changed.")
-    return {"ok": True}
+        job = one_job(c, body["url"])
+    return {"ok": True, "job": job}
 
 
 @app.post("/api/clear")

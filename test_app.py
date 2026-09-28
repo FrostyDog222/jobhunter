@@ -173,4 +173,23 @@ finally:
     if _scratch.exists():
         _scratch.unlink()
 
+# 4. Every route reaches the function it is named after. Adding a plain helper directly under a
+# decorator silently registers the HELPER as the endpoint, and the route keeps answering - with
+# the wrong signature. That happened; this is how it stays fixed.
+_expected = {
+    "/api/jobs": "list_jobs", "/api/job/description": "job_description",
+    "/api/status": "set_status", "/api/delete": "delete", "/api/search": "search",
+    "/api/search/progress": "search_progress", "/api/tailor": "tailor",
+    "/api/apply": "apply", "/api/apply_batch": "apply_batch", "/api/settings": "get_settings",
+    "/api/auto": "get_auto", "/api/llm": "get_llm", "/api/boards": "boards",
+}
+_seen = {}
+for _r in app.app.routes:
+    _p, _n = getattr(_r, "path", None), getattr(_r, "name", "")
+    if _p in _expected:
+        _seen.setdefault(_p, set()).add(_n)
+for _p, _want in _expected.items():
+    assert _p in _seen, f"route {_p} is missing"
+    assert _want in _seen[_p], f"{_p} is served by {_seen[_p]}, expected {_want}"
+
 print("ok")

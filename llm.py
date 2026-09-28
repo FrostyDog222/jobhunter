@@ -177,12 +177,16 @@ _OLLAMA = [0.0, False]
 
 def ollama_up():
     """Ollama has no key, so for it 'configured' can only mean 'answering on this machine'.
-    Checked at most once a minute - this sits on the path of every model call."""
+
+    A plain socket connect rather than an HTTP request: this runs on the path of every model
+    call and on every page load, and on Windows an HTTP attempt against a port nothing is
+    listening on took most of a second. Cached for a minute on top of that.
+    """
     if time.time() - _OLLAMA[0] > 60:
-        try:
-            ok = httpx.get("http://localhost:11434/api/tags", timeout=0.4).status_code == 200
-        except httpx.HTTPError:
-            ok = False
+        import socket
+        with socket.socket() as s:
+            s.settimeout(0.15)
+            ok = s.connect_ex(("127.0.0.1", 11434)) == 0
         _OLLAMA[:] = [time.time(), ok]
     return _OLLAMA[1]
 
