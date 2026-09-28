@@ -477,6 +477,24 @@ assert app.PHOTO_KINDS[bytes.fromhex("ffd8ff")][0] == "jpg"
 assert any(sig.startswith(bytes.fromhex("89504e47")) for sig in app.PHOTO_KINDS)
 assert app.PHOTO_MAX <= 10 * 1024 * 1024
 
+# 2g. A tailored CV's file name has to carry the template. Without it, tailoring the same job as
+# Classic and then as European wrote to one path and served one url, and the browser handed back
+# the copy it already had - two templates, one CV, looking like the app ignored the choice.
+import inspect as _i7
+_tsrc = _i7.getsource(app.tailor)
+assert "{template}.pdf" in _tsrc, "the template must be part of the file name"
+assert "{tag}" in _tsrc and "{lang}" in _tsrc, "job and language must stay in it too"
+# and re-tailoring writes the same name, so the download must not be cacheable
+assert "no-store" in _i7.getsource(app.get_cv)
+
+# 2h. cv.html is rendered for the PDF and for the picker thumbnails, and both go through
+# _cv_html - a helper added for one and not the other took the whole tailor endpoint down with
+# "'howlong' is undefined", which reached the user as "the app hit an internal error".
+_csrc = _i7.getsource(app._cv_html)
+for _fn in ("when=when", "howlong=howlong", "photo="):
+    assert _fn in _csrc, f"_cv_html must pass {_fn}"
+assert _i7.getsource(app.cv_thumb).count("_cv_html") == 1, "thumbnails must reuse _cv_html"
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

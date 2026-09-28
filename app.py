@@ -1395,7 +1395,11 @@ async def tailor(body: dict = Body(...)):
     slug = "".join(ch if ch.isalnum() else "-" for ch in f"{j['company']}-{j['title']}")[:56].strip("-")
     # the url hash keeps two jobs with the same long prefix from overwriting each other's CV
     tag = hashlib.sha1(j["url"].encode()).hexdigest()[:6]
-    path = OUT / f"{slug or 'cv'}-{tag}-{lang}.pdf"
+    # The template belongs in the name. Without it, tailoring the same job as Classic and then
+    # as European wrote to one path and served one url - and the browser, quite reasonably,
+    # handed back the copy it already had. Two templates, one CV, and it looked like the app
+    # had ignored the choice.
+    path = OUT / f"{slug or 'cv'}-{tag}-{lang}-{template}.pdf"
     await off(_pdf, cv, path, lang, template)
     with db() as c:
         # a vetoed row you chose to tailor anyway is one you decided to pursue, so promote it
@@ -1480,7 +1484,10 @@ def get_cv(name: str):
     f = OUT / pathlib.Path(name).name
     if not f.exists():
         raise HTTPException(404, "no such CV")
-    return FileResponse(f, media_type="application/pdf")
+    # Re-tailoring the same job writes the same file name, so a cached copy would keep being
+    # handed back after the CV had been rewritten.
+    return FileResponse(f, media_type="application/pdf",
+                        headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 # only boards the app actually submits on need a stored session
