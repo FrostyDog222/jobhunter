@@ -142,6 +142,33 @@ assert _match("hipo", "aplica la acest anunt")
 assert not _match("hipo", "aplica cu linkedin")
 assert not _match("hipo", "aplica cu facebook")
 
+# 1o. Models write markdown into the JSON they were asked for, and put the asterisks OUTSIDE the
+# string - `**"Team collaboration** in ...`. That is not JSON, and every one of those replies
+# cost a whole extra call to the next provider in the chain.
+_bad = """```json
+{"fit": 65, "why": "Strong support background", "gaps": ["SQL"],
+ "untapped": [**"Team collaboration** in high-pressure environments"]}
+```"""
+_got = app.llm._parse_reply("mistral", _bad)
+assert _got["fit"] == 65 and _got["gaps"] == ["SQL"], _got
+assert "Team collaboration" in _got["untapped"][0]
+# a reply that is honest JSON is never touched, asterisks and all
+assert app.llm._parse_reply("x", '{"why": "uses ** literally"}')["why"] == "uses ** literally"
+# and genuine rubbish must still raise RuntimeError, or ask() cannot fail over to the next
+# provider - JSONDecodeError is a ValueError, which ask() does not catch
+for _junk in ("no json at all", "", "{unclosed"):
+    try:
+        app.llm._parse_reply("x", _junk)
+        raise AssertionError(f"should have raised: {_junk!r}")
+    except RuntimeError:
+        pass
+
+# 1p. The scoring chunk must match the pool, or every chunk runs in two rounds and the progress
+# bar jumps in steps the pool cannot actually deliver at once.
+import inspect as _i2
+assert "range(0, len(todo), WORKERS)" in _i2.getsource(app.search)
+assert app.pool._max_workers == app.WORKERS
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

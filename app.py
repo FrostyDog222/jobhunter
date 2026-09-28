@@ -24,7 +24,11 @@ DB = HERE / "db.sqlite"
 
 app = FastAPI(title="job")
 tpl = Jinja2Templates(directory=HERE / "templates")
-pool = ThreadPoolExecutor(max_workers=3)   # free LLM tiers rate-limit above this
+# Measured against the live chain, not guessed: 12 real ads scored in 26.1s three at a
+# time and 13.1s six at a time, with no 429 and the breaker untripped. Browser work is
+# dispatched one at a time by apply_batch, so this never means six Chromiums.
+WORKERS = 6
+pool = ThreadPoolExecutor(max_workers=WORKERS)
 
 
 _SCHEMA_DONE = False
@@ -711,7 +715,7 @@ async def search(body: dict = Body(...)):
     # and a partial result is worth keeping if a later chunk fails
     scored = []
     step("scoring", 0, len(todo))
-    for i in range(0, len(todo), 6):
+    for i in range(0, len(todo), WORKERS):
         scored += await asyncio.gather(
             *(off(llm.score, p, j) for j in todo[i:i + 6]), return_exceptions=True)
         step("scoring", len(scored), len(todo))

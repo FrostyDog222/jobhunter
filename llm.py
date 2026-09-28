@@ -249,6 +249,43 @@ def _request(provider, model, key, system, user, max_tokens):
                           {"role": "user", "content": user}]})
 
 
+def _parse_reply(provider, txt):
+    """The model's text -> an object. Every failure raises RuntimeError, never
+    JSONDecodeError: ask() catches RuntimeError to fail over, and a ValueError escaping
+    here used to surface as a 500."""
+    txt = (txt or '').strip()
+    txt = re.sub(r"^```(?:json)?|```$", "", txt, flags=re.M).strip()
+    try:
+        return json.loads(txt)
+    except json.JSONDecodeError:
+        pass
+    # Models chat around the JSON, so fall back to the widest balanced-looking span - but the
+    # salvage must raise RuntimeError like every other failure here, or ask() cannot fail over:
+    # JSONDecodeError is a ValueError, which it does not catch, and it escaped as a 500.
+    for m in (re.search(r"\{.*\}", txt, re.S), re.search(r"\[.*\]", txt, re.S)):
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except json.JSONDecodeError:
+                continue
+    # Models write markdown into the JSON they were asked for, and put the asterisks outside the
+    # string: `**"Team collaboration** in ...`. That is not JSON, and it cost a whole extra
+    # provider call per affected ad. _tidy strips ** after parsing anyway, so losing it here
+    # costs nothing - do it last, so a reply that parses honestly is never touched.
+    plain = txt.replace("**", "")
+    for cand in (plain, *(m.group(0) for m in (re.search(r"\{.*\}", plain, re.S),
+                                               re.search(r"\[.*\]", plain, re.S)) if m)):
+        try:
+            return json.loads(cand)
+        except json.JSONDecodeError:
+            continue
+    # head AND tail: a reply that is merely cut short looks identical to a malformed one
+    # when you only log the first 300 characters, which is why the last one took a
+    # capture harness to diagnose
+    raise RuntimeError(f"{provider} did not return JSON: {txt[:200]}"
+                       f"{' ... ' + txt[-120:] if len(txt) > 320 else ''}")
+
+
 def _call(provider, model, key, system, user, max_tokens, tries):
     """One provider, with retries. Raises QuotaError when this provider is spent."""
     url, headers, body = _request(provider, model, key, system, user, max_tokens)
@@ -282,22 +319,7 @@ def _call(provider, model, key, system, user, max_tokens, tries):
         body = r.json()
     except ValueError:
         raise RuntimeError(f"{provider} did not return JSON: {r.text[:300]}")
-    txt = _content(provider, body).strip()
-    txt = re.sub(r"^```(?:json)?|```$", "", txt, flags=re.M).strip()
-    try:
-        return json.loads(txt)
-    except json.JSONDecodeError:
-        pass
-    # Models chat around the JSON, so fall back to the widest balanced-looking span - but the
-    # salvage must raise RuntimeError like every other failure here, or ask() cannot fail over:
-    # JSONDecodeError is a ValueError, which it does not catch, and it escaped as a 500.
-    for m in (re.search(r"\{.*\}", txt, re.S), re.search(r"\[.*\]", txt, re.S)):
-        if m:
-            try:
-                return json.loads(m.group(0))
-            except json.JSONDecodeError:
-                continue
-    raise RuntimeError(f"{provider} did not return JSON: {txt[:300]}")
+    return _parse_reply(provider, _content(provider, body))
 
 
 def ask(system, user, max_tokens=8000, tries=5):
