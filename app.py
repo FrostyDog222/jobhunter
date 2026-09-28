@@ -535,14 +535,16 @@ def photo_path():
     return None
 
 
-def photo_data_uri():
+def photo_data_uri(use=None):
     """-> the photo as a data: URI for the CV, or "" when there is none or it is switched off.
 
     A data URI rather than a file path: the PDF is rendered with set_content, which has no base
     url, so a relative src would silently draw nothing and the first anyone would know is a CV
     with a blank square where a face should be.
     """
-    if not settings().get("photo_in_cv"):
+    # `use` is the choice made for THIS cv; None means "whatever the profile page says". A photo
+    # suits the European one and not the Traditional, so it cannot be a single global answer.
+    if not (settings().get("photo_in_cv") if use is None else use):
         return ""
     f = photo_path()
     if not f:
@@ -643,7 +645,7 @@ def purge(body: dict = Body(...)):
 
 
 @app.get("/api/profile/cv")
-async def profile_cv(template: str = "", lang: str = "en"):
+async def profile_cv(template: str = "", lang: str = "en", photo: str = ""):
     """The profile as a PDF, untailored. No model call, so it costs nothing and is instant."""
     me = profile()
     if not _has_substance(me):
@@ -654,8 +656,9 @@ async def profile_cv(template: str = "", lang: str = "en"):
         lang = "en"
     OUT.mkdir(exist_ok=True)
     who = "".join(ch if ch.isalnum() else "-" for ch in (me.get("name") or "CV")).strip("-")
+    want = None if photo == "" else photo not in ("0", "false", "no")
     path = OUT / f"{who or 'CV'}-{lang}-{template}.pdf"
-    await off(_pdf, me, path, lang, template)
+    await off(lambda: _pdf(me, path, lang, template, want))
     return FileResponse(path, media_type="application/pdf", filename=path.name,
                         headers={"Cache-Control": "no-store, must-revalidate"})
 
@@ -1219,11 +1222,13 @@ LABELS = {
     "en": dict(profile="Profile", experience="Experience", projects="Projects",
                education="Education", skills="Skills", languages="Languages",
                certifications="Certifications", hobbies="Interests", present="present",
-               year="year", years="years", month="month", months="months", and_="and"),
+               year="year", years="years", month="month", months="months", and_="and",
+               email="Email", phone="Tel", city="City"),
     "ro": dict(profile="Profil", experience="Experiență profesională", projects="Proiecte",
                education="Educație", skills="Competențe", languages="Limbi",
                certifications="Certificări", hobbies="Interese", present="prezent",
-               year="an", years="ani", month="lună", months="luni", and_="și"),
+               year="an", years="ani", month="lună", months="luni", and_="și",
+               email="Email", phone="Tel", city="Localitate"),
 }
 
 
@@ -1289,7 +1294,7 @@ def _ym(value):
     return (int(m.group(1)), month if 1 <= month <= 12 else 1)
 
 
-def _cv_html(cv, lang, template):
+def _cv_html(cv, lang, template, photo=None):
     def when(start, end):
         """Render a date range. An ASCII hyphen, because ATS parsers split on that and not on
         an en-dash, and nothing at all when the model dropped both ends."""
@@ -1322,7 +1327,8 @@ def _cv_html(cv, lang, template):
     if template not in cv_templates():
         template = "classic"
     return tpl.get_template("cv.html").render(
-        cv=cv, L=LABELS[lang], when=when, howlong=howlong, lang=lang, photo=photo_data_uri(),
+        cv=cv, L=LABELS[lang], when=when, howlong=howlong, lang=lang,
+        photo=photo_data_uri(photo),
         style=(CV_DIR / f"{template}.css").read_text(encoding="utf-8"))
 
 
@@ -1383,12 +1389,12 @@ async def cv_thumb(key: str):
     return FileResponse(png, media_type="image/png")
 
 
-def _pdf(cv, path, lang="en", template="classic"):
+def _pdf(cv, path, lang="en", template="classic", photo=None):
     """Render the CV html to PDF with Chromium - Playwright is already a dependency, so no PDF lib."""
     from playwright.sync_api import sync_playwright
     cv = _tidy(cv)
 
-    html = _cv_html(cv, lang, template)
+    html = _cv_html(cv, lang, template, photo)
     with sync_playwright() as pw:
         b = pw.chromium.launch()
         pg = b.new_page()
@@ -1418,7 +1424,9 @@ async def tailor(body: dict = Body(...)):
     # handed back the copy it already had. Two templates, one CV, and it looked like the app
     # had ignored the choice.
     path = OUT / f"{slug or 'cv'}-{tag}-{lang}-{template}.pdf"
-    await off(_pdf, cv, path, lang, template)
+    want = body.get("photo")
+    want = None if want is None else bool(want)
+    await off(lambda: _pdf(cv, path, lang, template, want))
     with db() as c:
         # a vetoed row you chose to tailor anyway is one you decided to pursue, so promote it
         # like any other - leaving it 'vetoed' hid it and put it on Clear's deletion list

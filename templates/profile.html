@@ -149,6 +149,11 @@
     <div class="small" style="flex:0 0 auto"><label>Language</label>
       <select id="cvlang"><option value="en">English</option>
         <option value="ro">Română</option></select></div>
+    <div class="small" style="flex:0 0 auto"><label>Photo</label>
+      <select id="cvphoto" title="Decided per CV: a photo suits European and rarely suits Traditional">
+        <option value="">As set above</option>
+        <option value="1">With photo</option>
+        <option value="0">Without photo</option></select></div>
     <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"
       id="cvbuttons"></div>
   </div>
@@ -322,7 +327,9 @@ document.addEventListener('click', e => {
   if(!tpl) return;
   const lang = $('#cvlang').value;
   // a plain link download: the PDF is built on request and streamed back
-  window.location.href = `/api/profile/cv?template=${encodeURIComponent(tpl)}&lang=${lang}`;
+  const photo = $('#cvphoto').value;   // per CV: a photo suits European and rarely Traditional
+  window.location.href = `/api/profile/cv?template=${encodeURIComponent(tpl)}&lang=${lang}`
+                       + (photo === '' ? '' : `&photo=${photo}`);
   toast('Building your CV — the download starts in a moment.', 5000);
 });
 drawCvButtons();

@@ -1,0 +1,40 @@
+/* Timeline - dates in their own left column, the job beside them, big headings on full-width
+   rules. The layout eJobs prints, which reads well because the eye runs down one column of
+   dates instead of hunting for them at the end of each line. Single column of text underneath,
+   so software still reads it in order. */
+@page{size:A4}
+body{font:10pt/1.5 "Segoe UI",Calibri,Arial,sans-serif;color:#1a1a1a;margin:0;
+  font-variant-ligatures:none}
+
+/* header: round photo left, name and title beside it */
+.photo{float:left;width:27mm;height:27mm;border-radius:50%;object-fit:cover;margin:0 7mm 4mm 0}
+h1{font-size:21pt;font-weight:700;margin:1mm 0 1px;line-height:1.15;color:#111}
+.role{font-size:11pt;font-weight:600;color:#333;margin:0 0 2px}
+.contact{font-size:10pt;color:#222;margin:0 0 4mm}
+.contact span{display:block;margin-bottom:1.5px}     /* Email: / Tel: / City:, one per line */
+.contact .lbl{font-weight:700;color:#111}
+.has-photo h1,.has-photo .role,.has-photo .contact{margin-left:34mm}
+
+/* headings: large, bold, full-width rule under them - the part that makes it look generous */
+h2{clear:both;font-size:13pt;font-weight:700;color:#111;border-bottom:1px solid #d5d9de;
+   padding-bottom:4px;margin:7mm 0 4mm;break-after:avoid}
+h2:first-of-type{margin-top:4mm}
+
+/* Each entry hangs off its dates. The markup is unchanged - the date span is simply lifted out
+   of the line and parked in the left column - so the reading order in the file, which is what an
+   applicant tracking system sees, stays role-then-dates-then-detail. */
+.item{position:relative;padding-left:40mm;margin-bottom:5mm;page-break-inside:avoid}
+.line{display:block}
+.line b{font-size:11pt;font-weight:700;color:#111}
+.when{position:absolute;left:0;top:1px;width:36mm;font-size:9.5pt;font-weight:600;color:#222;
+  white-space:normal;text-align:left}
+.dur{display:block;font-style:normal;font-weight:400;font-size:9pt;color:#6b7680;margin-top:1px}
+.where{font-size:9.5pt;color:#5a6b78;margin-bottom:1mm}
+ul{margin:1mm 0 0;padding-left:16px} li{margin-bottom:1.5px}
+p{margin:0}
+
+/* skills and languages as plain text, the way it prints there */
+.tags{font-size:10pt;color:#222}
+.tag i{font-style:normal}
+.tag:last-child i{display:none}
+.dur s{display:none}   /* the duration has its own line here */

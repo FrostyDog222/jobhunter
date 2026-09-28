@@ -1,5 +1,5 @@
 <!doctype html><html lang="{{ lang }}"><head><meta charset="utf-8">
-<style>{{ style | safe }}</style></head><body>
+<style>{{ style | safe }}</style></head><body class="{{ 'has-photo' if photo else '' }}">
 
 {# The photo is a plain <img> before the name, so a template that wants it beside the header
    can float it and one that does not can hide it with display:none - no second template file,
@@ -8,9 +8,14 @@
 <h1>{{ cv.name }}</h1>
 {% if cv.title %}<div class="role">{{ cv.title }}</div>{% endif %}
 <div class="contact">
+  {# Each item carries its own label. Templates that want "Email: ... / Tel: ..." on their own
+     lines show them; the rest hide .lbl and keep reading "a | b | c" exactly as before. #}
+  {% if cv.email %}<span><b class="lbl">{{ L.email }}:</b> {{ cv.email }}</span>{% endif %}
+  {% if cv.phone %}<span><b class="lbl">{{ L.phone }}:</b> {{ cv.phone }}</span>{% endif %}
+  {% if cv.location %}<span><b class="lbl">{{ L.city }}:</b> {{ cv.location }}</span>{% endif %}
   {# cv.links is normalised to a list of strings in llm.tailor, but a hand-edited profile.json
      can still hold anything, and a crash here wastes the tailor call that was already paid for #}
-  {% for x in [cv.email, cv.phone, cv.location] + (cv.links | select('string') | list if cv.links is iterable
+  {% for x in (cv.links | select('string') | list if cv.links is iterable
        and cv.links is not string else []) %}{% if x %}<span>{{ x }}</span>{% endif %}{% endfor %}
 </div>
 
@@ -19,7 +24,7 @@
 {% if cv.experience %}<h2>{{ L.experience }}</h2>
   {% for e in cv.experience %}<div class="item">
     <div class="line"><b>{{ e.role }}</b><span class="when">{{ when(e.start, e.end) }}
-      {%- set d = howlong(e.start, e.end) %}{% if d %}<i class="dur">&#160;· {{ d }}</i>{% endif %}
+      {%- set d = howlong(e.start, e.end) %}{% if d %}<i class="dur"><s>&#160;· </s>{{ d }}</i>{% endif %}
     </span></div>
     <div class="where">{{ [e.company, e.location] | select | join(", ") }}</div>
     {% if e.bullets %}<ul>{% for b in e.bullets %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}

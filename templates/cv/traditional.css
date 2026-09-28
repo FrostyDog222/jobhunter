@@ -22,3 +22,5 @@ ul{margin:2px 0 0;padding-left:16px} li{margin-bottom:1px}
 .tag i{font-style:normal}
 .tag:last-child i{display:none}
 .dur{font-style:normal;color:#666}
+.lbl{display:none}   /* this template prints a single contact line */
+.dur s{text-decoration:none}

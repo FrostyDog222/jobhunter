@@ -505,6 +505,20 @@ assert "_pdf" in _pcv and "profile()" in _pcv
 assert "no-store" in _pcv, "a rebuilt CV must not be served from cache"
 assert "_has_substance" in _pcv, "an empty profile should not render a blank CV"
 
+# 2j. Whether the photo goes on is decided per CV, not once for all of them: it suits the
+# European template and rarely suits the Traditional one. None means "whatever the profile page
+# says"; True and False override it for this one CV. And with no photo saved, asking for one
+# still produces a CV without one rather than a gap where a face should be.
+import inspect as _i9
+assert "use=None" in _i9.getsource(app.photo_data_uri)
+_h = _i9.getsource(app._cv_html)
+assert "photo=None" in _h and "photo_data_uri(photo)" in _h
+assert "photo=None" in _i9.getsource(app._pdf)
+# both ways in have it
+assert "photo" in _i9.getsource(app.profile_cv) and "photo" in _i9.getsource(app.tailor)
+# a template must be able to lay out around the photo, or place none
+assert "has-photo" in (app.HERE / "templates" / "cv.html").read_text(encoding="utf-8")
+
 # 2. A suggestion writes to the right place - and only that place
 # Point the app at a scratch profile rather than overwriting the real one. The previous version
 # restored from a variable in a finally block, which is no help if the run is interrupted during

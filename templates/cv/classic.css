@@ -25,3 +25,11 @@ ul{margin:3px 0 0;padding-left:15px} li{margin-bottom:1.5px}
 .tag i{font-style:normal}
 .tag:last-child i{display:none}
 .dur{font-style:normal;color:#666}
+
+/* With a photo the header rule was drawn under the contact line and the photo hung 28px past
+   it, cutting the rule in half. Move the rule below the photo instead: the first heading
+   already clears the float, so its top border lands under both columns of the header. */
+.has-photo .contact{border-bottom:none;padding-bottom:0}
+.has-photo h2:first-of-type{border-top:1.5pt solid #1a1a1a;padding-top:9px;margin-top:6px}
+.lbl{display:none}   /* this template prints a single contact line */
+.dur s{text-decoration:none}

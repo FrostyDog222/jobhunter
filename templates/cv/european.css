@@ -54,3 +54,5 @@ body:after{content:"";display:block;clear:both}
 
 /* How long each job lasted, beside the dates - the number a recruiter is scanning for. */
 .dur{font-style:normal;color:#5a6b78}
+.lbl{display:none}   /* this template prints a single contact line */
+.dur s{text-decoration:none}
