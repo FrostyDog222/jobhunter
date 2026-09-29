@@ -363,7 +363,7 @@ finally:
 # from a name and nothing else, silently, and every job after that was scored against it.
 import io as _io3, docx as _docx
 _d = _docx.Document()
-_d.add_paragraph("Razvan Vuicin")
+_d.add_paragraph("Ana Popescu")
 _t = _d.add_table(rows=2, cols=2)
 _t.cell(0, 0).text = "2020 - 2024"
 _t.cell(0, 1).text = "Team Leader at ACME"
@@ -733,5 +733,39 @@ if _tracked.returncode == 0:                 # not a clone: nothing to check, no
             f"to .gitignore before pushing.")
         # and a source file named like one of the private ones is still private
         assert _sh.wanted(app.HERE / _f), f"{_f} is tracked but share.py calls it private"
+
+
+# 2w. A fresh install belongs to whoever installed it. settings.json is not shipped, so these
+# are what a new user actually gets - and a default here is one person's choice handed to
+# everybody. Every field that says something about a particular person stays empty.
+for _k in ("home_county", "search_query", "search_location", "search_county",
+           "auto_query", "auto_location", "auto_county", "cv_template"):
+    assert app.DEFAULTS[_k] == "", f"DEFAULTS[{_k}] ships one person's setup to everyone"
+assert app.DEFAULTS["cv_photo"] == {}, "per-template photo choices are personal"
+# and nothing that acts on the world is on before someone switches it on
+for _k in ("auto_enabled", "auto_apply", "keep_signed_in"):
+    assert app.DEFAULTS[_k] is False, f"{_k} must be off until a person turns it on"
+# a machine with no settings file is a fresh install, not a fault
+_keep = app.SETTINGS
+try:
+    app.SETTINGS = app.HERE / ".no-such-settings.json"
+    assert app.settings() == app.DEFAULTS, "a first run does not get the defaults"
+finally:
+    app.SETTINGS = _keep
+
+# 2x. The first search must not end on an empty list. Fit 70+ was the default and on 731 real
+# ads it shows 23 of them; a first run of 107 cleared it twice. The rows are sorted best-first
+# regardless, so page one is the best twenty either way - the filter was hiding the tail, and an
+# empty first result reads as a broken app rather than as a strict score.
+_dash = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert 'value="0" selected' in _dash, "the fit filter hides results before anyone has any"
+assert 'value="70" selected' not in _dash
+assert 'ORDER BY (fit IS NULL), fit DESC' in _i6.getsource(app.list_jobs),     "best-first is what makes Any fit the right default"
+
+# one fallback template, not one per button: the same person with nothing chosen used to get
+# european from the profile page and classic from the dashboard
+assert app.DEFAULT_CV in app.cv_templates()
+assert _i6.getsource(app.tailor).count("DEFAULT_CV") == 1
+assert _i6.getsource(app.profile_cv).count("DEFAULT_CV") == 1
 
 print("ok")

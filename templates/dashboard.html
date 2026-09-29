@@ -497,9 +497,9 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <option value="vetoed">Vetoed on language</option>
     <option value="@manual">Manual apply only</option>
   </select>
-  <select id="minfit">
-    <option value="0">Any fit</option><option value="50">Fit 50+</option>
-    <option value="70" selected>Fit 70+</option>
+  <select id="minfit" title="The list is sorted best-first anyway, so this hides the tail rather than finding the head.">
+    <option value="0" selected>Any fit</option><option value="50">Fit 50+</option>
+    <option value="70">Fit 70+</option>
     <option value="75">Fit 75+ (strong)</option><option value="85">Fit 85+</option>
   </select>
   <input id="find" type="search" placeholder="Filter by title or company…"

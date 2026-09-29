@@ -106,9 +106,10 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             # reads a clock the other way. It only changes how a time is printed, never what is
             # stored - applied_at stays ISO in the database either way.
             "clock": "24",
-            # The county you could actually take a job in. Not derived from the profile address:
-            # "Saravale" is a village and no town list will place it, and guessing wrong here
-            # would quietly mislabel every result. Blank means "do not judge distance".
+            # The county you could actually take a job in. Asked for, never derived from the
+            # address on the profile: plenty of people live in a village no town list places,
+            # and guessing the wrong county would quietly mislabel every result. Blank means
+            # "do not judge distance", which is the right answer until someone says otherwise.
             "home_county": "",
             # A photo is normal on a CV in Romania and unwelcome in the UK or the US, so it is
             # the person's call, per CV, and ignored entirely when there is no photo.
@@ -659,7 +660,7 @@ async def profile_cv(template: str = "", lang: str = "en", photo: str = ""):
     if not _has_substance(me):
         raise HTTPException(400, "Fill in your profile first - there is nothing to put on a CV.")
     if template not in cv_templates():
-        template = settings().get("cv_template") or "european"
+        template = settings().get("cv_template") or DEFAULT_CV
     if lang not in LABELS:
         lang = "en"
     OUT.mkdir(exist_ok=True)
@@ -1319,6 +1320,9 @@ THUMBS = OUT / ".thumbs"
 # oddly on a Harvard-style Traditional, where a plain header is the convention; Classic reads
 # fine either way. Shown beside each download so the choice is made once, in the right place.
 PHOTO_ADVICE = {"european": "yes", "timeline": "yes", "traditional": "no", "classic": "either"}
+# What someone who has not chosen gets. The Europass-shaped one, because this app is used in
+# Romania and that is the layout a recruiter here opens every day.
+DEFAULT_CV = "european"
 
 
 def cv_templates():
@@ -1460,7 +1464,7 @@ async def tailor(body: dict = Body(...)):
         raise HTTPException(400, "lang must be auto, en or ro")
     if lang == "auto":
         lang = llm.ad_language(j)
-    template = body.get("template") or settings()["cv_template"] or "classic"
+    template = body.get("template") or settings()["cv_template"] or DEFAULT_CV
     if template not in cv_templates():
         raise HTTPException(400, f"no such CV template: {template}")
     cv = await off(llm.tailor, profile(), j, lang)
