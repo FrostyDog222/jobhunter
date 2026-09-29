@@ -65,7 +65,10 @@ def _connect():
     c = sqlite3.connect(DB)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA busy_timeout=15000")   # the weekly run may be writing at the same time
-    if _SCHEMA_DONE:
+    # ...and the file it was set for still exists. Delete db.sqlite under a running server -
+    # a purge, an antivirus quarantine, a second process - and every connection after that
+    # opened a fresh empty file with no jobs table, so every request 500'd until a restart.
+    if _SCHEMA_DONE and DB.exists():
         return c
     # Set the schema up once per process, not once per connection. ALTER TABLE needs a write
     # lock, so doing this on every connection made every read - opening the dashboard, polling
@@ -453,8 +456,15 @@ STR_LIST_KEYS = ("links", "skills", "certifications", "hobbies")
 
 def _strs(v):
     """-> a list of non-empty strings, whatever shape the model used for them."""
+    # A bare string is ONE item. Iterating it spelled "python, sql" out as ten one-letter
+    # skills - on the page and, at the next save, on disk - and a non-list raised, which 500'd
+    # every page that reads the profile and left no way to fix it but a text editor.
+    if isinstance(v, str):
+        v = [v]
+    elif not isinstance(v, (list, tuple)):
+        v = []
     out = []
-    for x in v or []:
+    for x in v:
         if isinstance(x, dict):
             # the usual shapes, in the order the models actually emit them
             x = next((x[k] for k in ("name", "title", "value", "text", "label")
@@ -469,27 +479,45 @@ def _strs(v):
 def _langs(v):
     """Languages are {name, level}. Older profiles stored 'English (Advanced)' strings, and the
     model occasionally still returns one, so normalise both shapes here rather than at each caller."""
+    if isinstance(v, str):
+        v = [v]                           # "English" is one language, not seven letters
+    elif not isinstance(v, (list, tuple)):
+        v = []
     out = []
-    for x in v or []:
+    for x in v:
         if not x:
             continue                      # else None would become the language "None"
         if isinstance(x, dict):
-            out.append({"name": (x.get("name") or "").strip(), "level": (x.get("level") or "").strip()})
+            # str(), because a model that answers {"name": 5} must not take the profile page
+            # down with it
+            out.append({"name": str(x.get("name") or "").strip(),
+                        "level": str(x.get("level") or "").strip()})
         else:
             m = LEVEL_SPLIT.match(str(x))
             out.append({"name": m.group(1), "level": m.group(2)} if m else {"name": str(x).strip(), "level": ""})
     return [x for x in out if x["name"]]
 
 
+# Set while profile.json is present but cannot be read. An empty profile and an unreadable one
+# look identical to every caller, and that is what let a byte-order mark destroy a CV: the page
+# rendered blank, the browser saved the blank page back, and the wipe guard - which asks whether
+# the profile HAD substance - was asking the unreadable file, which said no.
+_PROFILE_BROKEN = [False]
+
+
 def profile():
     with _FILES:
+      _PROFILE_BROKEN[0] = False
       try:
-        p = json.loads(PROFILE.read_text(encoding="utf-8")) if PROFILE.exists() else {}
+        # utf-8-sig, not utf-8: Notepad and Excel write a byte-order mark, and a person who
+        # hand-edits this file is exactly the person whose CV is in it. A BOM is not damage.
+        p = json.loads(PROFILE.read_text(encoding="utf-8-sig")) if PROFILE.exists() else {}
         if not isinstance(p, dict):
             raise ValueError("profile.json is not an object")
       except (OSError, ValueError) as e:
         # never 500 the whole app over a damaged file - the profile page must stay reachable
         print(f"[profile] unreadable ({e}); starting from an empty profile")
+        _PROFILE_BROKEN[0] = bool(PROFILE.exists())
         p = {}
     p = {**llm.EMPTY, **p}
     p["languages"] = _langs(p.get("languages"))
@@ -537,9 +565,11 @@ def save_profile(p):
     # a previous copy covers the ones it does not - half a CV overwritten, an upload that parsed
     # badly, an edit regretted ten minutes later.
     try:
-        if PROFILE.exists():
-            PROFILE_BAK.write_text(PROFILE.read_text(encoding="utf-8"), encoding="utf-8")
-    except OSError as e:
+        if PROFILE.exists() and not _PROFILE_BROKEN[0]:
+            # never copy a file we could not read: doing that put the damaged bytes in the
+            # backup too, and then "restore the previous copy" had nothing to restore
+            _atomic_write(PROFILE_BAK, PROFILE.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as e:
         print(f"[profile] could not keep the previous copy: {e}")
     # write-then-replace: a crash or an overlapping save must not leave a half-written profile
     _atomic_write(PROFILE, json.dumps(p, ensure_ascii=False, indent=2))
@@ -766,7 +796,10 @@ def purge(body: dict = Body(...)):
     if failed:
         print(f"[purge] could not remove: {failed}")
     OUT.mkdir(exist_ok=True)      # tailoring writes straight into it and 500s when it is gone
-    return {"ok": True, "removed": removed}
+    # "ok" has to mean it. This is the one button whose entire purpose is a promise, and it was
+    # answering 200/ok while the database - every job, every application - was still on disk
+    # because something held it open.
+    return {"ok": not failed, "removed": removed, "failed": failed}
 
 
 @app.get("/api/profile/cv")
@@ -780,7 +813,10 @@ async def profile_cv(template: str = "", lang: str = "en", photo: str = ""):
     if lang not in LABELS:
         lang = "en"
     OUT.mkdir(exist_ok=True)
-    who = "".join(ch if ch.isalnum() else "-" for ch in (me.get("name") or "CV")).strip("-")
+    # [:56], as the tailored path already does. A 500-character name is what a bad CV parse
+    # produces, and it built a path Windows refuses outright.
+    who = "".join(ch if ch.isalnum() else "-"
+                  for ch in (me.get("name") or "CV"))[:56].strip("-")
     want = None if photo == "" else photo not in ("0", "false", "no")
     path = OUT / f"{who or 'CV'}-{lang}-{template}.pdf"
     await off(lambda: _pdf(me, path, lang, template, want))
@@ -794,7 +830,16 @@ def post_profile(p: dict = Body(...)):
     # profile. Clearing a CV on purpose is done field by field and leaves a name or a summary
     # behind; arriving with nothing at all is a bug somewhere, not an intention.
     incoming = {**llm.EMPTY, **p}
-    if _has_substance(profile()) and not _has_substance(incoming):
+    had = _has_substance(profile())      # sets _PROFILE_BROKEN as a side effect - read it after
+    if _PROFILE_BROKEN[0] and not _has_substance(incoming):
+        # There IS a profile on disk; we just could not read it. Saving now writes the blank
+        # page over a CV that is perfectly intact, which is how a byte-order mark from Notepad
+        # used to destroy one.
+        raise HTTPException(400, "Your profile file is on disk but could not be read, so this "
+                                 "page came up blank and the save was refused rather than "
+                                 "writing that blank page over it. Check profile.json is valid "
+                                 "JSON - your data is still in there.")
+    if had and not _has_substance(incoming):
         raise HTTPException(400, "That would have emptied your whole profile, so it was not "
                                  "saved. Reload the page - if the fields come back, the page "
                                  "had failed to load rather than your data being gone.")
@@ -806,7 +851,7 @@ def post_profile(p: dict = Body(...)):
 def restore_profile():
     """Put back the copy from before the last save."""
     try:
-        prev = json.loads(PROFILE_BAK.read_text(encoding="utf-8"))
+        prev = json.loads(PROFILE_BAK.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         raise HTTPException(400, "There is no previous copy to go back to yet.")
     save_profile({**llm.EMPTY, **prev})
@@ -1130,6 +1175,13 @@ PHASES = {"searching the boards": (0, 10), "reading the ads": (10, 30), "scoring
 PROGRESS = {"active": False, "phase": "", "done": 0, "total": 0, "pct": 0}
 
 
+def _finish():
+    """The bar is done. Called from a finally, because a search that raised used to leave it
+    saying "16%, still going" until the 360-second staleness rule noticed - six minutes with the
+    Search button disabled and nothing to explain it."""
+    PROGRESS.update(active=False, phase="", done=0, total=0, pct=100)
+
+
 def step(phase, done=0, total=0):
     lo, hi = PHASES.get(phase, (0, 100))
     share = (done / total) if total else 0
@@ -1166,6 +1218,13 @@ async def search(body: dict = Body(...)):
     p = profile()
     if not p.get("experience") and not p.get("skills"):
         raise HTTPException(400, "Fill in your profile first - there is nothing to match jobs against.")
+    try:
+        return await _search(body, p)
+    finally:
+        _finish()
+
+
+async def _search(body, p):
     queries = [q.strip() for q in re.split(r"[,;]", body.get("query", "")) if q.strip()] or [""]
     loc = body.get("location", "")
     county = (body.get("county") or "").strip().lower()
@@ -1360,7 +1419,7 @@ async def search(body: dict = Body(...)):
     # only rows this search actually moved into 'vetoed': the gate now re-runs over every
     # stored row, so counting the whole list would report the standing total as if it had just
     # happened ("113 skipped on language" on a search that skipped none)
-    PROGRESS.update(active=False, phase="", done=0, total=0, pct=100)
+    _finish()
     newly_vetoed = sum(1 for j, _ in vetoed if j["status"] != "vetoed")
     return {"found": len(found), "new": len(fresh), "freed": len(freed), "expired": expired,
             "scored": len(todo) - failed,
@@ -1410,15 +1469,25 @@ def _month(v, lang):
     """2024-06 -> Jun 2024. Nobody writes a date as an ISO month on a CV, and the same page
     otherwise shows bare years for education - two granularities side by side."""
     v = str(v) if isinstance(v, (int, float)) else v      # models sometimes answer 2024, not "2024"
-    m = re.fullmatch(r"(\d{4})-(\d{1,2})", (v or "").strip())
+    # str(): cv.html already defends cv.links because a crash here wastes the tailor call that
+    # has already been paid for, and a date is just as likely to arrive as a dict.
+    m = re.fullmatch(r"(\d{4})-(\d{1,2})", str(v or "").strip())
     if not m:
-        return (v or "").strip()
+        return str(v or "").strip()
     year, mon = m.group(1), int(m.group(2))
     return f"{MONTHS[lang][mon - 1]} {year}" if 1 <= mon <= 12 else year
 
 
 SCRUB = {"—": " - ", "–": "-", "‘": "'", "’": "'",
-         "“": '"', "”": '"', "**": "", "__": "", "`": ""}
+         "“": '"', "”": '"'}
+# Emphasis markers only count when they WRAP something, on one line. Removing them blindly
+# turned __init__.py into init.py and 2**8 into 28 - on a technical CV, in the file that is sent
+# to the employer.
+# ** only. Underscores are how Python spells __init__.py, __name__ and 2**8, and a model that
+# wants emphasis reaches for asterisks - so stripping __ costs real technical content and buys
+# almost nothing. ("2**8" survives either way: emphasis needs a matching pair.)
+PAIRED = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*")
+TICKED = re.compile(r"`([^`\n]+)`")
 
 
 def _tidy(v):
@@ -1428,6 +1497,11 @@ def _tidy(v):
     if isinstance(v, str):
         for bad, good in SCRUB.items():
             v = v.replace(bad, good)
+        v = TICKED.sub(r"\1", v)
+        for _ in range(3):           # **bold with __nested__**; a few passes, never a while loop
+            v, n = PAIRED.subn(r"\1", v)
+            if not n:
+                break
         return v.strip()
     if isinstance(v, list):
         return [_tidy(x) for x in v]
@@ -1484,12 +1558,18 @@ def _cv_html(cv, lang, template, photo=None):
         if not a:
             return ""
         if not b:
-            if str(end).strip().lower() not in ONGOING and str(end).strip():
+            # Only an explicit "present" means today. A BLANK end date used to fall through to
+            # here and print "2 years and 9 months" for a job that finished years ago, on a
+            # document sent to an employer - while the dates beside it said only "Jan 2024".
+            if str(end).strip().lower() not in ONGOING:
                 return ""
             today = datetime.date.today()
             b = (today.year, today.month)
+        # "0000" parses happily and printed "2026 years and 9 months". A working life fits here.
+        if not (1900 <= a[0] <= datetime.date.today().year + 1):
+            return ""
         months = (b[0] - a[0]) * 12 + (b[1] - a[1]) + 1        # a job worked in one month is 1
-        if months < 1:
+        if months < 1 or months > 80 * 12:
             return ""
         y, m = divmod(months, 12)
         L = LABELS[lang]
@@ -1636,7 +1716,16 @@ async def apply_batch(body: dict = Body(...)):
         raise HTTPException(400, "nothing selected")
     p, results = profile(), []
     for url in urls:
-        j = _job(url)
+        try:
+            j = _job(url)
+        except HTTPException:
+            # The expiry sweep deletes rows on every search, so a url can disappear between the
+            # page's last refresh and this click. Raising here threw away the whole run's
+            # results - including applications that had already been SENT to real employers,
+            # which the browser was then told nothing about.
+            results.append({"url": url, "title": url,
+                            "error": "no longer in your list - it was cleared or deleted"})
+            continue
         board = j["source"] if prefill.apply_mode(j["source"]) == "auto" else ""
         if not board:
             results.append({"url": url, "title": j["title"],

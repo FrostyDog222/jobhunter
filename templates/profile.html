@@ -401,7 +401,11 @@ $('#purge').onclick = e => busy(e.target, async () => {
   const typed = prompt('Type ERASE to confirm.');
   if((typed || '').trim().toUpperCase() !== 'ERASE') return toast('Nothing was erased.');
   const r = await api('/api/purge', {confirm: 'ERASE'});
-  toast(`Erased ${r.removed.length} item(s). Starting fresh.`, 8000);
+  toast(r.failed && r.failed.length
+    ? `Erased ${r.removed.length} item(s), but ${r.failed.length} could NOT be removed and are `
+      + `still on this PC: ${r.failed.map(f => String(f).split(':')[0]).join(', ')}. `
+      + `Close the app (the black run.bat window) and try again.`
+    : `Erased ${r.removed.length} item(s). Starting fresh.`, r.failed && r.failed.length ? 20000 : 8000);
   setTimeout(() => location.reload(), 1200);
 }, 'erasing...');
 

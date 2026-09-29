@@ -114,21 +114,25 @@ def _get(c, url, tries=5, _sleep=time.sleep):
     return r
 
 
-def _find_jobposting(node):
+def _find_jobposting(node, depth=0):
     """Recurse: JSON-LD nests JobPosting under @graph, inside arrays, or under mainEntity
     depending on which SEO plugin produced it."""
+    # Real nesting is two or three deep. A page with hundreds raised RecursionError, and hydrate
+    # only catches httpx errors - so one hostile page lost every job in the run, not just itself.
+    if depth > 12:
+        return None
     if isinstance(node, list):
         for item in node:
-            found = _find_jobposting(item)
+            found = _find_jobposting(item, depth + 1)
             if found:
                 return found
     elif isinstance(node, dict):
         t = node.get("@type")
         if t == "JobPosting" or (isinstance(t, list) and "JobPosting" in t):
             return node
-        for key in ("@graph", "mainEntity", "itemListElement"):
+        for key in ("@graph", "mainEntity", "itemListElement", "item"):
             if key in node:
-                found = _find_jobposting(node[key])
+                found = _find_jobposting(node[key], depth + 1)
                 if found:
                     return found
     return None
@@ -142,10 +146,19 @@ CURRENCY = re.compile(r"eur|ron|lei|€", re.I)
 
 
 def _salary(page):
-    """-> the ad's own pay, with its unit, or "" when the ad does not say."""
+    """-> the ad's own pay, with its unit, or "" when the ad does not say.
+
+    A figure, never prose. Without this "negociabil, lei la interviu" and "confidential - EUR"
+    both reached the salary pill, which is worse than showing nothing - the same reason _pay
+    checks. Known limit: the first currency-bearing hit wins, and on a page whose similar-jobs
+    rail is serialised before the ad itself that is the wrong job's number. JSON-LD is tried
+    first by the caller, which is where the ads that matter carry it.
+    """
     for hit in SALARY.findall(page or ""):
-        if CURRENCY.search(hit):
-            return _clean(hit)
+        if CURRENCY.search(hit) and re.search(r"\d", hit):
+            money = _clean(hit)
+            if re.fullmatch(r"[\d][\d\s.,/-]*(?:[A-Za-z\u20ac/ ]{0,12})", money):
+                return money
     return ""
 
 
@@ -162,15 +175,34 @@ def _pay(jp):
     b = jp.get("baseSalary")
     if not isinstance(b, dict):
         return ""
-    v = b.get("value") if isinstance(b.get("value"), dict) else {}
-    lo, hi = (str(v.get(k) or "").strip() for k in ("minValue", "maxValue"))
-    amount = f"{lo} - {hi}" if lo and hi and lo != hi else (lo or hi
-                                                            or str(v.get("value") or "").strip())
+    val = b.get("value")
+    if isinstance(val, list):                    # schema.org allows a list here
+        val = next((x for x in val if isinstance(x, dict)), {})
+    v = val if isinstance(val, dict) else {}
+
+    def num(x):
+        """'4000', 4000, 4000.0 -> '4000'. A JSON float printed as '4000.0 - 5000.0 RON'."""
+        if x is None or isinstance(x, bool) or (isinstance(x, str) and not x.strip()):
+            return ""
+        if isinstance(x, float) and x.is_integer():
+            return str(int(x))
+        return str(x).strip()
+
+    lo, hi = num(v.get("minValue")), num(v.get("maxValue"))
+    # a reversed range is the employer's typo, not ours to repeat
+    try:
+        if lo and hi and float(lo.replace(" ", "")) > float(hi.replace(" ", "")):
+            lo, hi = hi, lo
+    except ValueError:
+        pass
+    amount = f"{lo} - {hi}" if lo and hi and lo != hi else (lo or hi or num(v.get("value")))
     # a figure, not prose: anything else here is a field we have misread, and a wrong number on
     # a salary pill is worse than no pill
     if not amount or not re.fullmatch(r"[\d][\d\s.,-]*", amount):
         return ""
-    cur = _clean(str(b.get("currency") or v.get("currency") or ""))
+    # _flat, not str(): currency arrives as {"name": "RON"} often enough to matter, and str()
+    # printed the dict
+    cur = _flat(b.get("currency") or v.get("currency") or "")
     unit = UNIT.get(str(v.get("unitText") or "").upper(), "")
     return " ".join(x for x in (amount, cur) if x) + (f"/{unit}" if unit else "")
 
@@ -184,10 +216,18 @@ TERMS = {"PART_TIME": "part time", "TEMPORARY": "temporary", "CONTRACTOR": "cont
 
 def _years(months):
     """'wants 2+ years' - the phrasing a person scanning a card can act on."""
+    if isinstance(months, bool):
+        return ""                       # True is an int, and "wants 1+ months" is not a fact
+    if isinstance(months, str):
+        m = re.match(r"\s*(\d{1,4})", months)      # "24 months" is a real value in the wild
+        months = m.group(1) if m else None
     try:
         months = int(months)
     except (TypeError, ValueError):
         return ""
+    if months > 60 * 12:
+        return ""                       # "wants 50000+ years" was a real output of this
+
     if months >= 12:
         y = months // 12
         return f"wants {y}+ year" + ("s" if y > 1 else "")
@@ -201,10 +241,17 @@ def _terms(jp):
     raw = jp.get("employmentType")
     out = []
     for t in (raw if isinstance(raw, list) else [raw]):
+        # {"@type": "DefinedTerm", "name": "INTERN"} is a shape schema.org allows, and it was
+        # coming back empty - which is exactly the "an internship looked like a permanent role"
+        # case this function exists to stop
+        if isinstance(t, dict):
+            t = t.get("name") or t.get("value") or ""
         word = TERMS.get(str(t or "").strip().upper().replace(" ", "_").replace("-", "_"), "")
         if word and word not in out:
             out.append(word)
     exp = jp.get("experienceRequirements")
+    if isinstance(exp, list):
+        exp = next((x for x in exp if isinstance(x, dict)), None)
     yrs = _years(exp.get("monthsOfExperience")) if isinstance(exp, dict) else ""
     if yrs:
         out.append(yrs)
@@ -214,10 +261,21 @@ def _terms(jp):
 def _jobposting(page_html):
     """Pull the JobPosting node out of any ld+json block on the page."""
     for block in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', page_html, re.S):
-        try:
-            data = json.loads(html.unescape(block.strip()))
-        except json.JSONDecodeError:
-            continue          # a malformed block must not stop us checking the later ones
+        raw = block.strip()
+        data = None
+        for attempt in (raw, html.unescape(raw)):
+            # The raw text FIRST. html.unescape on the whole block turns &quot; inside a JSON
+            # string into a bare quote, which ends the string and breaks the document - so an ad
+            # that merely wrote "atentie la detalii" in quotes lost its salary, its dates, its
+            # company and its closing date. Unescaping is the fallback for the boards that
+            # really do double-encode, not the first move.
+            try:
+                data = json.loads(attempt)
+                break
+            except json.JSONDecodeError:
+                continue      # a malformed block must not stop us checking the later ones
+        if data is None:
+            continue
         found = _find_jobposting(data)
         if found:
             return found
@@ -589,12 +647,16 @@ def hydrate(jobs, timeout=30, on_progress=None):
                 terms = _terms(jp)
                 if terms:
                     j["terms"] = terms
+                # `or j[...]` on every one of them: an ad whose JSON-LD omits
+                # hiringOrganization used to overwrite a company phase 1 had already found with
+                # an empty string, and the card then showed no employer at all
                 j.update({
                     "title": _flat(jp.get("title")) or j["title"],
-                    "company": _flat(jp.get("hiringOrganization")),
-                    "location": _place(_flat(jp.get("jobLocation")))
-                                or ("Remote" if jp.get("jobLocationType") else ""),
-                    "posted": _flat(jp.get("datePosted"))[:10],
+                    "company": _flat(jp.get("hiringOrganization")) or j.get("company", ""),
+                    "location": (_place(_flat(jp.get("jobLocation")))
+                                 or ("Remote" if jp.get("jobLocationType") else "")
+                                 or j.get("location", "")),
+                    "posted": _flat(jp.get("datePosted"))[:10] or j.get("posted", ""),
                     "description": body,
                     # the employer's own closing date. eJobs publishes it on most ads and
                     # it is the difference between "apply this week" and "apply sometime"

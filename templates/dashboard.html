@@ -843,7 +843,9 @@ function pickTemplate(){
 // The employer's own closing date, in days from now. Most ads carry one; those that do not
 // are null, which is "unknown", never "closing today".
 const daysLeft = j => { if(!j.expires) return null;
-  const d = Math.ceil((new Date(j.expires + 'T23:59:59') - Date.now()) / 864e5);
+  // slice(0,10): a full ISO timestamp would otherwise become "...T09:00:00T23:59:59", parse as
+  // invalid, and drop a closing date the ad really did publish
+  const d = Math.ceil((new Date(String(j.expires).slice(0, 10) + 'T23:59:59') - Date.now()) / 864e5);
   return isNaN(d) ? null : d; };
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const cls = f => f>=75 ? 'g' : f>=50 ? 'm' : 'b';
@@ -1056,7 +1058,7 @@ $('#prov').onchange = () => {
 };
 $('#listmodels').onclick = e => busy(e.target, async () => {
   $('#modellist').innerHTML = (await api('/api/llm/models?provider=' + encodeURIComponent($('#prov').value), undefined, 'GET'))
-    .map(m => `<option value="${m}">`).join('');
+    .map(m => `<option value="${esc(m)}">`).join('');
   toast('Model list loaded — click the Model box.');
 }, 'loading...');
 $('#savellm').onclick = e => busy(e.target, async () => {
@@ -1116,18 +1118,22 @@ function draw(){
       + `<button class="ghost ${n === PAGE ? 'on' : ''}" data-page="${n}">${n}</button>`),
     `<button class="ghost" data-page="${PAGE + 1}" ${PAGE === pages ? 'disabled' : ''} aria-label="Next page">›</button>`,
   ].join('') : '';
-  const n = s => JOBS.filter(j=>j.status===s).length;
+  // The tiles count what the LIST is showing. They used to count the whole set and ignore the
+  // search box, so typing a word left a tile saying 45 above a list of 1.
+  const shown = JOBS.filter(j => !needle
+      || fold(`${j.title} ${j.company} ${j.location} ${j.lang || ''}`).includes(needle));
+  const n = s => shown.filter(j=>j.status===s).length;
 
   $('#stats').innerHTML = [
       // applied rows only appear under Applied, so counting them here made the card
       // disagree with the list it opens
-      ['Total', JOBS.filter(j => j.status !== 'applied').length, '', '0'],
-      ['Best for you', JOBS.filter(j=>(j.fit??0)>=75 && j.status!=='applied').length, '', '75'],
-      ['Closing this week', JOBS.filter(j => { const d = daysLeft(j);
+      ['Total', shown.filter(j => j.status !== 'applied').length, '', '0'],
+      ['Best for you', shown.filter(j=>(j.fit??0)>=75 && j.status!=='applied').length, '', '75'],
+      ['Closing this week', shown.filter(j => { const d = daysLeft(j);
           return d !== null && d >= 0 && d <= 7 && j.status !== 'applied'; }).length, '@soon', '0'],
       ['CV ready', n('ready'), 'ready', '0'],
       ['Applied', n('applied'), 'applied', '0'],
-      ['Manual apply', JOBS.filter(j => HAND(j) && j.status!=='applied').length, '@manual', '0'],
+      ['Manual apply', shown.filter(j => HAND(j) && j.status!=='applied').length, '@manual', '0'],
     ].map(([k,v,st,m]) => `<div class="stat ${f===st && $('#minfit').value===m ? 'active':''}"
         data-st="${st}" data-mf="${m}" title="Show only these" tabindex="0" role="button">
         <b>${v}</b><span class="muted">${k}</span></div>`).join('');
