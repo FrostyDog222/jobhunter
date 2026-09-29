@@ -1930,51 +1930,19 @@ assert "typeof j.applicants === 'number'" in _dash5h, \
 assert _dash5h.count("quiet(j)") >= 2, "the tile and the filter are not using the same test"
 
 
-# 5i. What happens after you press Apply, which used to be nothing. Eleven applications sat in a
-# list that looked identical on day 1 and day 40, and the app had no idea which of them had gone
-# quiet. An outcome may only be recorded against a job actually applied to - anywhere else it is
-# a record of something that did not happen, and it would then be counted among the replies.
-_fu = pathlib.Path(_tf.mkdtemp()) / "fu.sqlite"
-_keep_db = app.DB
-try:
-    app.DB, app._SCHEMA_DONE = _fu, False
-    with app.db() as c:
-        c.execute("INSERT INTO jobs(url,source,title,status,applied_at) "
-                  "VALUES('a','ejobs','Sent','applied',datetime('now','localtime'))")
-        c.execute("INSERT INTO jobs(url,source,title,status) VALUES('b','ejobs','Never sent','new')")
-    assert app.set_outcome({"url": "a", "outcome": "interview"})["job"]["outcome"] == "interview"
-    with app.db() as c:
-        _r = dict(c.execute("SELECT outcome, outcome_at FROM jobs WHERE url='a'").fetchone())
-    assert _r["outcome_at"], "an outcome with no date cannot be sorted or chased"
-    # ...and back to waiting clears the date with it
-    app.set_outcome({"url": "a", "outcome": ""})
-    with app.db() as c:
-        _r = dict(c.execute("SELECT outcome, outcome_at FROM jobs WHERE url='a'").fetchone())
-    assert (_r["outcome"], _r["outcome_at"]) == ("", None), _r
-    for _bad, _why in ((({"url": "a", "outcome": "hired-ish"}), "not an outcome"),
-                       (({"url": "b", "outcome": "offer"}), "has not been applied to")):
-        try:
-            app.set_outcome(_bad)
-            raise AssertionError(f"accepted {_bad}")
-        except _HE as _e:
-            assert _why in str(_e.detail), _e.detail
-finally:
-    app.DB, app._SCHEMA_DONE = _keep_db, False
-
-# the front end has to agree with the server about when a nudge is due, or the tile counts one
-# thing and the card says another
+# 5i. The outcome tracking that used to live here is gone, and deliberately. Four buttons that
+# have to be pressed for the feature to mean anything is upkeep nobody does - an empty tracker
+# is worse than none, because "3 waiting to hear" is then a claim about the world that is false.
+# What is kept costs nothing: the Applied view as a history, and a line saying how long ago an
+# application went, which the app already knows without being told.
+assert not hasattr(app, "set_outcome"), "the outcome endpoint is back"
 _dash5i = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
-assert f"const NUDGE_DAYS = {app.NUDGE_DAYS};" in _dash5i, \
-    "the page and the server disagree about how long to wait"
-for _o in app.OUTCOMES:
-    if _o:
-        assert f"{_o}:" in _dash5i.split("const OUTCOMES")[1][:600], f"{_o} has no button"
-# an applied row is hidden from every other view, so the two new views must be exempt or they
-# render empty however many applications are waiting
-assert "['applied', '@waiting', '@nudge'].includes(f)" in _dash5i
-# ...and they sort by who has waited longest, which is the one thing the list is for
-assert "if(f === '@waiting' || f === '@nudge')" in _dash5i
-
+for _gone in ("data-out=", "@waiting", "@nudge", "needsNudge"):
+    assert _gone not in _dash5i, f"{_gone} survived the removal"
+assert "function followLine" in _dash5i and "waitingDays" in _dash5i,     "the plain 'how long ago' line went too, and it asks nothing of anybody"
+with app.db() as _c:
+    _cols = [_d[1] for _d in _c.execute("PRAGMA table_info(jobs)")]
+assert "outcome" not in _cols and "outcome_at" not in _cols,     "the columns are still there, so the next start will refill the migration list"
 
 # 5j. A saved board password is the most dangerous thing this app can hold, so the rules it is
 # allowed to break are none. Everything here runs against a temp file, never the real one.

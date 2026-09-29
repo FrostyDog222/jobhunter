@@ -108,6 +108,10 @@ def bestjobs(query, limit=25, timeout=30):
             # How many people you are up against. The one number here that decides whether an
             # application is worth the half hour it takes to tailor a CV for it.
             "applicants": int(j["applications"]) if isinstance(j.get("applications"), int) else None,
+            # BestJobs' own measure of whether this employer answers applications. The only
+            # signal anywhere in this app about the employer's behaviour rather than the
+            # candidate's fit, and 1 in 4 ads carry it.
+            "responsive": 1 if j.get("responsive") is True else 0,
             "note": " · ".join(flags),
             "lang": "",
             "_full": False,

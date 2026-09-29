@@ -670,8 +670,6 @@ RO = {
         "Puțini candidați — acestea sunt cele care merită timpul tău.",
     "Applying is not free: a tailored CV is a model call and twenty minutes of your attention, and an ad with two thousand people in the queue will not repay either. Only BestJobs publishes how many have applied, so this list is BestJobs ads only — the other boards do not say.":
         "Aplicarea nu este gratuită: un CV adaptat înseamnă un apel către model și douăzeci de minute din atenția ta, iar un anunț cu două mii de oameni la coadă nu îți va răsplăti niciuna dintre ele. Doar BestJobs publică numărul de candidați, așa că lista conține doar anunțuri BestJobs — celelalte site-uri nu spun.",
-    "Waiting to hear":
-        "Aștept răspuns",
     "Worth a nudge":
         "Merită un memento",
     "sent today":
@@ -692,22 +690,6 @@ RO = {
         "respinsă",
     "offer":
         "ofertă",
-    "still waiting":
-        "încă aștept",
-    "The employer opened your application.":
-        "Angajatorul ți-a deschis candidatura.",
-    "They want to talk to you.":
-        "Vor să vorbească cu tine.",
-    "A no. Worth knowing - it stops this one taking up room.":
-        "Un nu. Merită știut - nu mai ocupă loc degeaba.",
-    "An offer.":
-        "O ofertă.",
-    "Put it back to waiting.":
-        "Pune-o înapoi pe așteptare.",
-    "Noted: {what}.":
-        "Notat: {what}.",
-    "Back to waiting.":
-        "Înapoi pe așteptare.",
     "applied":
         "ai aplicat",
     "applied (date not recorded)":
@@ -768,6 +750,10 @@ RO = {
         "Punctajul de mai sus decide de obicei, nu numărul de aici",
     "— at 85 there are rarely more than a handful of jobs waiting, so asking for 50 simply sends however many qualify. 50 is a wall against a slipped keystroke, not a target. Employer forms and ads that redirect to the employer's own site are never sent for you.":
         "— la 85 rareori așteaptă mai mult de câteva joburi, așa că dacă ceri 50 pur și simplu se trimit câte se califică. 50 este un zid împotriva unei apăsări greșite de tastă, nu o țintă. Formularele angajatorilor și anunțurile care trimit către site-ul angajatorului nu sunt trimise niciodată în locul tău.",
+    "replies":
+        "răspunde",
+    "The board says this employer answers applications. No other signal here is about the employer rather than about you.":
+        "Site-ul spune că acest angajator răspunde la candidaturi. Niciun alt indiciu de aici nu este despre angajator, ci despre tine.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

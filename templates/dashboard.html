@@ -587,8 +587,6 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <option value="">All jobs</option><option value="new">New</option>
     <option value="ready">CV ready</option><option value="opened">Opened</option>
     <option value="applied">Applied</option>
-    <option value="@waiting">Waiting to hear</option>
-    <option value="@nudge">Worth a nudge</option>
         <option value="@near">Near me / remote</option>
     <option value="@soon">Closing within a week</option>
     <option value="skipped">Skipped</option>
@@ -1116,7 +1114,8 @@ const QUIET = 25;
 // counted as having few applicants. One predicate, used by both the filter and the tile.
 const quiet = j => typeof j.applicants === 'number' && j.applicants <= QUIET;
 // Ten days. Long enough not to pester an employer still reading, short enough that the job is
-// not filled by the time you write. Mirrors app.NUDGE_DAYS.
+// not filled by the time you write. Only ever used to colour the line on an applied card - the
+// app does not ask you to do anything about it, and does not pretend to know whether you have.
 const NUDGE_DAYS = 10;
 // Whole days since the application went out, or null when the row carries no date - which is
 // true of the ones imported from a board that did not say.
@@ -1126,25 +1125,10 @@ function waitingDays(j){
   if(isNaN(d)) return null;
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
-const waiting = j => j.status === 'applied' && !j.outcome;
-const needsNudge = j => waiting(j) && waitingDays(j) !== null && waitingDays(j) >= NUDGE_DAYS;
 
-// What came back, and what it looks like. Empty is the state every application starts in.
-const OUTCOMES = {
-  seen:      ['seen',      'mid',  'The employer opened your application.'],
-  interview: ['interview', 'good', 'They want to talk to you.'],
-  rejected:  ['rejected',  'dim',  'A no. Worth knowing - it stops this one taking up room.'],
-  offer:     ['offer',     'good', 'An offer.'],
-};
-
-// The line the applied card leads with: how long this has been sitting, and whether that is now
-// long enough to write again. This is the whole point of recording an application.
+// How long an application has been sitting. A fact the app already knows, shown without asking
+// anything of you - the four buttons that used to live beside it asked for upkeep nobody does.
 function followLine(j){
-  if(j.outcome){
-    const [label, colour, why] = OUTCOMES[j.outcome] || [j.outcome, 'dim', ''];
-    return `<span class="pill" style="border-color:var(--${colour});color:var(--${colour})"
-      title="${esc(t(why))}">${esc(t(label))}${j.outcome_at ? ' · ' + esc(fmtWhen(j.outcome_at)) : ''}</span>`;
-  }
   const d = waitingDays(j);
   if(d === null) return '';
   const late = d >= NUDGE_DAYS;
@@ -1562,16 +1546,13 @@ function draw(){
   // no need to harvest the DOM any more - SELECTED already holds it, across pages and filters
   const needle = fold($('#find').value.trim());
   let rows = JOBS.filter(j => (!f || (f === '@manual' ? HAND(j)
-                              : f === '@waiting' ? waiting(j)
-                              : f === '@nudge' ? needsNudge(j)
                               : f === '@quiet' ? (quiet(j) && j.status !== 'applied')
                                     : f === '@near' ? j.far === false
                               : f === '@soon' ? (daysLeft(j) !== null && daysLeft(j) <= 7
                                                  && daysLeft(j) >= 0 && j.status !== 'applied')
                               : j.status===f))
                           && (j.fit??0) >= mf
-                          && (['applied', '@waiting', '@nudge'].includes(f)
-                              || j.status !== 'applied')
+                          && (f === 'applied' || j.status !== 'applied')
                           && (!needle || fold(`${j.title} ${j.company} ${j.location} ${j.lang || ''}`).includes(needle)));
   // Applied is a history, newest application first; every other view keeps the fit ordering
   // the server gave it. All of them show 20 to a page - nobody scans 600 cards, and a page is
@@ -1580,9 +1561,6 @@ function draw(){
   if(view !== lastView){ PAGE = 1; lastView = view; }
   if(f === 'applied')
     rows.sort((a, b) => (b.applied_at || '').localeCompare(a.applied_at || ''));
-  // longest wait first: the top of this list is what to do something about today
-  if(f === '@waiting' || f === '@nudge')
-    rows.sort((a, b) => (a.applied_at || '').localeCompare(b.applied_at || ''));
   const total = rows.length;
   const pages = Math.max(1, Math.ceil(total / PER_PAGE));
   PAGE = Math.min(PAGE, pages);
@@ -1613,8 +1591,6 @@ function draw(){
       ['Applied', n('applied'), 'applied', '0'],
       // the two that matter after applying: who has not answered, and who has been silent long
       // enough that writing again is normal
-      ['Waiting to hear', shown.filter(waiting).length, '@waiting', '0'],
-      ['Worth a nudge', shown.filter(needsNudge).length, '@nudge', '0'],
       // Only BestJobs publishes the count, so this tile is about a subset of the list and
       // says so on hover rather than looking like a count of everything.
       ['Few applicants', shown.filter(j => quiet(j) && j.status !== 'applied').length,
@@ -1685,6 +1661,9 @@ function draw(){
               font-weight:600" title="What the ad itself states. It does not affect the score.">${esc(j.salary)}</span>` : ''}
           ${!j.salary && j.pay_est ? `<span class="pill" title="${esc(t('The board\'s own estimate for an ad that states no pay. The employer never said this - do not quote it back to them.'))}">~ ${esc(j.pay_est)} ${esc(t('(est.)'))}</span>` : ''}
           ${crowd(j)}
+          ${j.responsive ? `<span class="pill" style="border-color:var(--good);color:var(--good)"
+            title="${esc(t('The board says this employer answers applications. No other signal here is about the employer rather than about you.'))}"
+            >${esc(t('replies'))}</span>` : ''}
           ${j.terms ? `<span class="pill" style="border-color:var(--mid);color:var(--mid)"
               title="What the ad itself states about the job. It does not affect the score.">${esc(j.terms)}</span>` : ''}
           ${closes}
@@ -1707,13 +1686,6 @@ function draw(){
               ${ATS.test(j.url) ? 'Open form, prefilled' : 'Open to apply'}</button>` : ''}
           ${!BOARD(j) && !HAND(j) && !j.cv ? '<span class="muted" style="font-size:12.5px;padding:4px 9px">Tailor a CV first to apply</span>' : ''}
           ${!applied ? '<button data-act="done">Mark applied</button>' : ''}
-          ${applied ? Object.entries(OUTCOMES).map(([k, [label,, why]]) =>
-              `<button class="ghost tiny" data-out="${k}" title="${esc(t(why))}"
-                 ${j.outcome === k ? 'style="border-color:var(--accent)"' : ''}
-                 >${esc(t(label))}</button>`).join('')
-            + (j.outcome ? `<button class="ghost tiny" data-out=""
-                 title="${esc(t('Put it back to waiting.'))}">${esc(t('still waiting'))}</button>` : '')
-            : ''}
           ${!applied ? '<button data-act="skip">Skip</button>' : ''}
           ${!applied ? '<button data-act="del" class="danger">Delete</button>' : ''}
         </div>
@@ -2048,16 +2020,6 @@ function askSent(url, title){
 
 /* ---------- per-job actions ---------- */
 $('#list').addEventListener('click', async e => {
-  const out = e.target.dataset && e.target.dataset.out;
-  if(out !== undefined){
-    const url = e.target.closest('.card.job').dataset.url;
-    return busy(e.target, async () => {
-      const r = await api('/api/outcome', {url, outcome: out});
-      touch(url, r.job);
-      toast(out ? fill('Noted: {what}.', {what: t((OUTCOMES[out] || [out])[0])})
-                : t('Back to waiting.'));
-    }, '...');
-  }
   const btn = e.target.closest('[data-act]'); if(!btn) return;
   const act = btn.dataset.act;
   const card = btn.closest('.job'), url = card.dataset.url;

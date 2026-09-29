@@ -96,10 +96,8 @@ def _connect():
                 # the board's ESTIMATE of the pay, kept apart from `salary`, which is only ever
                 # what the employer themselves stated
                 "pay_est TEXT",
-                # What came back. Empty means still waiting, which is the state every
-                # application starts in and most of them stay in.
-                "outcome TEXT",
-                "outcome_at TEXT"):                                              # added later
+                # 1 = the board says this employer answers applications. Only BestJobs knows.
+                "responsive INTEGER"):                                           # added later
         try:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
             fresh_col = True
@@ -1323,9 +1321,16 @@ def apply_suggestion(s: dict = Body(...)):
 # Every column except the ad itself. The full text of 500 ads is over a megabyte, it is re-sent
 # on every action, and it is only read when someone opens one card - so it is fetched per job
 # instead, from /api/job/description.
+# How contested a job is, in the two currencies this app can actually measure. QUIET and BUSY
+# mirror the dashboard's own colouring of the applicant count; FRESH_DAYS and STALE_DAYS stand in
+# for it on the three boards that publish no count. Median age of a waiting job is 3 days, so
+# three days really is "nobody has got here yet".
+QUIET, BUSY = 25, 150
+FRESH_DAYS, STALE_DAYS = 3, 14
+
 LIST_COLS = ("url, source, title, company, location, posted, fit, why, gaps, untapped, "
              "status, cv, found, note, salary, expires, terms, lang, applied_at, "
-             "applicants, pay_est, outcome, outcome_at, "
+             "applicants, pay_est, responsive, "
              "LENGTH(description) AS desc_len")
 
 
@@ -1397,11 +1402,29 @@ def list_jobs():
             f"SELECT {LIST_COLS} FROM jobs "
             # Inside a score band the order used to be the date found, which is noise: 98% of
             # scores land on a multiple of 5, so the whole "best for you" band is two values
-            # wide and everything in it tied. How many people already applied breaks that tie
-            # the way the person would: same score, fewer competitors, higher up. Rows with no
-            # count (every board but BestJobs) sit between - they are unknown, not crowded.
+            # wide and everything in it tied. Measured: of 20 jobs at 75+, all sit on 85 or 75
+            # and NINETEEN have no applicant count, so the top of the list was ordered by
+            # nothing at all.
+            #
+            # Both signals answer the same question - how many people got there first - and they
+            # cover each other exactly. The count is BestJobs only; the posting date is known for
+            # 585 of 716 waiting jobs and covers eJobs, Hipo and freehire. A fresh ad has had
+            # less time to gather applicants, and an employer three weeks in may be interviewing
+            # already.
+            #
+            # (The previous version claimed uncounted rows "sit between" and did the opposite:
+            # every counted row came first, so 1207 applicants outranked an unknown.)
             f"ORDER BY (fit IS NULL), fit DESC, "
-            f"CASE WHEN applicants IS NULL THEN 1 ELSE 0 END, applicants ASC, found DESC")]
+            f"CASE "
+            f"  WHEN applicants IS NOT NULL AND applicants <= {QUIET} THEN 0 "
+            f"  WHEN applicants IS NULL AND COALESCE(posted,'') <> '' "
+            f"       AND julianday('now') - julianday(posted) <= {FRESH_DAYS} THEN 0 "
+            f"  WHEN applicants IS NOT NULL AND applicants <= {BUSY} THEN 1 "
+            f"  WHEN applicants IS NULL AND COALESCE(posted,'') <> '' "
+            f"       AND julianday('now') - julianday(posted) <= {STALE_DAYS} THEN 1 "
+            f"  ELSE 2 END, "
+            # inside a tier: fewest competitors first where that is known, then freshest
+            f"COALESCE(applicants, 1000000) ASC, COALESCE(posted,'') DESC, found DESC")]
     if home:
         for r in rows:
             loc = (r.get("location") or "").strip()
@@ -1560,6 +1583,28 @@ async def _search(body, p):
     with db() as c:
         known = {r[0] for r in c.execute("SELECT url FROM jobs")}
     new_urls = [j for j in found if j["url"] not in known]
+
+    # The ads we already have, brought up to date from phase 1 alone - no detail page, no extra
+    # request. How many people have applied changes by the hour and was otherwise frozen at
+    # whatever it was the day the ad was first seen; the ON CONFLICT arm below never reached
+    # these rows, because they never get as far as the insert.
+    again = [j for j in found if j["url"] in known
+             and (j.get("applicants") is not None or j.get("responsive") is not None
+                  or (j.get("salary") or "").strip())]
+    if again:
+        with db() as c:
+            for j in again:
+                c.execute(
+                    "UPDATE jobs SET "
+                    "applicants = COALESCE(:applicants, applicants), "
+                    "responsive = COALESCE(:responsive, responsive), "
+                    # a board that says nothing this time must not erase what it said last time
+                    "salary  = CASE WHEN :salary  <> '' THEN :salary  ELSE salary  END, "
+                    "pay_est = CASE WHEN :pay_est <> '' THEN :pay_est ELSE pay_est END "
+                    "WHERE url = :url",
+                    {"url": j["url"], "applicants": j.get("applicants"),
+                     "responsive": j.get("responsive"),
+                     "salary": j.get("salary") or "", "pay_est": j.get("pay_est") or ""})
     step("reading the ads", 0, max(1, len(new_urls)))
     # hydrate reports each page as it lands: this phase is a minute or more on a real search,
     # and a bar that does not move for a minute is the same as no bar at all
@@ -1612,10 +1657,11 @@ async def _search(body, p):
             if j.get("lang") in ("", None, "en", "ro"):     # keep freehire's 'de', 'nl', ...
                 j["lang"] = llm.ad_language(j)
             c.execute("INSERT INTO jobs(url,source,title,company,location,posted,"
-                      "description,note,salary,expires,terms,lang,applicants,pay_est) "
+                      "description,note,salary,expires,terms,lang,applicants,pay_est,"
+                      "responsive) "
                       "VALUES(:url,:source,:title,"
                       ":company,:location,:posted,:description,:note,:salary,:expires,:terms,"
-                      ":lang,:applicants,:pay_est) "
+                      ":lang,:applicants,:pay_est,:responsive) "
                       # A row already here keeps everything a person has touched - its status,
                       # its score, the CV written for it, the date applied. What it does take
                       # is the facts that go stale: how many people have applied (12 on Monday
@@ -1624,11 +1670,12 @@ async def _search(body, p):
                       # board that says nothing this time cannot erase what it said last time.
                       "ON CONFLICT(url) DO UPDATE SET "
                       "applicants = COALESCE(excluded.applicants, jobs.applicants), "
+                      "responsive = COALESCE(excluded.responsive, jobs.responsive), "
                       "salary     = CASE WHEN excluded.salary   <> '' THEN excluded.salary   ELSE jobs.salary   END, "
                       "pay_est    = CASE WHEN excluded.pay_est  <> '' THEN excluded.pay_est  ELSE jobs.pay_est  END, "
                       "expires    = CASE WHEN excluded.expires  <> '' THEN excluded.expires  ELSE jobs.expires  END",
                       {"note": "", "lang": "", "salary": "", "expires": "", "terms": "",
-                       "applicants": None, "pay_est": "",
+                       "applicants": None, "pay_est": "", "responsive": None,
                        **{k: v for k, v in j.items() if not k.startswith("_")}})
         todo = [dict(r) for r in c.execute(
             "SELECT * FROM jobs WHERE fit IS NULL AND COALESCE(tries,0) < ? "
@@ -2386,38 +2433,6 @@ def set_status(body: dict = Body(...)):
                 raise HTTPException(400, "Applied jobs stay in the history and cannot be changed.")
         job = one_job(c, url)
     return {"ok": True, "job": job}
-
-
-# What an application can come back as. "" is the state it starts in and, for most, stays in.
-#
-# `seen` is here because two of the three boards show it and it changes what you do: an employer
-# who opened your CV a week ago and said nothing is a different silence from one who never looked.
-OUTCOMES = ("", "seen", "interview", "rejected", "offer")
-
-# How long to wait before chasing. Ten days is the line used here: long enough not to pester an
-# employer who is still reading, short enough that the job is not filled by the time you write.
-NUDGE_DAYS = 10
-
-
-@app.post("/api/outcome")
-def set_outcome(body: dict = Body(...)):
-    """Record what came back from an application - or clear it back to waiting."""
-    url = _url_of(body)
-    outcome = body.get("outcome") or ""
-    if outcome not in OUTCOMES:
-        raise HTTPException(400, f"not an outcome: {outcome}")
-    with db() as c:
-        row = c.execute("SELECT status FROM jobs WHERE url=?", (url,)).fetchone()
-        if not row:
-            raise HTTPException(404, "unknown job")
-        if row["status"] != "applied":
-            # An outcome on a job never applied to is a record of something that did not happen,
-            # and it would then be counted among the replies.
-            raise HTTPException(400, "That job has not been applied to, so there is nothing to "
-                                     "hear back from.")
-        c.execute("UPDATE jobs SET outcome=?, outcome_at=CASE WHEN ?='' THEN NULL "
-                  "ELSE datetime('now','localtime') END WHERE url=?", (outcome, outcome, url))
-        return {"ok": True, "job": one_job(c, url)}
 
 
 @app.post("/api/clear")

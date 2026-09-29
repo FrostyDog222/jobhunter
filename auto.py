@@ -83,7 +83,6 @@ def run():
             "SELECT COUNT(*) FROM jobs WHERE status IN ('new','ready') AND fit >= ?",
             (int(s.get("auto_min_fit", 75)),)).fetchone()[0]
     log(f"{report['waiting']} job(s) at {s.get('auto_min_fit', 75)}+ are waiting on the dashboard")
-    _write(report)           # written before applying, so a crash there still leaves the search
 
     if not s.get("auto_apply"):
         return report
