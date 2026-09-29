@@ -1138,8 +1138,20 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=False)
             # the confirmation - and it is the only one there is. Without this a sent
             # application was filed as "pressed apply, no confirmation seen".
             if board == "hipo" and not apply_control(page, board):
-                out["submitted"] = True
-                return out
+                here = (page.url or "").lower()
+                if any(d in here for d in BOARD_UI[board].get("denied", ())):
+                    # the session lapsed between the check at the top of this function and the
+                    # click - six hours is Hipo's whole session, so this is not exotic
+                    remember_signin(board, False)
+                    out["error"] = ("signed out of hipo part-way through, so this was NOT "
+                                    "sent - sign in again and retry it")
+                    return out
+                if "hipo.ro" in here and "/candidat/aplica/" not in here:
+                    out["submitted"] = True
+                    return out
+                # on the form after all, or somewhere else entirely: fall through to
+                # "pressed, not confirmed", which leaves the job in hand rather than filing a
+                # claim nothing can ever check
 
             # It may well have gone. On eJobs a one-click apply IS the application, and a page
             # that confirms slower than we waited looks identical to one that did nothing.
@@ -1242,11 +1254,13 @@ def auto_signin(board, username, password, headless=True):
     never logged, and never put in the return value.
     """
     from playwright.sync_api import sync_playwright
+    # None, not False: the caller spends a two-strike budget on False, and that budget is
+    # for a password the board rejected. Nothing here has reached the board yet.
     form = LOGIN_FORM.get(board)
     if not form:
-        return False, f"no login form known for {board}"
+        return None, f"no login form known for {board}"
     if not username or not password:
-        return False, "nothing saved"
+        return None, "nothing saved"
     with sync_playwright() as pw:
         # fresh_host: a board ties its login form's nonce to a short-lived cookie, and replaying
         # a stale one makes the POST fail - the same reason the manual sign-in does this.
@@ -1271,7 +1285,7 @@ def auto_signin(board, username, password, headless=True):
             u, p = visible(form["user"]), visible(form["pass"])
             if not u or not p:
                 # the form moved, or the board answered with something else entirely
-                return False, "could not find the sign-in form on that page"
+                return None, "could not find the sign-in form on that page"
             u.fill(username)
             p.fill(password)
             btn = next((e for e in page.query_selector_all("button, input[type=submit]")
@@ -1280,7 +1294,7 @@ def auto_signin(board, username, password, headless=True):
                                              + (e.get_attribute("value") or "")).strip(), re.I)),
                        None)
             if not btn:
-                return False, "could not find the sign-in button"
+                return None, "could not find the sign-in button"
             btn.click()
             # A login is ONE navigation. Wait for it to land, then ask the board once.
             #
@@ -1302,7 +1316,9 @@ def auto_signin(board, username, password, headless=True):
             return False, "the sign-in did not take - wrong password, or the board asked "\
                           "something extra (a code, a captcha) that needs you at the keyboard"
         except Exception as e:
-            return False, f"{type(e).__name__}: {e}"        # never the credentials
+            # a timeout, a dropped connection, a board serving a 502 - none of them say the
+            # password is wrong, so none of them may count towards giving up on it
+            return None, f"{type(e).__name__}: {e}"         # never the credentials
         finally:
             browser.close()
 
@@ -1507,8 +1523,15 @@ def remember_signin(board, signed_in):
     exists to say "you are signed out" stayed quiet.
     """
     try:
+        was = BOARD_STATE.stat().st_mtime if BOARD_STATE.exists() else None
         BOARD_STATE.write_text(json.dumps({**board_status(), board: bool(signed_in)}),
                                encoding="utf-8")
+        # board_checked_ago() is one mtime for all three boards, and this call verified one.
+        # Letting it stamp the file fresh told the dashboard that the other two had just been
+        # checked as well, so it skipped the re-check - which is the twelve-hour-green-dot bug
+        # this file's own comment above says was fixed.
+        if was is not None:
+            os.utime(BOARD_STATE, (was, was))
     except OSError:
         pass                              # a check we could not write down is not worth failing
 
