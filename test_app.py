@@ -1118,4 +1118,26 @@ assert _hdr.get("Authorization") == "Bearer realkey", "a real key stopped being 
 _dash3 = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
 assert "provider=ollama" in _dash3, "picking Ollama does not look up the installed models"
 
+
+# 3t. The walkthrough is built in JavaScript, so the server's translation pass never sees it and
+# the "nothing reads English in Romanian" test above cannot catch a missed line. Every sentence
+# it passes through t() has to be a key the dictionary knows, or a Romanian reader gets a
+# half-English list of instructions.
+_dash4 = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+_help = _dash4[_dash4.index("async function drawOllamaHelp("):_dash4.index("function drawKeyLink(")]
+# t('...') and fill('...', {...}) - single-quoted, possibly split across lines by + concatenation
+_keys = []
+for _m in _re.finditer(r"\b(?:t|fill)\(\s*('(?:[^'\\]|\\.)*'(?:\s*\+\s*'(?:[^'\\]|\\.)*')*)",
+                       _help):
+    _parts = _re.findall(r"'((?:[^'\\]|\\.)*)'", _m.group(1))
+    _keys.append("".join(_parts).replace("\\'", "'"))
+assert len(_keys) >= 9, f"expected the walkthrough's sentences, found {len(_keys)}"
+_missing = [k for k in _keys if k not in _lang.RO]
+assert not _missing, f"walkthrough sentences with no Romanian: {_missing}"
+# a placeholder must survive translation, or the live value has nowhere to go
+for _k in _keys:
+    for _ph in _re.findall(r"\{(\w+)\}", _k):
+        assert "{" + _ph + "}" in _lang.RO[_k], \
+            f"the Romanian for {_k[:40]!r} dropped the {{{_ph}}} placeholder"
+
 print("ok")

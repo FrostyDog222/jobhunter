@@ -416,7 +416,26 @@ RO = {
     "Running the model on your own PC with Ollama — step by step":
         "Rulează modelul pe propriul PC cu Ollama — pas cu pas",
     "Free, and nothing leaves this PC — not even the job ads. It is slower per ad than a hosted provider, so it suits a small search or a machine with a good graphics card. You can leave a hosted provider first and keep Ollama behind it as a backstop for when a free tier runs dry.":
-        "Gratuit, și nimic nu pleacă de pe acest PC — nici măcar anunțurile. Este mai lent pe anunț decât un furnizor online, așa că se potrivește unei căutări mici sau unui PC cu placă video bună. Poți lăsa un furnizor online primul și să ții Ollama în spate, ca rezervă pentru când un plan gratuit se golește.",}
+        "Gratuit, și nimic nu pleacă de pe acest PC — nici măcar anunțurile. Este mai lent pe anunț decât un furnizor online, așa că se potrivește unei căutări mici sau unui PC cu placă video bună. Poți lăsa un furnizor online primul și să ții Ollama în spate, ca rezervă pentru când un plan gratuit se golește.",
+    # ---- the Ollama walkthrough, step by step
+    "Install Ollama from {link} and let it finish. It then runs quietly in the background whenever your PC is on.":
+        "Instalează Ollama de la {link} și lasă-l să termine. Apoi rulează discret în fundal ori de câte ori PC-ul este pornit.",
+    "It is running on this PC.":
+        "Rulează pe acest PC.",
+    "Not answering on this PC yet.":
+        "Încă nu răspunde pe acest PC.",
+    "Download a model. Open Terminal or PowerShell and type {cmd}, then wait - it is a couple of gigabytes, once.":
+        "Descarcă un model. Deschide Terminal sau PowerShell, scrie {cmd} și așteaptă - sunt câțiva gigabytes, o singură dată.",
+    "{n} already downloaded:":
+        "{n} descărcate deja:",
+    "Back here: set Provider to ollama. The Model box fills itself from what you downloaded.":
+        "Înapoi aici: pune Furnizor pe ollama. Caseta Model se completează singură din ce ai descărcat.",
+    "{model} is a good first choice.":
+        "{model} este o primă alegere bună.",
+    "Leave API key empty. There is no key and none is needed - that is the point of running it here.":
+        "Lasă cheia API goală. Nu există nicio cheie și nici nu e nevoie - tocmai ăsta e rostul rulării locale.",
+    "Press Save & test. It asks the model one small question and tells you what came back. The first answer is slow while the model loads into memory; after that it settles.":
+        "Apasă Salvează și testează. Pune modelului o întrebare mică și îți spune ce a răspuns. Primul răspuns este lent cât se încarcă modelul în memorie; după aceea se așază.",}
 
 # Longest first, so replacing a short string can never eat part of a longer one that contains it.
 PAIRS = sorted(RO.items(), key=lambda kv: -len(kv[0]))

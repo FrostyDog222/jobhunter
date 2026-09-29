@@ -630,28 +630,37 @@ async function drawOllamaHelp(){
   const done = v => v ? '<span style="color:var(--good)">&#10003;</span> '
                       : '<span style="color:var(--dim)">&#9675;</span> ';
   const pick = bestOllamaModel(models);
-  box.innerHTML = [
-    done(up) + 'Install Ollama from <a href="https://ollama.com/download" target="_blank" '
-      + 'rel="noopener">ollama.com/download</a> and let it finish. It then runs quietly in the '
-      + 'background whenever your PC is on.'
-      + (up ? ' <b style="color:var(--good)">It is running on this PC.</b>'
-            : ' <b style="color:var(--mid)">Not answering on this PC yet.</b>'),
-    done(models.length) + 'Download a model. Open Terminal or PowerShell and type '
-      + '<code>ollama pull llama3.2</code>, then wait — it is a couple of gigabytes, once.'
-      + (models.length
-          ? ` <b style="color:var(--good)">${models.length} already here:</b> `
-            + esc(models.slice(0, 6).join(', ')) + (models.length > 6 ? '…' : '')
-          : ''),
-    done(false) + 'Back here: set <b>Provider</b> to <b>ollama</b>. The Model box fills itself '
-      + 'from what you downloaded' + (pick ? ` — <code>${esc(pick)}</code> is a good first choice`
-                                           : '') + '.',
-    done(false) + 'Leave <b>API key</b> empty. There is no key and none is needed — that is the '
-      + 'point of running it here.',
-    done(false) + 'Press <b>Save &amp; test</b>. It asks the model one small question and tells '
-      + 'you what came back. The first answer is slow while the model loads into memory; after '
-      + 'that it settles.',
-  ].map(t => `<li style="margin-bottom:7px">${t}</li>`).join('');
-  localiseDOM(box);
+  // Translate the sentence, THEN drop the live value in. The other order leaves a half-English
+  // line, and it is the only way a translation can put the value somewhere else in the sentence.
+  const fill = (key, vars) => Object.entries(vars || {})
+    .reduce((out, [k, v]) => out.split('{' + k + '}').join(v), t(key));
+
+  const link = '<a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com/download</a>';
+  const steps = [
+    [up, fill('Install Ollama from {link} and let it finish. It then runs quietly in the '
+            + 'background whenever your PC is on.', {link})
+        + ' <b style="color:var(--' + (up ? 'good' : 'mid') + ')">'
+        + (up ? t('It is running on this PC.') : t('Not answering on this PC yet.'))
+        + '</b>'],
+    [models.length, fill('Download a model. Open Terminal or PowerShell and type {cmd}, then '
+            + 'wait - it is a couple of gigabytes, once.',
+            {cmd: '<code>ollama pull llama3.2</code>'})
+        + (models.length
+            ? ' <b style="color:var(--good)">'
+              + fill('{n} already downloaded:', {n: models.length}) + '</b> '
+              + esc(models.slice(0, 6).join(', ')) + (models.length > 6 ? '…' : '')
+            : '')],
+    [false, t('Back here: set Provider to ollama. The Model box fills itself from what you '
+            + 'downloaded.') + (pick ? ' ' + fill('{model} is a good first choice.',
+                                                  {model: '<code>' + esc(pick) + '</code>'}) : '')],
+    [false, t('Leave API key empty. There is no key and none is needed - that is the point of '
+            + 'running it here.')],
+    [false, t('Press Save & test. It asks the model one small question and tells you what came '
+            + 'back. The first answer is slow while the model loads into memory; after that it '
+            + 'settles.')],
+  ];
+  box.innerHTML = steps.map(([ok, html]) =>
+    `<li style="margin-bottom:7px">${done(ok)}${html}</li>`).join('');
 }
 
 function drawKeyLink(){
