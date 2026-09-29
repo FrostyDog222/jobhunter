@@ -361,6 +361,14 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
         apply attaches the CV stored on that board's profile, not the tailored PDF this app
         writes, so an out-of-date board profile is what the employer sees. Read the warning
         below before turning it on.</p>
+      <p><b>Why the cap stops at 50.</b> Not because fifty applications take too long — they are
+        about twenty minutes, and the weekly task is allowed two hours. Because an unattended run
+        that sends fifty applications with an out-of-date board profile is fifty employers who
+        saw it, and you find out afterwards. The number is a wall against typing 500 by mistake.
+        In practice the score does the limiting: a floor of 85 usually leaves single figures
+        waiting, so the cap rarely comes into it at all. If you want more applications going out,
+        lower the score before you raise the cap — that changes which jobs qualify, which is the
+        decision that actually matters.</p>
       <p><b>Keep me signed in</b> — the checkbox further up, next to the sign-in buttons. Boards
         renew a sign-in whenever the site is opened, so Windows visits them every four hours and
         the session never lapses. Hipo's lasts about six hours on its own. It only loads the
@@ -422,9 +430,11 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <div><label for="auto_apply_cap">At most, per week</label><input id="auto_apply_cap" type="number"
         min="1" max="50" step="1" value="5"></div>
       <div style="flex:2;display:flex;align-items:flex-end">
-        <span class="muted" style="font-size:12.5px">The score is usually the real limit, not
-          this: at 85 there are rarely more than a handful waiting. Employer forms and ads that
-          redirect to the employer's own site are never sent for you.</span></div>
+        <span class="muted" style="font-size:12.5px">Anything from 1 to 50. <b>The score above
+          usually decides this, not the number here</b> — at 85 there are rarely more than a
+          handful of jobs waiting, so asking for 50 simply sends however many qualify. 50 is a
+          wall against a slipped keystroke, not a target. Employer forms and ads that redirect
+          to the employer's own site are never sent for you.</span></div>
     </div>
 
     <div class="row" style="align-items:center">

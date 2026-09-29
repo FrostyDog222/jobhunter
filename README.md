@@ -237,7 +237,7 @@ more before it takes. When it is on the weekly run also applies to the best of w
 |---|---|
 | boards | eJobs, BestJobs and Hipo — never an employer form, never an ad that redirects to the employer's own site |
 | score | 85 or above, your choice |
-| how many | 5 per week, your choice, never more than 50. The score is usually the real limit: at 85 there are rarely more than a handful waiting |
+| how many | 5 per week, anything from 1 to 50. The **score** usually decides this, not the cap — at 85 there are rarely more than single figures waiting, so asking for 50 sends however many qualify. 50 is a wall against a slipped keystroke: fifty applications are only twenty minutes, but fifty sent with a stale board profile is fifty employers who saw it. To send more, lower the score before raising the cap |
 | which rows | only ones nobody has touched; applied, opened, skipped and vetoed are left alone |
 | screening questions | marked and left for you — no browser window opens on an empty desk |
 
