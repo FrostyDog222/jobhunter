@@ -230,6 +230,29 @@ mistake, *Undo* works for two minutes.
 keeps in your own account and copies it into this history, with Hipo's dates. Jobs you applied
 to by hand then stop showing up as still to do. It only ever adds.
 
+## After you apply
+
+Pressing Apply is the start of the part that gets you hired, not the end. Every applied job shows
+how long it has been waiting, and once that passes **ten days** the line turns amber and says it
+is worth a nudge — long enough not to pester someone still reading, short enough that the job is
+not filled by the time you write.
+
+Four buttons on each applied card end the wait, one click each, nothing to type:
+
+| | |
+|---|---|
+| **seen** | the employer opened your application — a different silence from one who never looked |
+| **interview** | they want to talk to you |
+| **rejected** | a no. Worth recording: it stops that one taking up room |
+| **offer** | the point of all this |
+
+Two views go with them. **Waiting to hear** is everything with no answer yet, longest wait first,
+so the top of the list is what to do something about today. **Worth a nudge** is the subset that
+has gone past ten days.
+
+Rejections are kept, not deleted. A board that already has your application will not take a second
+one, and the record is what stops the weekly run offering the same employer back to you.
+
 ## Getting a newer version
 
 Double-click **Update.bat**. It downloads the current code from

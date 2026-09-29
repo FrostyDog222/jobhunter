@@ -95,7 +95,11 @@ def _connect():
                 "applicants INTEGER",
                 # the board's ESTIMATE of the pay, kept apart from `salary`, which is only ever
                 # what the employer themselves stated
-                "pay_est TEXT"):                                                 # added later
+                "pay_est TEXT",
+                # What came back. Empty means still waiting, which is the state every
+                # application starts in and most of them stay in.
+                "outcome TEXT",
+                "outcome_at TEXT"):                                              # added later
         try:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
             fresh_col = True
@@ -1299,7 +1303,7 @@ def apply_suggestion(s: dict = Body(...)):
 # instead, from /api/job/description.
 LIST_COLS = ("url, source, title, company, location, posted, fit, why, gaps, untapped, "
              "status, cv, found, note, salary, expires, terms, lang, applied_at, "
-             "applicants, pay_est, "
+             "applicants, pay_est, outcome, outcome_at, "
              "LENGTH(description) AS desc_len")
 
 
@@ -2315,6 +2319,38 @@ def set_status(body: dict = Body(...)):
                 raise HTTPException(400, "Applied jobs stay in the history and cannot be changed.")
         job = one_job(c, url)
     return {"ok": True, "job": job}
+
+
+# What an application can come back as. "" is the state it starts in and, for most, stays in.
+#
+# `seen` is here because two of the three boards show it and it changes what you do: an employer
+# who opened your CV a week ago and said nothing is a different silence from one who never looked.
+OUTCOMES = ("", "seen", "interview", "rejected", "offer")
+
+# How long to wait before chasing. Ten days is the line used here: long enough not to pester an
+# employer who is still reading, short enough that the job is not filled by the time you write.
+NUDGE_DAYS = 10
+
+
+@app.post("/api/outcome")
+def set_outcome(body: dict = Body(...)):
+    """Record what came back from an application - or clear it back to waiting."""
+    url = _url_of(body)
+    outcome = body.get("outcome") or ""
+    if outcome not in OUTCOMES:
+        raise HTTPException(400, f"not an outcome: {outcome}")
+    with db() as c:
+        row = c.execute("SELECT status FROM jobs WHERE url=?", (url,)).fetchone()
+        if not row:
+            raise HTTPException(404, "unknown job")
+        if row["status"] != "applied":
+            # An outcome on a job never applied to is a record of something that did not happen,
+            # and it would then be counted among the replies.
+            raise HTTPException(400, "That job has not been applied to, so there is nothing to "
+                                     "hear back from.")
+        c.execute("UPDATE jobs SET outcome=?, outcome_at=CASE WHEN ?='' THEN NULL "
+                  "ELSE datetime('now','localtime') END WHERE url=?", (outcome, outcome, url))
+        return {"ok": True, "job": one_job(c, url)}
 
 
 @app.post("/api/clear")

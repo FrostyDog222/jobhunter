@@ -688,6 +688,48 @@ RO = {
         "Puțini candidați — acestea sunt cele care merită timpul tău.",
     "Applying is not free: a tailored CV is a model call and twenty minutes of your attention, and an ad with two thousand people in the queue will not repay either. Only BestJobs publishes how many have applied, so this list is BestJobs ads only — the other boards do not say.":
         "Aplicarea nu este gratuită: un CV adaptat înseamnă un apel către model și douăzeci de minute din atenția ta, iar un anunț cu două mii de oameni la coadă nu îți va răsplăti niciuna dintre ele. Doar BestJobs publică numărul de candidați, așa că lista conține doar anunțuri BestJobs — celelalte site-uri nu spun.",
+    "Waiting to hear":
+        "Aștept răspuns",
+    "Worth a nudge":
+        "Merită un memento",
+    "sent today":
+        "trimisă azi",
+    "waiting {n} days":
+        "așteaptă de {n} zile",
+    "{n} days — worth a nudge":
+        "{n} zile — merită un memento",
+    "Long enough that a short, polite follow-up is normal and welcome.":
+        "A trecut destul timp încât un mesaj scurt și politicos de revenire este normal și binevenit.",
+    "Still inside the time employers usually take.":
+        "Încă în intervalul în care angajatorii răspund de obicei.",
+    "seen":
+        "văzută",
+    "interview":
+        "interviu",
+    "rejected":
+        "respinsă",
+    "offer":
+        "ofertă",
+    "still waiting":
+        "încă aștept",
+    "The employer opened your application.":
+        "Angajatorul ți-a deschis candidatura.",
+    "They want to talk to you.":
+        "Vor să vorbească cu tine.",
+    "A no. Worth knowing - it stops this one taking up room.":
+        "Un nu. Merită știut - nu mai ocupă loc degeaba.",
+    "An offer.":
+        "O ofertă.",
+    "Put it back to waiting.":
+        "Pune-o înapoi pe așteptare.",
+    "Noted: {what}.":
+        "Notat: {what}.",
+    "Back to waiting.":
+        "Înapoi pe așteptare.",
+    "applied":
+        "ai aplicat",
+    "applied (date not recorded)":
+        "ai aplicat (data nu a fost înregistrată)",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":
