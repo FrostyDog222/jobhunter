@@ -2121,4 +2121,17 @@ _ext = [{"url": "e1", "title": "t", "company": "c", "source": "ejobs", "fit": 90
 _got = _aa.candidates(_FakeApp(_ext), _FakeBoards({}, {}), 70, 5)
 assert [r["url"] for r in _got] == ["e2"], [r["url"] for r in _got]
 
+
+# 5r. Task Scheduler runs these through pythonw.exe, which has no console: sys.stdout and
+# sys.stderr are None. print() on a None stdout is a silent no-op, but .reconfigure() on None is
+# an AttributeError - and auto.py's __main__ opened with exactly that call, so every scheduled
+# run died on its first line before it could log anything. auto.log held entries only from the
+# times it had been run by hand, and the task reported LastTaskResult 1 with nothing to show.
+# The weekly run would have done the same every Sunday: switched on, scheduled, silently idle.
+for _f in ("auto.py", "share.py", "update.py"):
+    _t = (app.HERE / _f).read_text(encoding="utf-8")
+    assert "sys.stdout.reconfigure" not in _t,         f"{_f} calls reconfigure on a stream that is None under pythonw.exe"
+    if "reconfigure" in _t:
+        assert "if _s is not None:" in _t, f"{_f} reconfigures without checking for a console"
+
 print("ok")

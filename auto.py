@@ -169,7 +169,15 @@ def only_one():
 
 
 if __name__ == "__main__":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    # pythonw.exe - which is what Task Scheduler runs - has no console, so sys.stdout and
+    # sys.stderr are None and .reconfigure() on None is an AttributeError that kills the process
+    # on its first line, before any logging. Every scheduled run failed this way, silently.
+    for _s in (sys.stdout, sys.stderr):
+        if _s is not None:
+            try:
+                _s.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
     mode = "touch" if "--touch" in sys.argv else "run"
     if not only_one():
         log(f"the {mode} run stopped: another run is already going")
