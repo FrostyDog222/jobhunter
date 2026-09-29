@@ -145,9 +145,35 @@ def touch():
     return out
 
 
+LOCK = HERE / ".auto.lock"
+_HELD = []                             # the handle has to outlive this function or Windows frees it
+
+
+def only_one():
+    """-> True if we got the lock. False means another run is already going, so this one stops.
+
+    One lock for both modes on purpose: they drive the same browser profile directory, and two
+    Chromiums sharing one is how a signed-in session gets corrupted. A keep-alive skipped because
+    the weekly run is in progress has lost nothing - that run visits every board anyway.
+    """
+    try:
+        import msvcrt
+        f = open(LOCK, "a+b")
+        msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+    except OSError:
+        return False                   # held by the other process, or the file is unusable
+    except ImportError:
+        return True                    # not Windows: nothing schedules two runs here anyway
+    _HELD.append(f)                    # released by the OS when this process ends, crash or not
+    return True
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     mode = "touch" if "--touch" in sys.argv else "run"
+    if not only_one():
+        log(f"the {mode} run stopped: another run is already going")
+        sys.exit(0)                    # not a failure - Task Scheduler must not retry it
     try:
         touch() if mode == "touch" else run()
     except Exception:

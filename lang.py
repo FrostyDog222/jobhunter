@@ -526,7 +526,11 @@ RO = {
     "First job / no experience (English)":
         "Primul job / fără experiență (engleză)",
     "Fill in your profile first - there is nothing to match jobs against. Your studies or a project counts, not only paid work.":
-        "Completează-ți mai întâi profilul - nu există nimic cu care să potrivim joburi. Studiile sau un proiect contează, nu doar munca plătită.",}
+        "Completează-ți mai întâi profilul - nu există nimic cu care să potrivim joburi. Studiile sau un proiect contează, nu doar munca plătită.",
+    "One run is already going. Two at once can send the same application twice, so this one was not started.":
+        "O rulare este deja în curs. Două în același timp pot trimite aceeași candidatură de două ori, așa că aceasta nu a fost pornită.",
+    "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":
+        "Rulează acum, exact cum o va face Windows. Durează câteva minute — panoul afișează rezultatul când sosește.",}
 
 # Longest first, so replacing a short string can never eat part of a longer one that contains it.
 PAIRS = sorted(RO.items(), key=lambda kv: -len(kv[0]))

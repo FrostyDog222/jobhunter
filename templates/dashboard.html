@@ -885,9 +885,12 @@ $('#autocopy2').onclick = () => $('#autocopy').click();
 $('#autonow').onclick = e => busy(e.target, async () => {
   if(!$('#auto_query').value.trim())
     return toast('Type what it should search for first.');
-  await api('/api/auto/run', {});
-  toast('Running it now, exactly as Windows will. It takes a few minutes — '
-      + 'this panel shows the result when it lands.', 9000);
+  const r = await api('/api/auto/run', {});
+  if(r.already_running)
+    return toast(t('One run is already going. Two at once can send the same application twice, '
+                 + 'so this one was not started.'), 9000);
+  toast(t('Running it now, exactly as Windows will. It takes a few minutes — '
+      + 'this panel shows the result when it lands.'), 9000);
   // it runs as its own process, so poll for the report rather than awaiting it
   let tries = 0;
   const tick = setInterval(async () => {

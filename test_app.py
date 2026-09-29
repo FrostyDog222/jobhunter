@@ -1407,4 +1407,61 @@ finally:
 assert _kept["new_to_work"] is True, "uploading a CV unticked new-to-the-workforce"
 assert _kept["salary_expectation"] == "5000"
 
+_pfsrc = (app.HERE / 'prefill.py').read_text(encoding='utf-8')
+
+# 4g. A shell heredoc once turned \\b into a literal backspace, and the result is still valid
+# Python - it just compiles a regex matching a control character no page contains. Two lines in
+# prefill.py had it for months: r"\\bapply\\b|aplica" never matched an English Apply link, and
+# r"submit|trimite|\\bsend\\b" - the guard that stops this function clicking the control which
+# FILES the application - never excluded a button labelled Send.
+import re as _reC, inspect as _iK
+import prefill as _pfm
+for _f in sorted(app.HERE.glob("*.py")) + sorted((app.HERE / "templates").rglob("*.html")):
+    for _i, _l in enumerate(_f.read_text(encoding="utf-8").splitlines(), 1):
+        assert not _reC.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", _l), \
+            f"{_f.name}:{_i} has a control character - a \\b or \\n eaten by a heredoc: {_l!r}"
+
+# 4h. One weekly run at a time. Two pick candidates from the same table before either marks
+# anything applied, so the same employer gets two applications minutes apart and the "5 a week"
+# cap becomes 5 per process. They also share one Playwright profile directory.
+import subprocess, auto as _auto
+assert callable(_auto.only_one)
+assert _auto.only_one(), "could not take the lock"
+_second = subprocess.run(
+    [sys.executable, "-c", "import sys; sys.path.insert(0, sys.argv[1]); import auto; "
+                           "print('GOT', auto.only_one())", str(app.HERE)],
+    capture_output=True, text=True)
+assert _second.stdout.strip().endswith("GOT False"), \
+    f"a second run was allowed to start: {_second.stdout!r} {_second.stderr[-300:]!r}"
+
+# 4i. "Ai aplicat" anywhere on the page counted as THIS job. Both boards print a rail of similar
+# jobs under the posting, and a card there carries the same badge for a different job - so a job
+# never opened came back already-applied, was skipped, and was skipped again every week after.
+assert "def own_text" in _pfsrc
+_ownsrc = _iK.getsource(_pfm.own_text)
+assert "SIMILAR" in _ownsrc and "body" in _ownsrc
+# the three scans that decide applied/submitted all read the posting, not the page
+_apply_src = _iK.getsource(_pfm.board_apply)
+assert 'inner_text("body")' not in _apply_src, \
+    "a whole-page text scan is back in board_apply"
+assert _apply_src.count("own_text(page)") >= 3
+
+# 4j. A dropdown still prompting for an answer is not an answer. Only "is it the first option"
+# was checked, so a select with no selection at all (empty value) and a placeholder sitting
+# second both counted as answered - and the application went out with the employer's default.
+for _ph in ("Select...", "-- Choose one --", "Alege o op\u021biune", "Selecteaz\u0103 op\u021biunea",
+            "---", "", "N/A"):
+    assert _pfm.is_placeholder(_ph), f"a placeholder counted as an answer: {_ph!r}"
+for _real in ("Da", "Nu", "Bucuresti", "Selected for interview", "3-5 ani", "Studii superioare"):
+    assert not _pfm.is_placeholder(_real), f"a real answer was thrown away: {_real!r}"
+assert "val and cur.strip()" in _iK.getsource(_pfm.open_questions), \
+    "an unselected dropdown still counts as answered"
+
+# 4k. The keep-alive saved cookies for boards it never visited. Its context is a snapshot of the
+# file taken minutes earlier, so signing into eJobs in the app while a check was in flight put
+# the dead cookie back over the fresh one and the sign-in that had just worked was gone.
+_vsrc = _iK.getsource(_pfm.verify_boards)
+assert "_save(ctx, visited=visited)" in _vsrc, "the keep-alive still writes back every host"
+assert "visited.append(BOARD_APEX" in _vsrc
+
 print("ok")

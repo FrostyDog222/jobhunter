@@ -394,9 +394,9 @@ def reach_form(page):
             if not el.is_visible():
                 continue
             text = ((el.inner_text() or "") + " " + (el.get_attribute("href") or "")).strip()
-            if not re.search(r"apply|aplica", text, re.I):
+            if not re.search(r"\bapply\b|aplica", text, re.I):
                 continue
-            if re.search(r"submit|trimite|send", text, re.I):
+            if re.search(r"submit|trimite|\bsend\b", text, re.I):
                 continue                      # never the button that files the application
             el.click()
             page.wait_for_timeout(3000)
@@ -440,6 +440,26 @@ def attach_cv(page, cv_path):
     return False
 
 
+# A dropdown still showing "Select...", "-- Choose one --", "Alege o opțiune" or "---" has not
+# been answered, whichever position that option sits in. The test is that EVERY word in the cell
+# is filler: matching the first word instead threw away "Selected for interview" as a placeholder,
+# and demanding a word boundary after "selecta" missed "Selectează opțiunea" entirely.
+FILLER_WORDS = {
+    "select", "selected", "selecteaza", "selectează", "selectati", "selectați", "selectare",
+    "choose", "chose", "pick", "alege", "alegeti", "alegeți", "alegere", "please", "va", "vă",
+    "rugam", "rugăm", "an", "a", "the", "one", "your", "option", "options", "optiune",
+    "opțiune", "optiunea", "opțiunea", "optiuni", "opțiuni", "raspuns", "răspuns",
+    "raspunsul", "răspunsul", "none", "n", "na", "nimic", "below", "de", "mai", "jos", "din",
+    "lista", "listă", "here", "aici", "o", "un", "to",
+}
+
+
+def is_placeholder(text):
+    """-> True if this dropdown cell is prompting for an answer rather than holding one."""
+    words = re.findall(r"[^\W\d_]+", (text or "").lower(), re.UNICODE)
+    return all(w in FILLER_WORDS for w in words)          # no words at all ("---") counts too
+
+
 def open_questions(page):
     """Pass 2 targets: every still-empty text box and every unanswered dropdown."""
     qs = []
@@ -460,7 +480,14 @@ def open_questions(page):
             opts = [o.strip() for o in el.eval_on_selector_all(
                 "option", "os => os.map(o => o.textContent.trim())") if o.strip()]
             cur = el.evaluate("e => e.options[e.selectedIndex] ? e.options[e.selectedIndex].text : ''")
-            if cur.strip() and cur.strip() not in opts[:1]:
+            # Three ways a dropdown is still unanswered, and only the first was checked. A select
+            # with no selection at all has an empty VALUE however its text reads, and a
+            # placeholder is not always the first option - "Alege..." sits second on eJobs'
+            # salary field, under a blank. Counting those as answered sent the application with
+            # the employer's own default where an answer belonged.
+            val = (el.input_value() or "").strip()
+            placeholder = is_placeholder(cur)
+            if val and cur.strip() and cur.strip() not in opts[:1] and not placeholder:
                 continue                          # already answered
             qs.append({"el": el, "tag": "select", "label": _question(el),
                        "options": [o for o in opts if o.lower() not in ("", "select...", "select")][:25]})
@@ -593,6 +620,41 @@ def run(url, cv_path=None, headless=False, use_llm=True, profile=None, job_title
 
 
 APPLIED_MARKERS = ("ai aplicat", "aplicat deja", "candidatura ta", "aplicare trimis")
+
+# Where the posting stops and the rail of other people's suggestions starts. Both boards put
+# "Joburi similare" under the ad, and a card there carries the same applied badge for a
+# DIFFERENT job.
+SIMILAR = ("joburi similare", "job-uri similare", "jobs similare", "anunturi similare",
+           "anunțuri similare", "locuri de munca similare", "locuri de muncă similare",
+           "similar jobs", "joburi recomandate", "recomandate pentru tine", "alte joburi",
+           "s-ar putea sa te intereseze", "s-ar putea să te interese")
+
+
+def own_text(page):
+    """-> the posting's own text, lowercased, without the rail of other jobs beneath it.
+
+    Searching the whole body for "ai aplicat" found it on a suggested job and reported THIS one
+    as already applied - which skips it for good, because the row is marked and never reconsidered.
+    """
+    txt = ""
+    for sel in ("main", "article", "[role=main]", "#main"):
+        try:
+            el = page.query_selector(sel)
+            txt = (el.inner_text() if el else "") or ""
+            if len(txt.strip()) > 200:     # a <main> holding a spinner is not the posting
+                break
+            txt = ""
+        except Exception:
+            txt = ""
+    if not txt:
+        try:
+            txt = page.inner_text("body") or ""
+        except Exception:
+            return ""
+    low = txt.lower()
+    # find(-1) for absent, and a heading at position 0 would mean there is no posting above it
+    cuts = [i for i in (low.find(m) for m in SIMILAR) if i > 0]
+    return low[:min(cuts)] if cuts else low
 
 # Each board words everything differently, so nothing here is hardcoded to eJobs any more.
 # signed_out is checked first where a board shows the same nav to everyone: Hipo renders a
@@ -974,7 +1036,7 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=False)
             if signed_in_to(page, board) is False:
                 out["error"] = f"not signed in to {board} - use the sign-in button first"
                 return out
-            low = page.inner_text("body").lower()
+            low = own_text(page)
             if any(m in low for m in markers):
                 out["already"] = True
                 return out
@@ -1004,7 +1066,7 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=False)
             btn.click()
             for _ in range(10):
                 page.wait_for_timeout(1000)
-                body = page.inner_text("body").lower()
+                body = own_text(page)
                 if any(m in body for m in markers):
                     out["submitted"] = True
                     return out
@@ -1036,7 +1098,7 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=False)
                     send.click()
                     for _ in range(12):
                         page.wait_for_timeout(1000)
-                        if any(m in page.inner_text("body").lower() for m in markers):
+                        if any(m in own_text(page) for m in markers):
                             out["submitted"] = True
                             return out
                     out["needs_you"] = True
@@ -1267,17 +1329,24 @@ def verify_boards(boards=tuple(BOARD_UI)):
     out = {}
     with sync_playwright() as pw:
         browser, ctx, page = _open(pw, headless=True)
+        visited = []
         try:
             for b in boards:
                 try:
                     out[b] = _probe_signed_in(page, b)
+                    visited.append(BOARD_APEX.get(b, b))
                 except Exception as e:
                     # A timeout or a wifi blip is not "signed out". Leave the key unset so the
                     # merge keeps the last verified answer - otherwise the dashboard shows a red
                     # dot and invites you to sign in again over a session that is perfectly fine.
                     print(f"[verify] {b}: could not probe: {type(e).__name__}: {e}")
         finally:
-            _save(ctx)
+            # visited, not everything: this context started from a snapshot of the file, and the
+            # keep-alive runs every half hour. Signing into eJobs in the app while a check was
+            # in flight put that snapshot's dead eJobs cookie back over the fresh one, and the
+            # sign-in that had just worked was gone. Only the boards this run actually loaded
+            # hold a cookie newer than the file's.
+            _save(ctx, visited=visited)
             browser.close()
     try:
         # merge: verifying one board must not erase what we know about the others

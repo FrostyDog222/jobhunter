@@ -443,12 +443,21 @@ def auto_preview(min_fit: int = 85, cap: int = 5):
             "boards": {b: prefill.session_for(b) for b in prefill.AUTO_APPLY}}
 
 
+_RUNNING = []                         # the last process this button started, if it is still alive
+
+
 @app.post("/api/auto/run")
 def run_auto():
     """Run the weekly search now, in the same way Windows will run it."""
+    # auto.py holds the real guard - it has to, because Task Scheduler starts it without asking
+    # the app. This is only so a second click can say so, rather than starting a process that
+    # takes the lock's word for it and exits a second later looking like it worked.
+    if _RUNNING and _RUNNING[-1].poll() is None:
+        return {"ok": False, "already_running": True}
     py = HERE / ".venv" / "Scripts" / "python.exe"
-    subprocess.Popen([str(py), str(HERE / "auto.py")], cwd=str(HERE),
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    _RUNNING.append(subprocess.Popen([str(py), str(HERE / "auto.py")], cwd=str(HERE),
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+    del _RUNNING[:-1]
     return {"ok": True}
 
 

@@ -22,5 +22,6 @@ settings.json
 jobhunter.zip
 .claude/
 auto.log
+.auto.lock
 auto_last.json
 backup/
