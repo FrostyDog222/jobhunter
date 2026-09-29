@@ -529,6 +529,58 @@ RO = {
         "Completează-ți mai întâi profilul - nu există nimic cu care să potrivim joburi. Studiile sau un proiect contează, nu doar munca plătită.",
     "One run is already going. Two at once can send the same application twice, so this one was not started.":
         "O rulare este deja în curs. Două în același timp pot trimite aceeași candidatură de două ori, așa că aceasta nu a fost pornită.",
+    "Job title":
+        "Postul",
+    "Employer":
+        "Angajator",
+    "Where":
+        "Unde",
+    "From":
+        "Din",
+    "Until":
+        "Până",
+    "Qualification":
+        "Calificare",
+    "School or university":
+        "Școală sau universitate",
+    "Project":
+        "Proiect",
+    "What it was":
+        "În ce a constat",
+    "Link":
+        "Link",
+    "What you did":
+        "Ce ai făcut",
+    "Nothing yet.":
+        "Încă nimic.",
+    "No languages yet.":
+        "Încă nicio limbă.",
+    "No suggestions — looks solid.":
+        "Nicio sugestie — arată bine.",
+    "+ add":
+        "+ adaugă",
+    "level…":
+        "nivel…",
+    "Native":
+        "Nativ",
+    "Advanced":
+        "Avansat",
+    "Upper-intermediate":
+        "Intermediar-avansat",
+    "Intermediate":
+        "Intermediar",
+    "Beginner":
+        "Începător",
+    "Use this":
+        "Folosește",
+    "better with a photo":
+        "mai bun cu poză",
+    "better without photo":
+        "mai bun fără poză",
+    "works either way":
+        "arată bine oricum",
+    "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
+        "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":
         "Rulează acum, exact cum o va face Windows. Durează câteva minute — panoul afișează rezultatul când sosește.",}
 

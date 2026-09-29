@@ -190,6 +190,12 @@ const FIELDS = {
   education:  ['degree','school','start','end'],
   projects:   ['name','desc','link'],
 };
+// The form printed the key itself as the label - "role", "desc", "start". Those are variable
+// names, and there is nothing for the translator to match them against either.
+const LABELS = {role: 'Job title', company: 'Employer', location: 'Where', start: 'From',
+                end: 'Until', degree: 'Qualification', school: 'School or university',
+                name: 'Project', desc: 'What it was', link: 'Link'};
+const lab = f => LABELS[f] || f;
 let P = {};
 
 function esc(s){ return String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -201,10 +207,11 @@ function renderList(key){
     ${FIELDS[key].map(f => f==='bullets'
       ? `<label>What you did</label><div class="chips" id="c_${key}.${i}.${f}"></div>`
       : f==='desc'
-      ? `<label>${f}</label><textarea data-e="${key}.${i}.${f}">${esc(item[f])}</textarea>`
-      : `<label>${f}</label><input data-e="${key}.${i}.${f}" value="${esc(item[f])}">`).join('')}
+      ? `<label>${lab(f)}</label><textarea data-e="${key}.${i}.${f}">${esc(item[f])}</textarea>`
+      : `<label>${lab(f)}</label><input data-e="${key}.${i}.${f}" value="${esc(item[f])}">`).join('')}
   </div>`).join('') || '<p class="muted">Nothing yet.</p>';
   if(key === 'experience') (P.experience||[]).forEach((_,i) => renderChips(`experience.${i}.bullets`));
+  localiseDOM(box);        // built with innerHTML, so the server's pass never saw it
 }
 
 const CHIPS = ['links','skills','certifications','hobbies'];
@@ -226,6 +233,7 @@ function renderChips(path){
       `<span class="chip"><span>${esc(v)}</span><button type="button" data-chip="${path}"
          data-i="${i}" title="Remove">&times;</button></span>`).join('')
     + `<input class="chipin" data-add-chip="${path}" placeholder="+ add">`;
+  localiseDOM(box);        // built with innerHTML, so the server's pass never saw it
   if(keep) box.querySelector('.chipin').focus();
 }
 
@@ -239,6 +247,7 @@ function renderLangs(){
       </select>
       <button class="ghost" data-dellang="${i}" title="Remove">&times;</button>
     </div>`).join('') || '<p class="muted">No languages yet.</p>';
+  localiseDOM($('#langs'));   // built with innerHTML, so the server's pass never saw it
 }
 
 document.addEventListener('input', e => {
@@ -436,6 +445,7 @@ async function drawCvButtons(){
           ${wants(k) ? 'checked' : ''}> with photo</label>
       <span class="muted" style="font-size:11px;line-height:1.3">${ADVICE[v.photo] || ''}</span>
     </div>`).join('');
+  localiseDOM($('#cvbuttons'));   // built with innerHTML, so the server's pass never saw it
   try {
     const st = await api('/api/settings', undefined, 'GET');
     // the ticks above decide these downloads, so the note must not point at the other checkbox
@@ -612,6 +622,7 @@ $('#sug').onclick = e => busy(e.target, async () => {
       <button data-acc="${i}">Use this</button>
       <button class="ghost" data-skip="${i}">Skip</button>
     </div>`).join('') || '<p class="muted">No suggestions — looks solid.</p>';
+  localiseDOM($('#sugs'));   // built with innerHTML, so the server's pass never saw it
   window._sugs = list;
 }, 'thinking...');
 

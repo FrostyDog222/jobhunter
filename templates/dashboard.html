@@ -695,7 +695,12 @@ function drawKeyLink(){
 
 /* ---------- settings that survive a reload ---------- */
 async function loadSettings(){
-  try { S = await api('/api/settings', undefined, 'GET'); } catch(e){ S = {}; }
+  // A failed read used to fall back to {} in silence, so every control snapped to its default
+  // and the page looked like the settings had been lost. They had not - a patch save merges
+  // into the file on disk - but you cannot tell that by looking, so say it.
+  try { S = await api('/api/settings', undefined, 'GET'); }
+  catch(e){ S = {}; toast(t('Could not read your settings just now, so the controls below show '
+                          + 'defaults. Nothing on disk was changed - reload to try again.'), 9000); }
   $('#lang').value = S.lang || 'auto';
   $('#headless').value = S.headless || '';
   CLOCK = S.clock === '12' ? '12' : '24';
@@ -1651,7 +1656,9 @@ $('#sendpicked').onclick = e => {
 // never followed the profile to another machine - and `county` was missing from the list
 // entirely, which is why that dropdown forgot itself on every reload.
 const SEARCH_FIELDS = {q: 'search_query', loc: 'search_location',
-                       county: 'search_county', country: 'search_country'};
+                       county: 'search_county', country: 'search_country',
+                       fresh: 'search_fresh', work_mode: 'search_work_mode',
+                       seniority: 'search_seniority', ats: 'search_ats'};
 function restoreSearch(){
   for(const [id, key] of Object.entries(SEARCH_FIELDS)){
     const el = $('#' + id);
@@ -1660,7 +1667,9 @@ function restoreSearch(){
     // carry over whatever the old browser-only version remembered, once
     if(v === undefined || v === '')
       try { v = localStorage.getItem('search.' + id) ?? v; } catch(e){}
-    if(v !== undefined && v !== null && v !== '') el.value = v;
+    // '' is a real answer for these: "Any age", "Any work mode". Skipping it meant the one
+    // filter whose default is not empty - Freshness - could never be set back to Any.
+    if(v !== undefined && v !== null) el.value = v;
   }
 }
 $('#find').oninput = draw;

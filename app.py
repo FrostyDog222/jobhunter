@@ -85,7 +85,11 @@ def _connect():
         posted TEXT, description TEXT, fit INTEGER, why TEXT, gaps TEXT,
         status TEXT DEFAULT 'new', cv TEXT, found TEXT DEFAULT (datetime('now')))""")
     for col in ("note TEXT", "lang TEXT", "applied_at TEXT", "untapped TEXT",
-                "salary TEXT", "expires TEXT", "terms TEXT"):                                                 # added later
+                "salary TEXT", "expires TEXT", "terms TEXT",
+                # how many times scoring this ad has failed for a reason that is the AD's fault.
+                # Without it, fit IS NULL means both "never tried" and "cannot be done", and
+                # every search paid for the second kind again.
+                "tries INTEGER DEFAULT 0"):                                                 # added later
         try:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
         except sqlite3.OperationalError as e:
@@ -158,6 +162,11 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             # saved at all - it reset on every reload.
             "search_query": "", "search_location": "", "search_county": "",
             "search_country": "ro",
+            # ...and the four under "More filters", which were remembered nowhere at all, so
+            # every reload made you narrow the search again. "fresh" matches the markup's own
+            # default; the rest mean "any".
+            "search_fresh": "fresh", "search_work_mode": "", "search_seniority": "",
+            "search_ats": "",
             # the weekly run (auto.py, started by Windows Task Scheduler)
             "auto_enabled": False, "auto_day": "SUN", "auto_time": "09:00",
             "auto_query": "", "auto_location": "", "auto_county": "", "auto_country": "ro",
@@ -1401,6 +1410,30 @@ async def search(body: dict = Body(...)):
         _finish()
 
 
+def _gate_pass(p, judged, todo):
+    """Re-run the language gate over every stored row -> (todo, vetoed, freed).
+
+    Over everything, not just the unscored rows: without it, widening the language table or
+    correcting the gate leaves every previously judged row sitting at its old verdict for ever.
+    """
+    todo_urls = {j["url"] for j in todo}
+    vetoed, freed = [], []
+    dropped = set()
+    for j in judged:
+        ok, reason = llm.language_gate(p, j)
+        if not ok:
+            vetoed.append((j, reason))
+            dropped.add(j["url"])
+        elif j["status"] == "vetoed":
+            freed.append(j)                    # the gate changed its mind: score it again
+            if j["url"] not in todo_urls:
+                todo.append(j)
+                todo_urls.add(j["url"])
+    # one pass at the end: the list was rebuilt per vetoed row, which is O(n*m) over two lists
+    # that are both the size of the table
+    return [t for t in todo if t["url"] not in dropped], vetoed, freed
+
+
 async def _search(body, p):
     queries = [q.strip() for q in re.split(r"[,;]", body.get("query", "")) if q.strip()] or [""]
     loc = body.get("location", "")
@@ -1497,7 +1530,16 @@ async def _search(body, p):
                       ":lang)",
                       {"note": "", "lang": "", "salary": "", "expires": "", "terms": "",
                        **{k: v for k, v in j.items() if not k.startswith("_")}})
-        todo = [dict(r) for r in c.execute("SELECT * FROM jobs WHERE fit IS NULL")]
+        todo = [dict(r) for r in c.execute(
+            "SELECT * FROM jobs WHERE fit IS NULL AND COALESCE(tries,0) < ? "
+            # not the ones you have already dealt with. Marking a batch as already applied
+            # imports rows with no score, and paying a model to rate a job you applied to
+            # three weeks ago buys nothing - the card shows what you did, not a number.
+            "AND status NOT IN ('applied','opened','skipped')", (SCORE_TRIES,))]
+        stuck = c.execute("SELECT COUNT(*) FROM jobs WHERE fit IS NULL "
+                          "AND COALESCE(tries,0) >= ? "
+                          "AND status NOT IN ('applied','opened','skipped')",
+                          (SCORE_TRIES,)).fetchone()[0]
 
     # Re-run the gate over every row a search could surface, not just the unscored ones. It is
     # pure string matching, so it costs nothing - and without it, widening the language table or
@@ -1505,17 +1547,10 @@ async def _search(body, p):
     with db() as c:
         judged = [dict(r) for r in c.execute(
             "SELECT * FROM jobs WHERE status IN ('new','ready','vetoed')")]
-    todo_urls = {j["url"] for j in todo}
-    vetoed, freed = [], []
-    for j in judged:
-        ok, reason = llm.language_gate(p, j)
-        if not ok:
-            vetoed.append((j, reason))
-            todo = [t for t in todo if t["url"] != j["url"]]
-        elif j["status"] == "vetoed":
-            freed.append(j)                    # the gate changed its mind: score it again
-            if j["url"] not in todo_urls:
-                todo.append(j)
+    # off(): pure string matching per row, but it runs over every row a search could surface -
+    # 1.9 seconds at 761 rows, during which nothing else on the event loop moves. That is the
+    # progress bar freezing and the dashboard not answering, on a table that only grows.
+    todo, vetoed, freed = await off(_gate_pass, p, judged, todo)
     if freed:
         with db() as c:
             for j in freed:
@@ -1571,8 +1606,13 @@ async def _search(body, p):
         for j, s in zip(todo, scored):
             if isinstance(s, Exception):
                 failed += 1
-                if isinstance(s, llm.QuotaError) and str(s) not in warnings:
-                    warnings.append(str(s))
+                if isinstance(s, llm.QuotaError):
+                    # out of credits says nothing about this ad, so it does not count against
+                    # it - the credits come back and the ad deserves another go
+                    if str(s) not in warnings:
+                        warnings.append(str(s))
+                else:
+                    c.execute("UPDATE jobs SET tries=COALESCE(tries,0)+1 WHERE url=?", (j["url"],))
                 print(f"[score] {j['title']}: {s}")
                 continue
             # the same scrub the CV gets: models emit **bold** and em-dashes into the reasoning
@@ -1603,12 +1643,16 @@ async def _search(body, p):
                 # one malformed reply must cost one job, not the whole transaction - every score
                 # already written in this loop would otherwise be rolled back with it
                 failed += 1
+                c.execute("UPDATE jobs SET tries=COALESCE(tries,0)+1 WHERE url=?", (j["url"],))
                 print(f"[score] {j['title']}: unusable reply: {e}")
     # only rows this search actually moved into 'vetoed': the gate now re-runs over every
     # stored row, so counting the whole list would report the standing total as if it had just
     # happened ("113 skipped on language" on a search that skipped none)
     _finish()
     newly_vetoed = sum(1 for j, _ in vetoed if j["status"] != "vetoed")
+    if stuck:
+        warnings.append(f"{stuck} ad(s) could not be scored after {SCORE_TRIES} attempts and "
+                        f"are no longer retried. Open one from the board to read it yourself.")
     return {"found": len(found), "new": len(fresh), "freed": len(freed), "expired": expired,
             "scored": len(todo) - failed,
             "failed": failed, "vetoed": newly_vetoed, "queries": len(queries),
@@ -1878,6 +1922,11 @@ async def tailor(body: dict = Body(...)):
                   "WHERE url=?", (path.name, j["url"]))
     return {"cv": path.name, "lang": lang, "template": template, "preview": cv}
 
+
+# How many times an ad may fail to score before it stops being retried. Failures that are the
+# provider's fault (out of credits) are not counted, so this only ever runs out on an ad that
+# genuinely cannot be scored - and without it, every search paid for that ad again.
+SCORE_TRIES = 3
 
 BATCH_CAP = 20
 

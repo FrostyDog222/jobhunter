@@ -1,6 +1,6 @@
 """Job scraping. Every serious board emits schema.org JobPosting JSON-LD for Google Jobs,
 so one generic extractor covers them all - a new board is one entry in BOARDS."""
-import datetime, html, json, random, re, time, unicodedata
+import datetime, functools, html, json, random, re, time, unicodedata
 from concurrent.futures import ThreadPoolExecutor
 import httpx
 from urllib.parse import unquote, urlsplit
@@ -509,9 +509,22 @@ COUNTIES = {
 }
 
 
+# Every county name, its slug and its towns, as compiled patterns - built once. This used to be
+# rebuilt inside in_county on every call: 240 re.escape calls and 240 f-strings per row, which
+# is 265 ms for a 600-row dashboard, on the one request that has to feel instant.
+_NAMES = [(re.compile(rf"(^|-){re.escape(_n)}($|-)"), len(_n), _slug_key)
+          for _slug_key, (_display, _towns) in COUNTIES.items()
+          for _n in {_slug(x) for x in (_display, _slug_key, *_towns) if _slug(x)}]
+
+
+@functools.lru_cache(maxsize=4096)
 def in_county(text, county):
     """Does this ad's location sit in that county? Diacritics are folded on both sides, because
-    half the boards write "Timisoara" and half write "Timișoara", and people type either."""
+    half the boards write "Timisoara" and half write "Timișoara", and people type either.
+
+    Cached: a job list is a few dozen distinct locations repeated, and the county table does not
+    change while the app is running.
+    """
     entry = COUNTIES.get((county or "").lower())
     if not entry:
         return True                       # not a county we know - do not silently drop the ad
@@ -537,13 +550,9 @@ def in_county(text, county):
     # Arges's "Campulung", "Turnu Magurele" is in Teleorman and contains Ilfov's "Magurele".
     # Both used to report the wrong county, which shows a job as near when it is hours away.
     hits = []
-    for slug, (display, towns) in COUNTIES.items():
-        for name in (display, slug, *towns):
-            n = _slug(name)
-            if not n:
-                continue
-            for m in re.finditer(rf"(^|-){re.escape(n)}($|-)", flat):
-                hits.append((m.start(1), m.start(1) + len(n) + 1, slug))
+    for rx, width, slug in _NAMES:
+        for m in rx.finditer(flat):
+            hits.append((m.start(1), m.start(1) + width + 1, slug))
     want = (county or "").lower()
     for start, end, slug in hits:
         if slug != want:

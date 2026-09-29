@@ -1536,4 +1536,78 @@ for _line in (app.HERE / ".gitignore").read_text(encoding="utf-8").splitlines():
                 or pathlib.PurePosixPath(_line).suffix.lower() in _sh2.SKIP_SUFFIX), \
             f"{_line} is kept out of git but would be shipped by share.py"
 
+
+# 4n. in_county rebuilt the whole county table on every call - 240 re.escape calls and 240
+# f-strings per row - and the dashboard calls it once per row. 265 ms for a 600-row list, on
+# the request that has to feel instant.
+import time as _tm
+_locs = ["Bucuresti", "Cluj-Napoca", "Timi\u0219oara", "Iasi", "Remote", "Brasov, Romania",
+         "Bucuresti / Remote", "", "Otopeni", "Ploiesti"] * 60
+_t0 = _tm.perf_counter()
+for _x in _locs:
+    scrape.in_county(_x, "bucuresti")
+_ms = (_tm.perf_counter() - _t0) * 1000
+assert _ms < 60, f"in_county is back to rebuilding its table: {_ms:.0f} ms for {len(_locs)} rows"
+# ...and it still answers the cases that were wrong before: a short town inside a longer one
+for _text, _county, _want in (("Campulung Moldovenesc", "suceava", True),
+                              ("Campulung Moldovenesc", "arges", False),
+                              ("Turnu Magurele", "teleorman", True),
+                              ("Turnu Magurele", "ilfov", False),
+                              ("Timi\u0219oara", "timis", True), ("Remote", "cluj", True),
+                              ("Romania", "cluj", True), ("", "cluj", False),
+                              ("Cluj-Napoca", "bucuresti", False)):
+    assert scrape.in_county(_text, _county) is _want, f"{_text} / {_county}"
+
+# 4o. The gate re-scan ran on the event loop. Per row it is cheap; over every row a search can
+# surface it was 1.9 seconds at 761 rows, during which the progress bar does not move and the
+# dashboard does not answer.
+assert "await off(_gate_pass" in (app.HERE / "app.py").read_text(encoding="utf-8"), \
+    "the gate re-scan is back on the event loop"
+_gp = _iK.getsource(app._gate_pass)
+assert "language_gate" in _gp
+# the same verdicts, and a vetoed row the gate now accepts comes back for scoring
+_p = {"languages": [{"name": "English", "level": "Advanced"}]}
+_de = {"url": "u1", "title": "Kundenberater", "description": "Deutsch C1 erforderlich",
+       "status": "new", "lang": ""}
+_en = {"url": "u2", "title": "Production Manager", "description": "English required",
+       "status": "vetoed", "lang": ""}
+_todo, _vet, _freed = app._gate_pass(_p, [_de, _en], [dict(_de)])
+assert [v[0]["url"] for v in _vet] == ["u1"], "the German-only ad was not vetoed"
+assert [f["url"] for f in _freed] == ["u2"], "the freed row was not sent back for scoring"
+assert [t["url"] for t in _todo] == ["u2"], f"todo is wrong: {[t['url'] for t in _todo]}"
+
+# 4p. A failed score leaves fit NULL, which is exactly what the next search reads as "never
+# scored" - so an ad no model can parse was paid for again every week, for ever. Three
+# attempts; and a quota refusal says nothing about the ad, so it must not count against it.
+_src4p = (app.HERE / "app.py").read_text(encoding="utf-8")
+assert "COALESCE(tries,0) < ?" in _src4p, "unscoreable ads are retried for ever again"
+assert "status NOT IN ('applied','opened','skipped')" in _src4p, \
+    "jobs you already applied to are being scored again"
+_quota_arm = _src4p.split("if isinstance(s, llm.QuotaError):")[1].split("else:")[0]
+assert "tries" not in _quota_arm, "running out of credits counts against the ad"
+assert "tries=COALESCE(tries,0)+1" in _src4p.split("if isinstance(s, llm.QuotaError):")[1] \
+    .split("else:")[1][:200], "a real failure is not counted at all"
+
+# 4q. The four filters under "More filters" were remembered nowhere, so anyone who narrows a
+# search narrowed it again on every reload.
+for _k in ("search_fresh", "search_work_mode", "search_seniority", "search_ats"):
+    assert _k in app.DEFAULTS, f"{_k} is not saved"
+_dash4q = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+for _id in ("fresh:", "work_mode:", "seniority:", "ats:"):
+    assert _id in _dash4q.split("const SEARCH_FIELDS")[1][:400], f"{_id} is not restored"
+# '' is a real answer for these - skipping it meant Freshness could never go back to "Any age"
+assert "if(v !== undefined && v !== null) el.value = v;" in _dash4q
+
+# 4r. Every list on the profile page is built with innerHTML AFTER the server has translated
+# the document, so none of it was ever translated - and its labels were the field names:
+# "role", "desc", "start".
+_prof4r = (app.HERE / "templates" / "profile.html").read_text(encoding="utf-8")
+assert _prof4r.count("localiseDOM(") >= 5, \
+    f"only {_prof4r.count('localiseDOM(')} JS-built lists on the profile page are translated"
+assert "const LABELS" in _prof4r and "${lab(f)}" in _prof4r, "the form still labels fields by key"
+import lang as _lg
+for _en in ("Job title", "Employer", "Qualification", "What you did", "Nothing yet.",
+            "No languages yet.", "Native", "Beginner", "+ add", "Use this"):
+    assert _en in _lg.RO, f"the profile page can say {_en!r} and Romanian cannot"
+
 print("ok")
