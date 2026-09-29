@@ -246,11 +246,18 @@ KEEP_TASK = "jobhunter keep signed in"
 # Hipo's session cookie is the shortest at about six hours, and it is renewed to a full
 # six every time the site is visited. Four hours leaves room for a laptop that was asleep
 # when a run was due without letting the window close.
-# Every 45 minutes, because eJobs' access token is minted with 1.0 hours on it - measured, not
-# assumed - and a keep-alive slower than the thing it is keeping alive is decoration. Hipo's
-# session cookie runs 6 hours and BestJobs' half a year, so eJobs sets the pace for all three.
-# A visit renews it: the refresh token behind it is good for over a year.
-KEEP_MINUTES = 45
+# Every two hours, set by the only board that needs it.
+#
+# Measured by removing one cookie at a time from a copy of the session and visiting:
+#   Hipo     ctlyst_hp_sss IS the session, and a visit rolls it back to a full 6h. Miss six
+#            hours and it is gone. This is the constraint.
+#   eJobs    a visit does NOT extend a live access token (0.90h -> 0.89h), but once the token
+#            has gone a visit mints a fresh 1h one from the refresh token, which runs 13 months.
+#            So eJobs heals itself on the next visit and frequent visiting buys nothing.
+#   BestJobs ~6 months, renews on a visit. Nothing to do.
+#
+# Two hours rather than five, so the machine can sleep through a tick without losing Hipo.
+KEEP_MINUTES = 120
 DAYS = {"MON": "Monday", "TUE": "Tuesday", "WED": "Wednesday", "THU": "Thursday",
         "FRI": "Friday", "SAT": "Saturday", "SUN": "Sunday"}
 
@@ -351,10 +358,18 @@ def keep_signed_in(on):
         # Without a duration Task Scheduler is free to stop repeating; 3650 days is "until you
         # turn it off", which is what the switch on the dashboard actually means.
         f"-RepetitionDuration (New-TimeSpan -Days 3650);"
+        # No second trigger for "when the machine comes back": -StartWhenAvailable in the
+        # settings below already runs a missed repetition as soon as the PC is awake, and both
+        # -AtStartup and -AtLogOn are refused here without administrator rights - which fails
+        # the WHOLE registration and leaves the old task in place.
+        # No -WakeToRun either: waking a sleeping machine every couple of hours to hold a cookie
+        # is a poor trade, and the only board that cannot survive a night is the one this app
+        # never applies on.
         f"$s = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries "
         f"-DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew "
         f"-ExecutionTimeLimit (New-TimeSpan -Minutes 10);"
-        f"Register-ScheduledTask -TaskName '{KEEP_TASK}' -Action $a -Trigger $t -Settings $s "
+        f"Register-ScheduledTask -TaskName '{KEEP_TASK}' -Action $a -Trigger $t "
+        f"-Settings $s "
         f"-Description 'jobhunter: keep the board sign-ins alive' -Force | Out-Null")
     return "" if code == 0 else f"Windows refused to create the keep-alive task: {err[:200]}"
 

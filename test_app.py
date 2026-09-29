@@ -348,7 +348,11 @@ assert "keep_signed_in" in _i3.getsource(app.keep_signed_in)
 # Measured: eJobs' access token is minted with 1.0 hours on it, Hipo's runs 6. At four hours the
 # keep-alive was slower than the thing it was keeping alive, so eJobs was dead for three hours
 # out of every four while the dashboard showed a green dot - found by an application failing.
-assert app.KEEP_MINUTES * 60 < 3600, "must touch more often than eJobs' 1h access token"
+# Hipo's ctlyst_hp_sss IS its session and a visit rolls it back to a full 6h; miss six hours and
+# it is gone. That is the only board that needs the keep-alive at all - eJobs mints a new access
+# token from its refresh token on the next visit after expiry, and BestJobs runs six months.
+assert app.KEEP_MINUTES * 60 < 6 * 3600, "must visit inside Hipo's 6h session"
+assert app.KEEP_MINUTES >= 60, "more often than hourly buys nothing and launches a browser"
 _ksrc = _i3.getsource(app.keep_signed_in)
 assert "-RepetitionDuration" in _ksrc, \
     "a repetition with no duration is one Task Scheduler may stop repeating"

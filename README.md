@@ -166,6 +166,19 @@ invented: no employer, date, degree, tool or achievement that is not in your pro
 | Employer forms (Greenhouse, Lever, Ashby, Workable, Workday and others) | Opens the form with your details filled in and the CV attached, then stops. You read it and press submit. |
 | Anything else | Opens the ad and your tailored CV side by side. |
 
+**How long a sign-in lasts.** Measured by removing one cookie at a time from a copy of the saved
+session and reloading the board:
+
+| | |
+|---|---|
+| **eJobs** | the access token lives 1 hour, but the app mints a new one from a 13-month refresh token on the next visit after it expires. Heals itself; survives the PC being off. |
+| **BestJobs** | about six months, renewed on every visit. Effectively never expires. |
+| **Hipo** | a rolling 6 hours — every visit resets it to a full six. Stays signed in for ever while the PC is on, and lapses if it is off overnight. |
+
+*Keep me signed in* therefore visits every two hours, which is set by Hipo and nothing else. It
+does not wake a sleeping machine: the only board that cannot survive a night is the one this app
+never applies on anyway.
+
 Sign in once under *Settings → Job board accounts*. You type your password into the browser
 window that opens, never into this app. eJobs and BestJobs need it to apply; Hipo only needs it
 to read your application list (below).
