@@ -257,8 +257,6 @@ RO = {
     "Find jobs. Tailor your CV. Get hired.": "Găsește joburi. Adaptează-ți CV-ul. Angajează-te.",
     "Manual apply — you send these yourself.": "Aplicare manuală — pe astea le trimiți tu.",
     "or batch apply.": "sau aplicare în grup.",
-    "or batch apply, so nothing here is sent by accident.":
-        "sau aplicare în grup, așa că nimic de aici nu se trimite din greșeală.",
     ". Everything it knows stays in this folder.": ". Tot ce știe rămâne în acest folder.",
     "How times are shown on this page. It changes nothing that is stored.":
         "Cum sunt afișate orele pe pagină. Nu schimbă nimic din ce este salvat.",
@@ -360,16 +358,12 @@ RO = {
         "Câteva puncte în plus sau în minus schimbă mult cât pleacă, așa că pornește sus, cu o limită de una sau două, și urmărește ce alege câteva săptămâni înainte să o slăbești.",
     "— marked, not hidden, because a job worth moving for is your call. Remote and hybrid ads are never flagged, and ads that name no location are left alone.":
         "— marcat, nu ascuns, pentru că un job pentru care merită să te muți este decizia ta. Anunțurile remote și hibride nu sunt niciodată marcate, iar cele care nu spun unde sunt rămân neatinse.",
-    "Hipo lets you sign in, but the session it hands back stops working the moment it leaves its own login window, so this app cannot submit on your behalf there.":
-        "Hipo te lasă să te autentifici, dar sesiunea pe care o dă înapoi încetează să funcționeze în clipa în care iese din propria fereastră de login, așa că aplicația nu poate trimite acolo în numele tău.",
     "removes the Windows task straight away. Nothing keeps running in the background afterwards, and you can check for yourself in Task Scheduler — they are named":
         "șterge imediat sarcina din Windows. Nimic nu mai rulează în fundal după aceea, și poți verifica singur în Task Scheduler — se numesc",
     "· Separate spellings with commas — each is searched on freehire, eJobs, BestJobs and Hipo. Ads demanding a language you have not declared are skipped before scoring, so they cost nothing.":
         "· Separă variantele de scriere cu virgulă — fiecare este căutată pe freehire, eJobs, BestJobs și Hipo. Anunțurile care cer o limbă pe care nu ai declarat-o sunt sărite înainte de punctare, deci nu costă nimic.",
     "A board application sends the CV stored on your eJobs and BestJobs profile, not a tailored one. If it is out of date, every application that week is out of date. Both profile links are above.":
         "O aplicare de pe site trimite CV-ul salvat în profilul tău de eJobs și BestJobs, nu unul adaptat. Dacă este vechi, fiecare aplicare din săptămâna aceea este veche. Ambele linkuri către profiluri sunt mai sus.",
-    "takes you to the posting in your own browser, where you are already signed in. Everything else still works: they are searched, scored and you can tailor a CV to download and upload. They are never picked up by":
-        "te duce la anunț în browserul tău, unde ești deja autentificat. Restul funcționează la fel: sunt căutate, punctate și poți adapta un CV pe care să îl descarci și să îl încarci. Nu sunt niciodată preluate de",
     "a description of yourself. Separate them with commas: each one is searched on its own, so listing a job in both Romanian and English finds ads the other wording misses. Click the box for suggestions from your own CV.":
         "o descriere a ta. Separă-le cu virgulă: fiecare este căutat separat, așa că scriind un job și în română și în engleză găsești anunțuri pe care cealaltă formulare le ratează. Dă clic în casetă pentru sugestii din propriul tău CV.",
     "JPG or PNG. With no photo saved this is ignored, so the CV simply has none. A photo is normal on a CV in Romania and most of Europe; for the UK, Ireland or the US it is usually better left off, which is what the tick is for.":
@@ -756,6 +750,12 @@ RO = {
         "nesalvat",
     "Encrypted to this Windows account. It never leaves this PC.":
         "Criptat pentru acest cont Windows. Nu părăsește niciodată acest PC.",
+    "Boards this app cannot submit on. There are none at the moment: eJobs, BestJobs and Hipo all accept an application from here. A board lands in this list when its sign-in stops being accepted outside its own login window, which is where Hipo sat until its sessions began working headlessly.":
+        "Site-uri pe care aplicația nu poate trimite candidatura. Momentan nu există niciunul: eJobs, BestJobs și Hipo acceptă toate o candidatură de aici. Un site ajunge în această listă când autentificarea lui nu mai este acceptată în afara ferestrei proprii de login - exact acolo unde a fost Hipo până când sesiunile lui au început să funcționeze fără interfață.",
+    "takes you to the posting in your own browser, where you are already signed in. Anything listed here is never picked up by":
+        "te duce la anunț în browserul tău, unde ești deja autentificat. Nimic din ce apare aici nu este preluat de",
+    "or batch apply, so nothing in it is sent by accident.":
+        "sau de aplicarea în lot, așa că nimic din el nu este trimis din greșeală.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":
