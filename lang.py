@@ -435,7 +435,30 @@ RO = {
     "Leave API key empty. There is no key and none is needed - that is the point of running it here.":
         "Lasă cheia API goală. Nu există nicio cheie și nici nu e nevoie - tocmai ăsta e rostul rulării locale.",
     "Press Save & test. It asks the model one small question and tells you what came back. The first answer is slow while the model loads into memory; after that it settles.":
-        "Apasă Salvează și testează. Pune modelului o întrebare mică și îți spune ce a răspuns. Primul răspuns este lent cât se încarcă modelul în memorie; după aceea se așază.",}
+        "Apasă Salvează și testează. Pune modelului o întrebare mică și îți spune ce a răspuns. Primul răspuns este lent cât se încarcă modelul în memorie; după aceea se așază.",
+    # ---- the banner at the top of the page
+    "Signed out of":
+        "Deconectat de la",
+    "Applying to those boards fails until you sign in again, and the weekly run sends nothing that week. It re-checks before it applies, so this is the only warning you get.":
+        "Aplicarea pe acele site-uri eșuează până te autentifici din nou, iar rularea săptămânală nu trimite nimic în acea săptămână. Verifică din nou înainte să aplice, deci acesta este singurul avertisment pe care îl primești.",
+    "Sign in":
+        "Autentifică-te",
+    "Your profile is missing":
+        "Din profilul tău lipsește",
+    "your name":
+        "numele tău",
+    "an email address or a phone number":
+        "o adresă de email sau un număr de telefon",
+    "Every CV this app writes carries these across unchanged, so a CV without them reaches an employer with no way to answer it.":
+        "Fiecare CV scris de aplicație le preia neschimbate, așa că un CV fără ele ajunge la angajator fără nicio cale de a-ți răspunde.",
+    "Fill it in":
+        "Completează",
+    "No answers saved for the application questions":
+        "Niciun răspuns salvat pentru întrebările de aplicare",
+    "eJobs often attaches a short mini-interview - salary expectation, notice period, earliest start. With these blank the app leaves them blank rather than inventing a figure, and some employers will not accept that.":
+        "eJobs atașează des un scurt mini-interviu - salariul dorit, perioada de preaviz, cel mai devreme început. Cu ele goale, aplicația le lasă goale în loc să inventeze o sumă, iar unii angajatori nu acceptă asta.",
+    "Add them":
+        "Adaugă-le",}
 
 # Longest first, so replacing a short string can never eat part of a longer one that contains it.
 PAIRS = sorted(RO.items(), key=lambda kv: -len(kv[0]))

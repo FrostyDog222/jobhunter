@@ -167,6 +167,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 {% endblock %}
 
 {% block body %}
+<div id="alerts"></div>
 <div class="hero">
   <img src="/static/logo.webp" alt="jobhunter">
   <div>
@@ -579,6 +580,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 
 {% block js %}
 let JOBS = [], LLM = {}, S = {}, TPLS = {}, PAGE = 1, lastView = '', PROFILE = {}, OFFLINE = false;
+let BOARDS_IN = null;    // what the last sign-in check said, or null before it has run
 const PER_PAGE = 20;
 
 /* ---------- where each provider hands out keys ---------- */
@@ -1116,6 +1118,8 @@ async function loadSignins(){
 
   // An expired sign-in is silent otherwise: nothing fails until you try to apply, and the
   // weekly run just sends nothing that week.
+  BOARDS_IN = st.boards || null;
+  drawAlerts();
   const out = Object.entries(SBOARDS).filter(([k]) => st.boards && !st.boards[k]).map(([,n]) => n);
   $('#signedout').style.display = out.length ? 'block' : 'none';
   if(out.length)
@@ -1378,6 +1382,49 @@ async function load(){
 }
 
 /* ---------- first run: the three things to do, ticked off as they are done ---------- */
+// Everything here is silent otherwise: nothing breaks until an application is attempted, and
+// by then the weekly run has already skipped a week. Each line says what is wrong and where to
+// fix it, and disappears when it is.
+function drawAlerts(){
+  const box = $('#alerts');
+  if(!box) return;
+  const P = PROFILE || {}, out = [];
+  const missing = BOARDS_IN
+    ? Object.entries(SBOARDS).filter(([k]) => !BOARDS_IN[k]).map(([, n]) => n) : [];
+
+  if(missing.length) out.push(['bad', t('Signed out of') + ' ' + missing.join(', '),
+    t('Applying to those boards fails until you sign in again, and the weekly run sends nothing '
+    + 'that week. It re-checks before it applies, so this is the only warning you get.'),
+    t('Sign in'), () => { $('#setup').classList.add('open');
+                          $('#signinrow').scrollIntoView({block: 'center'}); }]);
+
+  // the two that stop a CV being any use to an employer who wants to reply
+  const gaps = [];
+  if(!(P.name || '').trim()) gaps.push(t('your name'));
+  if(!(P.email || '').trim() && !(P.phone || '').trim()) gaps.push(t('an email address or a phone number'));
+  if(gaps.length) out.push(['bad', t('Your profile is missing') + ' ' + gaps.join(', '),
+    t('Every CV this app writes carries these across unchanged, so a CV without them reaches an '
+    + 'employer with no way to answer it.'),
+    t('Fill it in'), () => { location.href = '/profile'; }]);
+
+  // the answers eJobs asks for before it will take an application
+  const ans = ['salary_expectation', 'notice_period', 'earliest_start']
+    .filter(k => !(P[k] || '').trim());
+  if(ans.length === 3) out.push(['warn', t('No answers saved for the application questions'),
+    t('eJobs often attaches a short mini-interview - salary expectation, notice period, earliest '
+    + 'start. With these blank the app leaves them blank rather than inventing a figure, and '
+    + 'some employers will not accept that.'),
+    t('Add them'), () => { location.href = '/profile'; }]);
+
+  box.innerHTML = out.map(([kind, title, why, label], i) =>
+    `<div class="alert ${kind === 'warn' ? 'warn' : ''}">
+       <span class="ico">${kind === 'warn' ? '&#9888;' : '&#9888;'}</span>
+       <span class="body"><b>${esc(title)}</b><span class="muted">${esc(why)}</span></span>
+       <a class="act" href="#" data-alert="${i}">${esc(label)} &rsaquo;</a></div>`).join('');
+  box.onclick = e => { const i = e.target.closest('[data-alert]');
+    if(i){ e.preventDefault(); out[+i.dataset.alert][4](); } };
+}
+
 function steps(){
   const hasProfile = (PROFILE.experience || []).length || (PROFILE.skills || []).length;
   const s = [
@@ -1396,6 +1443,7 @@ function steps(){
     + 'You only need them to apply, not to search.</div>';
   $('#steps').onclick = e => { const i = e.target.dataset.step;
     if(i !== undefined){ e.preventDefault(); s[i][2](); } };
+  drawAlerts();    // the same moment the checklist is recomputed, on every load and action
   localiseDOM();   // this panel is innerHTML, so the server pass never saw it
 }
 

@@ -80,6 +80,20 @@ label{display:block;font-size:12px;color:var(--dim);margin:8px 0 3px;text-transf
 .row{display:flex;gap:10px;flex-wrap:wrap} .row>*{flex:1;min-width:150px}
 .muted{color:var(--dim);font-size:13px}
 a{color:var(--accent)} a:hover{text-decoration:none}
+/* The banner at the top of the page. Loud on purpose - everything in it is something that
+   silently stops the app doing its job, and none of it announces itself otherwise. */
+#alerts{margin:0 0 4px}
+#alerts .alert{display:flex;gap:10px;align-items:flex-start;margin:8px 0;padding:11px 13px;
+  border-radius:9px;border:1px solid color-mix(in srgb,var(--bad) 45%,var(--line));
+  background:color-mix(in srgb,var(--bad) 9%,transparent)}
+#alerts .alert.warn{border-color:color-mix(in srgb,var(--mid) 45%,var(--line));
+  background:color-mix(in srgb,var(--mid) 9%,transparent)}
+#alerts .alert .ico{font-size:15px;line-height:1.35;flex:0 0 auto;color:var(--bad)}
+#alerts .alert.warn .ico{color:var(--mid)}
+#alerts .alert .body{flex:1;min-width:0}
+#alerts .alert b{display:block;font-size:14px;margin-bottom:2px}
+#alerts .alert .muted{font-size:12.8px}
+#alerts .alert a.act{white-space:nowrap;font-weight:600;font-size:13px;align-self:center}
 .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--dim)}
 h2{font-size:15px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
 /* Appears once you are past a screenful. Bottom-right, clear of the toast in the middle. */

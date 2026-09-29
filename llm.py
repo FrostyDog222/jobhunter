@@ -166,7 +166,20 @@ def _content(provider, data):
                        if isinstance(b, dict) and b.get("type") == "text") if isinstance(blocks, list) else ""
     choices = data.get("choices") or [{}]
     msg = (choices[0] or {}).get("message") or {}
-    return msg.get("content") or ""
+    text = msg.get("content") or ""
+    # A reasoning model that never stops. Measured on gemma4:12b with this app's own scoring
+    # prompt: empty content and finish_reason "length" at 4,000 tokens, at 8,000 and at 16,000,
+    # with 63,000 characters of reasoning and no answer - so no ceiling rescues it. Deliberately
+    # NOT salvaging JSON out of msg["reasoning"] either: that text is full of drafts the model
+    # went on to reject, and returning one is a confident wrong score rather than a failure.
+    # What it needs is a name, because "did not return JSON:" with nothing after the colon
+    # describes neither the cause nor the cure.
+    if not text.strip() and (msg.get("reasoning") or "").strip():
+        raise RuntimeError(
+            f"{provider} spent its whole reply thinking and never wrote an answer. That model "
+            f"reasons before it speaks, which this app's prompts do not leave room for - "
+            f"choose a plain instruct model instead (llama3.1:8b and llama3.2 are safe).")
+    return text
 
 
 def _entry(name, model=None):
