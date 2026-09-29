@@ -91,7 +91,7 @@ def bestjobs(query, limit=25, timeout=30):
             continue
         flags = []
         if j.get("hasOwnApplyUrl"):
-            flags.append("applies on the employer site")
+            flags.append(EXTERNAL_NOTE)
         jobs.append({
             "source": "bestjobs",
             "url": BESTJOBS_AD.format(slug=slug),
@@ -111,7 +111,7 @@ def bestjobs(query, limit=25, timeout=30):
             # BestJobs' own measure of whether this employer answers applications. The only
             # signal anywhere in this app about the employer's behaviour rather than the
             # candidate's fit, and 1 in 4 ads carry it.
-            "responsive": 1 if j.get("responsive") is True else 0,
+            "responsive": 1 if j.get("responsive") is True else None,
             "note": " · ".join(flags),
             "lang": "",
             "_full": False,

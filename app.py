@@ -213,7 +213,10 @@ def _migrate_days(s):
     if not s.get("auto_days") and s.get("auto_day") in DAYS:
         s["auto_days"] = [s["auto_day"]]
     s.pop("auto_day", None)
-    days = [d for d in (s.get("auto_days") or []) if d in DAYS]
+    saved = s.get("auto_days") or []
+    # settings() runs on nearly every request and does not catch TypeError, so a hand-edited
+    # "auto_days": 5 would 500 the whole app rather than falling back the way a bad file should
+    days = [d for d in saved if d in DAYS] if isinstance(saved, (list, tuple)) else []
     s["auto_days"] = days or ["SUN"]
     return s
 
@@ -1611,7 +1614,7 @@ async def _search(body, p):
     # these rows, because they never get as far as the insert.
     again = [j for j in found if j["url"] in known
              and (j.get("applicants") is not None or j.get("responsive") is not None
-                  or (j.get("salary") or "").strip())]
+                  or (j.get("salary") or "").strip() or (j.get("pay_est") or "").strip())]
     if again:
         with db() as c:
             for j in again:
@@ -2181,8 +2184,23 @@ async def apply_batch(body: dict = Body(...)):
         elif res.get("external"):
             # live, just not one-clickable from here - say so on the card instead of hiding it
             with db() as c:
-                c.execute(f"UPDATE jobs SET note='{EXTERNAL_NOTE}' "
-                          "WHERE url=? AND status != 'applied'", (url,))
+                c.execute("UPDATE jobs SET note = CASE WHEN COALESCE(note,'') = '' "
+                          "THEN ? ELSE note || ' \u00b7 ' || ? END "
+                          "WHERE url=? AND status != 'applied' "
+                          "AND COALESCE(note,'') NOT LIKE ?",
+                          (EXTERNAL_NOTE, EXTERNAL_NOTE, url, f"%{EXTERNAL_NOTE}%"))
+        elif res.get("needs_you"):
+            # Screening questions: normally open it for the person, and take it out of the next
+            # batch either way. hand_off=False is the scheduled run, where opening a window at
+            # 09:00 on a Sunday just leaves Chromium sitting on an empty desk.
+            #
+            # Ahead of clicked, because the "sent the mini interviu but saw no confirmation"
+            # path sets both. Tested the other way round, that job was filed as pressed-and-
+            # forgotten and never opened for anyone - while the run's own report went on saying
+            # "needs you: screening questions" about it.
+            if body.get("hand_off", True):
+                prefill.spawn_board(url, j["title"])
+            _handed_over(url)
         elif res.get("clicked"):
             # Pressed, not confirmed. Recorded as done-for-now rather than left untouched:
             # leaving it 'new' put it straight back into next week's list and applied twice.
@@ -2191,13 +2209,6 @@ async def apply_batch(body: dict = Body(...)):
                           "THEN 'opened' ELSE status END, "
                           "note='pressed apply, no confirmation seen - check the board' "
                           "WHERE url=?", (url,))
-        elif res.get("needs_you"):
-            # Screening questions: normally open it for the person, and take it out of the next
-            # batch either way. hand_off=False is the scheduled run, where opening a window at
-            # 09:00 on a Sunday just leaves Chromium sitting on an empty desk.
-            if body.get("hand_off", True):
-                prefill.spawn_board(url, j["title"])
-            _handed_over(url)
         results.append({"url": url, "title": j["title"], "submitted": res.get("submitted"),
                         "already": res.get("already"), "needs_you": res.get("needs_you"),
                         "error": res.get("error")})

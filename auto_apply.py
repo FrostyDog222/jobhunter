@@ -85,6 +85,11 @@ def run(app, prefill, settings, log):
             log(f"could not read the saved sign-in for {board}: {type(e).__name__}")
             continue
         if not saved:
+            if creds.status().get(board, {}).get("stopped"):
+                # get() returns None for ever once the budget is spent, and said nothing about
+                # it - so the whole symptom was weeks that quietly sent nothing
+                log(f"{board}: the saved sign-in is switched off after {creds.MAX_FAILS} "
+                    f"failures - save it again under Settings to re-enable it")
             continue
         log(f"{board}: signed out, trying the sign-in you saved")
         ok, why = prefill.auto_signin(board, *saved)
@@ -93,7 +98,11 @@ def run(app, prefill, settings, log):
             creds.note_success(board)
             usable.append(board)
             out.remove(board)
-        else:
+        elif ok is False:
+            # False is the board rejecting the password. None is everything else auto_signin
+            # can fail on - no form, no button, a timeout, a 502 - and none of that is evidence
+            # about the password, so it must not spend a strike. Two runs during a wifi outage
+            # used to disable the saved sign-in permanently.
             left = creds.MAX_FAILS - creds.note_failure(board)
             if left <= 0:
                 log(f"{board}: not trying the saved sign-in again until you save it afresh")
