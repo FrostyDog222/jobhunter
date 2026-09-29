@@ -180,12 +180,17 @@ assert _match("hipo", "aplica fara cv") and _match("hipo", "aplică fără cv")
 assert _match("hipo", "apply to this job") and _match("hipo", "apply without cv")
 # a nearby-but-wrong control must still not match
 assert not _match("hipo", "apply with linkedin")
-# Hipo never reaches board_apply: it is manual-apply, and every route in is behind
-# apply_mode(...) == "auto". The screening-form handling written for it was unreachable and is
-# gone; this asserts it stays that way rather than quietly coming back.
-assert not hasattr(_pf, "HIPO_Q") and not hasattr(_pf, "_hipo_form")
-assert "hipo" in _pf.MANUAL_APPLY and "hipo" not in _pf.AUTO_APPLY
-assert 'board == "hipo"' not in _i.getsource(_pf.board_apply)
+# Hipo became an apply-on board once a sign-in made headlessly was accepted by a separate
+# headless context - so its own form handling has to be present and reachable. Its apply page
+# is a real form, not a one-click: it asks which CV to send and whether to attach a letter, and
+# its questions are named intrebari[<id>], which is what keeps the cover-letter box from reading
+# as an unanswered question and blocking every send.
+assert "hipo" in _pf.AUTO_APPLY and "hipo" not in _pf.MANUAL_APPLY
+assert "intrebari" in _pf.HIPO_Q and "scrisoare" not in _pf.HIPO_Q
+assert 'board == "hipo"' in _i.getsource(_pf.board_apply), "the form is never preselected"
+assert "idcv" in _i.getsource(_pf._hipo_form), "the CV on the Hipo profile is never chosen"
+# the cover letter is deliberately left OFF rather than written by a model in his name
+assert "scrisoareFara" in _i.getsource(_pf._hipo_form)
 # Hipo confirms with "Ati aplicat deja la acest job" - the words the other way round from
 # "deja aplicat", so a real application read as "saw no confirmation" until this was added
 assert any(m in "ati aplicat deja la acest job" for m in _pf.BOARD_UI["hipo"]["applied"])
@@ -1822,10 +1827,16 @@ assert "/api/profile/restore" in _prof5c, "the previous copy still has no door"
 assert "clearTimeout(_timer)" in _prof5c.split("#restore")[1][:600], \
     "restoring leaves the pending autosave to put the old profile straight back"
 
-# 5d. Hipo cannot reach board_apply, so nothing there may pretend to handle it. (The selector
-# and the form-preselect written for it were unreachable and are gone; see 1n.)
+# 5d. Every board board_apply handles must be able to arrive there, and every board that can
+# arrive must be handled. It was Hipo failing the first half of that until its sessions started
+# being accepted outside the window that created them; now it is a standing invariant either way.
 _bsrc = _iK.getsource(_pfm.board_apply)
-assert "hipo" not in _bsrc.lower(), "board_apply is handling a board that never arrives"
+assert not (set(_pfm.AUTO_APPLY) & set(_pfm.MANUAL_APPLY)), "a board cannot be both"
+for _b in _pfm.AUTO_APPLY:
+    assert _b in _pfm.BOARD_UI, f"{_b} can be applied on with no UI description"
+for _b in ("ejobs", "bestjobs", "hipo"):
+    if f'board == "{_b}"' in _bsrc:
+        assert _b in _pfm.AUTO_APPLY, f"board_apply handles {_b}, which never arrives there"
 
 
 # 5e. BestJobs answers `applications` for every ad in the response this app already makes, and
@@ -2039,5 +2050,19 @@ assert "password" not in _assrc.split("return False, f\"{type(e).__name__}")[1][
 _as2 = _iK.getsource(_pfm.auto_signin)
 assert "def visible(sel)" in _as2 and "is_visible()" in _as2,     "auto_signin is back to taking the first field in document order"
 assert "query_selector(form[" not in _as2, "a single query_selector can pick a hidden copy"
+
+
+# 5m. Hipo confirms an application by removing the apply button and saying nothing else - no
+# "ai aplicat", no message at all, the string "aplic" gone from the whole page. Found by running
+# what I thought was a dry run and then seeing the application on Hipo's own list.
+_hsrc = _iK.getsource(_pfm.board_apply)
+assert 'if board == "hipo" and not apply_control(page, board)' in _hsrc,     "a sent Hipo application is filed as 'pressed apply, no confirmation seen'"
+assert _hsrc.index('board == "hipo" and not apply_control') < _hsrc.index("It may well have gone"),     "the Hipo check must run before the gave-up branch, or it never runs"
+# ...and the same absence BEFORE clicking means either closed or already applied, which cannot
+# be told apart from that page - so it must not be reported as closed and hide a real application
+assert 'elif board == "hipo":' in _hsrc
+_closed_arm = _hsrc.split('elif board == "hipo":')[1].split("else:")[0]
+assert "already applied" in _closed_arm, "a Hipo job you applied to can still be filed as closed"
+assert 'out["closed"] = True' not in _closed_arm, "the Hipo arm still marks the posting closed"
 
 print("ok")

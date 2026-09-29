@@ -725,8 +725,12 @@ BOARD_UI = {
 # loc de munca" and the interview is optional afterwards. The chat is never automated: the
 # mini-interview filler keys off eJobs' own "Mini interviu" wording, so on BestJobs it finds
 # nothing and the run reports back instead of typing answers as you.
-AUTO_APPLY = ("ejobs", "bestjobs")
-MANUAL_APPLY = ("hipo",)
+# Hipo joined these on 2026-09-29. It was manual because a sign-in made in the app's window was
+# not accepted anywhere else; that stopped being true once every context shared one browser
+# identity, and it was proved three times over by signing out completely and back in from a
+# saved password, then reading a members-only page from a separate headless context.
+AUTO_APPLY = ("ejobs", "bestjobs", "hipo")
+MANUAL_APPLY = ()
 
 
 def apply_mode(source):
@@ -926,6 +930,11 @@ def apply_control(page, board):
             continue
     return None
 MINI = ("mini interviu", "mini-interviu")
+# Hipo asks the same kind of screening questions on its own /candidat/aplica/ page, and names
+# every one of them intrebari[<id>]. Scoping to that name is what keeps the cover-letter box on
+# the same form from being read as an unanswered question, which would block every send.
+HIPO_Q = ('textarea[name^="intrebari"], input[type=text][name^="intrebari"], '
+          'select[name^="intrebari"]')
 # Questions no CV answers. The app never guesses these - it only repeats what you wrote on the
 # profile page, and leaves the box empty when you have not.
 PERSONAL = (
@@ -950,6 +959,17 @@ def mini_interview(page, board=""):
     Scoped to the dialog. Matching the whole page would pick up the site's own search box and
     type an LLM answer into it, then count it as an unanswered question and refuse to send.
     """
+    if board == "hipo":
+        # Hipo's questions live on their own page rather than in a dialog, and carry a name we
+        # can match exactly - so the scoping the other boards need does not apply.
+        out = []
+        for el in page.query_selector_all(HIPO_Q):
+            try:
+                if el.is_visible() and el.is_editable():
+                    out.append(el)
+            except Exception:
+                continue
+        return out
     if not any(m in page.inner_text("body").lower() for m in MINI):
         return []
     sel = "textarea, input[type=text], select"
@@ -972,6 +992,26 @@ def mini_interview(page, board=""):
         except Exception:
             continue
     return out
+
+
+def _hipo_form(page, out):
+    """Hipo's application page asks for a CV and a cover letter as well as the questions.
+
+    The CV is the one already on the Hipo profile - a board apply has always sent that rather
+    than the tailored PDF. The cover letter is left OUT rather than generated: writing one in
+    the candidate's name without being asked is not this app's call.
+    """
+    try:
+        cvs = [e for e in page.query_selector_all('input[name="idcv"]') if e.is_visible()]
+        if cvs and not any(c.is_checked() for c in cvs):
+            cvs[0].check()
+            out.setdefault("filled", [])
+            out["notes"] = (out.get("notes") or []) + ["picked the CV on your Hipo profile"]
+        none_letter = page.query_selector("#scrisoareFara")
+        if none_letter and none_letter.is_visible() and not none_letter.is_checked():
+            none_letter.check()
+    except Exception as e:
+        print(f"[hipo] could not preselect the form: {type(e).__name__}: {e}")
 
 
 def board_apply(url, headless=True, profile=None, job_title="", auto_send=False):
@@ -1025,6 +1065,14 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=False)
                     # fires - which filed every remaining job in the batch as "closed on the
                     # board": permanently skipped, never applied to, and never mentioned.
                     out["error"] = f"not signed in to {board}"
+                elif board == "hipo":
+                    # Hipo removes the apply button both when the posting closes AND when you
+                    # have already applied, with no text either way - so the two are
+                    # indistinguishable from this page alone. Saying "closed" would hide a job
+                    # you applied to; this says what is actually known.
+                    out["error"] = ("no apply button on this Hipo posting - either it closed or "
+                                    "you have already applied. Import my Hipo applications "
+                                    "under Settings will tell you which.")
                 else:
                     out["closed"] = True
                     out["error"] = "this posting is closed - the board offers no way to apply"
@@ -1037,8 +1085,14 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=False)
                 if any(m in body for m in markers):
                     out["submitted"] = True
                     return out
+                if board == "hipo":
+                    _hipo_form(page, out)
                 fields = mini_interview(page, board)
-                if fields:
+                # Plenty of Hipo employers ask nothing at all. Gating the send on there being
+                # questions would leave those applications filled in and never sent - the form
+                # itself being open is what says we have somewhere to send.
+                on_form = board == "hipo" and "/candidat/aplica/" in page.url
+                if fields or on_form:
                     out["questions"] = [_question(f)[:160] for f in fields]
                     out["filled"] = _fill_mini(page, fields, profile, job_title)
                     blank = [_question(f)[:120] for f in fields
@@ -1066,6 +1120,14 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=False)
                     out["clicked"] = True
                     out["error"] = "sent the mini interviu but saw no confirmation - check it"
                     return out
+
+            # Hipo says nothing when it works: it removes the apply button and leaves no
+            # message at all. So for Hipo the button being gone, on a page we are still on, IS
+            # the confirmation - and it is the only one there is. Without this a sent
+            # application was filed as "pressed apply, no confirmation seen".
+            if board == "hipo" and not apply_control(page, board):
+                out["submitted"] = True
+                return out
 
             # It may well have gone. On eJobs a one-click apply IS the application, and a page
             # that confirms slower than we waited looks identical to one that did nothing.

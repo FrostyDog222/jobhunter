@@ -199,14 +199,18 @@ Sign in once under *Settings → Job board accounts*. You type your password int
 window that opens, never into this app. eJobs and BestJobs need it to apply; Hipo only needs it
 to read your application list (below).
 
-**Why Hipo is manual.** Its sign-in works inside this app and its apply button is there, but
-the session it hands back is not accepted once you leave that window: the cookies are captured
-and restored intact, are hours from expiry, and are still refused. Something binds it to the
-live browser. So Hipo opens in your own browser, where you are already signed in properly.
+**Hipo applies like the others now.** It used to be manual because a sign-in made in this app
+was not accepted once you left the window that made it. That stopped being true when every
+browser context here was given one identity, and it was checked properly: signed out completely,
+signed back in headlessly from a saved password, and a members-only page then read from a
+separate headless context. Three boards, three times, all pass.
 
-It costs little in practice. Hipo's ads score like every other board's — the top of its list is
-worth reading, and the automatic apply floor is set high enough that few ads from any board
-reach it.
+One thing to know about it: **Hipo confirms nothing.** When an application goes through it
+removes the apply button and says nothing at all — no message, no badge, the word "aplică" gone
+from the page entirely. So the button's absence is the confirmation, and the app reads it that
+way. The same absence also appears when a posting simply closes, and those two cannot be told
+apart from the page, so a Hipo job with no apply button is reported as "either it closed or you
+already applied" rather than guessed at. *Import my Hipo applications* settles it.
 
 **A board application sends the CV stored on your board profile**, not the tailored PDF. Keep
 those profiles current — the links are under *Settings*.
