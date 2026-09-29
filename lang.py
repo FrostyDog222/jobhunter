@@ -458,7 +458,20 @@ RO = {
     "eJobs often attaches a short mini-interview - salary expectation, notice period, earliest start. With these blank the app leaves them blank rather than inventing a figure, and some employers will not accept that.":
         "eJobs atașează des un scurt mini-interviu - salariul dorit, perioada de preaviz, cel mai devreme început. Cu ele goale, aplicația le lasă goale în loc să inventeze o sumă, iar unii angajatori nu acceptă asta.",
     "Add them":
-        "Adaugă-le",}
+        "Adaugă-le",
+    # ---- choosing a local model
+    "Free, and nothing leaves this PC — not even the job ads. You can leave a hosted provider first and keep Ollama behind it as a backstop for when a free tier runs dry.":
+        "Gratuit, și nimic nu pleacă de pe acest PC — nici măcar anunțurile. Poți lăsa un furnizor online primul și să ții Ollama în spate, ca rezervă pentru când un plan gratuit se golește.",
+    "⚠ Expect it to be much slower.":
+        "⚠ Așteaptă-te să fie mult mai lent.",
+    "A hosted model scores an ad in a second or two; a local one takes tens of seconds, and a search scores dozens of ads. A run that takes two minutes in the cloud can take half an hour here.":
+        "Un model online punctează un anunț în una-două secunde; unul local ia zeci de secunde, iar o căutare punctează zeci de anunțuri. O rulare care durează două minute în cloud poate dura o jumătate de oră aici.",
+    "Pick a 7B–14B instruct model, and avoid reasoning models.":
+        "Alege un model instruct de 7B–14B și evită modelele care raționează.",
+    "are safe choices. Anything that thinks before it answers — names with":
+        "sunt alegeri sigure. Orice model care gândește înainte să răspundă — nume cu",
+    ", and several of the newest gemma and qwen builds — writes its reasoning instead of the answer and this app gets nothing back. Models under about 7B tend to return JSON of the wrong shape, which shows up as jobs that never get a score.":
+        ", și câteva dintre cele mai noi versiuni gemma și qwen — își scrie raționamentul în loc de răspuns, iar aplicația nu primește nimic. Modelele sub circa 7B tind să returneze JSON de forma greșită, ceea ce se vede ca joburi care nu primesc niciodată un scor.",}
 
 # Longest first, so replacing a short string can never eat part of a longer one that contains it.
 PAIRS = sorted(RO.items(), key=lambda kv: -len(kv[0]))

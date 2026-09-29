@@ -209,10 +209,21 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <summary style="cursor:pointer;font-size:13.5px;color:var(--accent)">
       Running the model on your own PC with Ollama — step by step</summary>
     <div class="muted" style="font-size:13px;margin-top:8px;line-height:1.65">
-      <p style="margin:0 0 8px">Free, and nothing leaves this PC — not even the job ads. It is
-        slower per ad than a hosted provider, so it suits a small search or a machine with a
-        good graphics card. You can leave a hosted provider first and keep Ollama behind it as
-        a backstop for when a free tier runs dry.</p>
+      <p style="margin:0 0 8px">Free, and nothing leaves this PC — not even the job ads. You
+        can leave a hosted provider first and keep Ollama behind it as a backstop for when a
+        free tier runs dry.</p>
+      <p style="margin:0 0 10px;padding:8px 10px;border-radius:7px;
+         border:1px solid color-mix(in srgb,var(--mid) 45%,var(--line));
+         background:color-mix(in srgb,var(--mid) 8%,transparent)">
+        <b style="color:var(--mid)">⚠ Expect it to be much slower.</b> A hosted model scores an
+        ad in a second or two; a local one takes tens of seconds, and a search scores dozens of
+        ads. A run that takes two minutes in the cloud can take half an hour here.</p>
+      <p style="margin:0 0 8px"><b>Pick a 7B–14B instruct model, and avoid reasoning models.</b>
+        <code>llama3.1:8b</code>, <code>qwen2.5:7b</code> and <code>mistral:7b</code> are safe
+        choices. Anything that thinks before it answers — names with <code>r1</code>, and
+        several of the newest gemma and qwen builds — writes its reasoning instead of the answer
+        and this app gets nothing back. Models under about 7B tend to return JSON of the wrong
+        shape, which shows up as jobs that never get a score.</p>
       <ol id="ollamasteps" style="margin:0;padding-left:20px"></ol>
     </div>
   </details>
