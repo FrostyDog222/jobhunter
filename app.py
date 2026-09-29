@@ -1505,8 +1505,23 @@ async def _search(body, p):
     step("reading the ads", 0, max(1, len(new_urls)))
     # hydrate reports each page as it lands: this phase is a minute or more on a real search,
     # and a bar that does not move for a minute is the same as no bar at all
+    read_report = {}
     fresh = await off(lambda: scrape.hydrate(
-        new_urls, on_progress=lambda d, t: step("reading the ads", d, t)))
+        new_urls, on_progress=lambda d, t: step("reading the ads", d, t),
+        report=read_report))
+
+    # An ad whose detail page did not answer is skipped inside hydrate, and was skipped in
+    # silence: a board rate-limiting us for a minute could swallow twenty of thirty and the
+    # search still reported success. Nothing is lost for ever - they are still unknown urls, so
+    # the next run fetches them again - but "found 30, new 4" with no reason is not something
+    # anyone can act on.
+    # Only the ones whose page never answered. Everything else hydrate drops - a career fair,
+    # an ad past its closing date, the same posting from two boards - is a correct drop and
+    # would make this warning meaningless.
+    if read_report.get("unread"):
+        warnings.append(f"{read_report['unread']} of {len(new_urls)} ads could not be read this "
+                        f"time - the board did not answer. Nothing is lost: they are still "
+                        f"unseen, so the next search fetches them again.")
 
     # Now that each ad declares where it is, hold the boards to the county that was asked for.
     # Hipo ignores a county name outright and answers with the whole country instead - measured,

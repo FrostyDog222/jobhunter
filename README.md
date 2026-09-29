@@ -154,9 +154,14 @@ Sign in once under *Settings → Job board accounts*. You type your password int
 window that opens, never into this app. eJobs and BestJobs need it to apply; Hipo only needs it
 to read your application list (below).
 
-**Why Hipo is manual.** Not because it cannot be automated — its sign-in works and its apply
-button is there. It is manual on the numbers: of its 118 stored jobs, none score 85 or above and
-112 are under 50, so automating it would send nothing worth sending.
+**Why Hipo is manual.** Its sign-in works inside this app and its apply button is there, but
+the session it hands back is not accepted once you leave that window: the cookies are captured
+and restored intact, are hours from expiry, and are still refused. Something binds it to the
+live browser. So Hipo opens in your own browser, where you are already signed in properly.
+
+It costs little in practice. Hipo's ads score like every other board's — the top of its list is
+worth reading, and the automatic apply floor is set high enough that few ads from any board
+reach it.
 
 **A board application sends the CV stored on your board profile**, not the tailored PDF. Keep
 those profiles current — the links are under *Settings*.
@@ -242,6 +247,20 @@ receives it could apply to jobs as you.
 They can equally get it themselves from GitHub — see [Getting it](#getting-it) — which is the
 better route, since it is always the current version. The zip is for handing it to someone with
 no internet at that moment, or for pinning them to the version you are running.
+
+## Erasing everything
+
+At the bottom of the Profile tab, **Erase everything** removes every trace of you from this
+folder: your profile and photo, every job found and scored, the applied history, the CVs written
+for you, the board sign-ins, your settings, and the two Windows scheduled tasks. It asks twice
+and the second answer has to be typed, because nothing here can bring any of it back — the
+previous-copy file goes with the rest.
+
+Two things it cannot reach: applications already sent to an employer stay sent, and your account
+on eJobs, BestJobs or Hipo is untouched. It signs this app out of them; it does not close them.
+
+Use it before handing the PC to someone else. Deleting the folder does the same job, apart from
+the scheduled tasks, which would stay behind and fail quietly every week.
 
 ## Moving to a new PC (keeping your own data)
 

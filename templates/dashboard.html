@@ -1835,7 +1835,15 @@ $('#list').addEventListener('click', async e => {
   }, {tailor:'writing CV...', send:'sending, ~15s...', apply:'opening...'}[act] || '...');
 });
 
-loadLlm();
+// Unguarded, this one left the whole model panel empty and said nothing: no providers in the
+// dropdown, no key field to fill, and no way to tell that the page had failed rather than that
+// nothing was set up yet. It is also the panel everything else depends on.
+loadLlm().catch(e => {
+  $('#llmnow').textContent = t('Could not read the AI model settings.');
+  toast(t('The AI model panel could not load. The app itself is fine - reload the page, and if '
+        + 'it keeps happening check the black window for an error.'), 9000);
+  console.error(e);
+});
 loadSignins();
 api('/api/cv/templates', undefined, 'GET').then(t => { TPLS = t; return loadSettings(); }).catch(()=>{});
 loadGaps();

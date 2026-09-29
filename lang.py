@@ -581,6 +581,54 @@ RO = {
         "arată bine oricum",
     "Default template: {name}.":
         "Șablon implicit: {name}.",
+    "Could not read the AI model settings.":
+        "Nu am putut citi setările modelului AI.",
+    "The AI model panel could not load. The app itself is fine - reload the page, and if it keeps happening check the black window for an error.":
+        "Panoul modelului AI nu s-a putut încărca. Aplicația în sine funcționează - reîncarcă pagina, iar dacă se repetă, verifică fereastra neagră pentru o eroare.",
+    "searching...":
+        "caut...",
+    "parsing...":
+        "citesc...",
+    "thinking...":
+        "mă gândesc...",
+    "starting...":
+        "pornesc...",
+    "testing...":
+        "testez...",
+    "loading...":
+        "încarc...",
+    "uploading...":
+        "încarc...",
+    "clearing...":
+        "șterg...",
+    "erasing...":
+        "șterg tot...",
+    "queueing...":
+        "adaug la coadă...",
+    "applying...":
+        "aplic...",
+    "reading CV...":
+        "citesc CV-ul...",
+    "reading Hipo...":
+        "citesc Hipo...",
+    "writing CV...":
+        "scriu CV-ul...",
+    "opening...":
+        "deschid...",
+    "sending, ~15s...":
+        "trimit, ~15s...",
+    "applying, ~15s each...":
+        "aplic, ~15s fiecare...",
+    "Could not reach the website or the app. Check your internet connection, and that the black run.bat window is still open.":
+        "Nu am putut ajunge la site sau la aplicație. Verifică conexiunea la internet și că fereastra neagră run.bat este încă deschisă.",
+    "The AI model has used up its free quota for now. Wait a few minutes, or add another provider key under Settings.":
+        "Modelul AI și-a consumat cota gratuită deocamdată. Așteaptă câteva minute sau adaugă cheia altui furnizor în Setări.",
+    "The API key was refused. Open Settings and paste it again.":
+        "Cheia API a fost refuzată. Deschide Setări și lipește-o din nou.",
+    "The app hit an internal error. Close the black window and double-click run.bat again.":
+        "Aplicația a întâmpinat o eroare internă. Închide fereastra neagră și dă dublu-clic pe run.bat din nou.",
+    "Fill in your profile first: open the Profile tab and upload your CV.":
+        "Completează-ți mai întâi profilul: deschide fila Profil și încarcă-ți CV-ul.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

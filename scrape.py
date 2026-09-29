@@ -411,9 +411,11 @@ def freehire(query, country="ro", limit=25, timeout=30, filters=None):
 def health(source, jobs, seen_before):
     """Scrapers rot silently: a portal changes its markup and the parser still exits cleanly with
     zero rows or blank fields. Returns a complaint string, or "" when the source looks fine.
-    A source that simply has no matches today is not broken - hence seen_before."""
+    The empty case is not here: the caller checks it at phase 1, against what the board
+    actually returned, because by the time these rows exist "nothing" and "nothing NEW" look
+    identical and the second one is the normal result of searching twice."""
     if not jobs:
-        return f"{source}: 0 results but {seen_before} stored previously - parser may be broken"             if seen_before else ""
+        return ""
     blank = lambda k: sum(1 for j in jobs if not (j.get(k) or "").strip()) == len(jobs)
     if blank("title"):
         return f"{source}: every title empty - parser broken"
@@ -627,11 +629,14 @@ def _closed(valid_through):
 FETCH_WORKERS = 5
 
 
-def hydrate(jobs, timeout=30, on_progress=None):
+def hydrate(jobs, timeout=30, on_progress=None, report=None):
     """Phase 2: fetch the detail page only for jobs that survived deduplication. This is where
     the requests are, so the caller should drop everything it already knows about first.
 
     on_progress(done, total) is called as pages arrive, so a caller can show where it is up to.
+    report, if given, comes back with {"unread": n}: postings whose page never answered. They
+    are dropped here, and were dropped in silence - a board rate-limiting us for a minute could
+    swallow twenty of thirty and the search still reported success.
     """
     todo = [j for j in jobs if not j.get("_full")]
     if not todo:
@@ -649,6 +654,8 @@ def hydrate(jobs, timeout=30, on_progress=None):
                 if on_progress:
                     on_progress(done, len(todo))
                 if page is None:
+                    if report is not None:
+                        report["unread"] = report.get("unread", 0) + 1
                     continue
                 jp = _jobposting(page)
                 markup = _markup(j["source"], page)

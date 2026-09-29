@@ -1675,4 +1675,50 @@ for _need in ('role="button"', 'tabindex="0"', "aria-pressed", "keydown"):
         or _need in _dash4u.split("function pickTemplate")[1][:900], \
         f"the CV template cards are still mouse-only: no {_need}"
 
+
+# 4v. An ad whose page never answered was dropped inside hydrate without a word, so a board
+# rate-limiting us for a minute could swallow twenty of thirty and the search still reported
+# success. Counted now - and only those: a career fair, an ad past its closing date and the same
+# posting from two boards are dropped in the same loop and are all correct.
+_rep = {}
+_dead = {"source": "ejobs", "url": "http://127.0.0.1:9/nope", "title": "t", "company": "",
+         "location": "", "posted": "", "description": "", "note": "", "salary": "",
+         "lang": "", "_full": False}
+assert scrape.hydrate([_dead], timeout=2, report=_rep) == []
+assert _rep == {"unread": 1}, _rep
+assert "read_report" in _src4p or "read_report" in (app.HERE / "app.py").read_text(encoding="utf-8")
+# health()'s empty-list branch could never run - the caller guarded the whole call with
+# `if rows`. The check itself is not missing: it is done at phase 1, where "nothing" can still
+# be told apart from "nothing new". The dead copy is gone so nobody fixes the unreachable one.
+assert scrape.health("ejobs", [], 500) == ""
+assert "0 results but" in (app.HERE / "app.py").read_text(encoding="utf-8")
+# the checks that DO run still do
+assert "parser broken" in scrape.health("ejobs", [{"title": "", "company": "x"}], 0)
+assert "entities not decoded" in scrape.health(
+    "ejobs", [{"title": "Sales &amp; Marketing", "company": "x"}], 0)
+assert scrape.health("ejobs", [{"title": "Manager", "company": "ACME"}], 0) == ""
+
+# 4w. Every button you press said "saving..." in English, and so did every error the app can
+# explain: busy() printed the label it was handed and friendly() returned its replacement text,
+# and neither went through t().
+_base4w = (app.HERE / "templates" / "base.html").read_text(encoding="utf-8")
+assert "t(label || 'working...')" in _base4w, "busy labels are still English"
+assert "return t(hit ? hit[1] : String(m));" in _base4w, "explained errors are still English"
+for _en in ("saving...", "searching...", "working...", "writing CV...", "applying, ~15s each...",
+            "The API key was refused. Open Settings and paste it again."):
+    assert _en in _lg.RO, f"the app can say {_en!r} and Romanian cannot"
+# and the panel everything else depends on no longer fails in silence
+assert "loadLlm().catch(" in _dash4u or "loadLlm().catch(" in (
+    app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+
+# 4x. The README told a stranger that Hipo is manual "on the numbers", quoting a count from one
+# snapshot of one person's database - and naming a different reason from the one in the code,
+# which is that the session is not accepted outside the browser window that made it.
+_rm = (app.HERE / "README.md").read_text(encoding="utf-8")
+assert "118 stored jobs" not in _rm, "the README still quotes one snapshot of one database"
+assert "not accepted once you leave that window" in _rm
+assert "## Erasing everything" in _rm, "the one button that cannot be undone is undocumented"
+for _fact in ("asks twice", "scheduled tasks", "stay sent"):
+    assert _fact in _rm.split("## Erasing everything")[1].split("## ")[0], _fact
+
 print("ok")

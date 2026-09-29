@@ -234,14 +234,18 @@ const FRIENDLY = [
   [/Fill in your profile first/i,
    'Fill in your profile first: open the Profile tab and upload your CV.'],
 ];
+// t() on both arms: the replacement text above, and the server's own message when nothing
+// matches - which is usually one of the sentences this app raises itself, so it is in the table.
+// The untranslated original goes to the console either way, because that is what gets pasted
+// into a bug report.
 const friendly = m => { const hit = FRIENDLY.find(([re]) => re.test(String(m)));
   if(hit) console.warn('[detail]', m);
-  return hit ? hit[1] : m; };
+  return t(hit ? hit[1] : String(m)); };
 
 let _busy = 0;   // ref-counted: two things running at once must not switch the bar off early
 async function busy(btn, fn, label){
   const old = btn.innerHTML; btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span>' + (label || 'working...')
+  btn.innerHTML = '<span class="spin"></span>' + t(label || 'working...')
                 + '<span id="busylabel" style="margin-left:6px;opacity:.85"></span>';
   if(++_busy === 1) document.getElementById('bar').classList.add('on');
   try { return await fn(); } catch(e){ toast('⚠ ' + friendly(e.message), 8000); }
