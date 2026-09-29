@@ -71,6 +71,11 @@ def run(app, prefill, settings, log):
         "urls": [p["url"] for p in picks],
         # no windows: a screening question is marked and left, never opened on an empty desk
         "hand_off": False,
+        # ...and never submit a screening answer with nobody at the keyboard. hand_off only
+        # stops a WINDOW opening; without this the run filled an employer's mini-interview with
+        # model-written text and pressed Trimite, which is the opposite of what this file's own
+        # header promises.
+        "auto_send": False,
     }))
 
     fit = {p["url"]: p["fit"] for p in picks}

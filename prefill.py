@@ -703,6 +703,71 @@ APPLICATIONS = {
 }
 
 
+# What each board's own profile page shows, and how to read it. Measured by opening both pages
+# with a real session, not guessed: eJobs renders the finished CV as text under Romanian
+# headings, BestJobs is an editable form whose inputs carry names.
+PROFILE_PAGE = {
+    "ejobs": ("https://www.ejobs.ro/cv-ul-meu", """() => {
+        const body = (document.body.innerText || '').split('\n').map(s => s.trim());
+        const HEAD = ['Despre mine', 'Experien', 'Studii', 'Limbi cunoscute', 'Hobby',
+                      'Permis de conducere', 'Competen'];
+        const at = t => HEAD.some(h => t.startsWith(h));
+        const out = {}; let cur = null;
+        for (const line of body) {
+            if (!line) continue;
+            if (at(line)) { cur = line; out[cur] = []; continue; }
+            if (cur) out[cur].push(line);
+        }
+        return {sections: out,
+                headline: (body.find(l => l && l.length < 80) || '')};
+    }"""),
+    "bestjobs": ("https://www.bestjobs.eu/ro/profile", """() => {
+        const f = {};
+        for (const el of document.querySelectorAll('input[name], textarea[name]')) {
+            if (el.type === 'hidden' || el.type === 'file') continue;
+            if (el.name) f[el.name] = (el.value || '').slice(0, 400);
+        }
+        const body = (document.body.innerText || '').split('\n').map(s => s.trim());
+        const HEAD = ['Cine sunt', 'Ce \u00eemi doresc', 'Ce \u0219tiu s\u0103 fac',
+                      'Mini interviu'];
+        const at = t => HEAD.some(h => t.startsWith(h));
+        const out = {}; let cur = null;
+        for (const line of body) {
+            if (!line) continue;
+            if (at(line)) { cur = line; out[cur] = []; continue; }
+            if (cur) out[cur].push(line);
+        }
+        return {fields: f, sections: out};
+    }"""),
+}
+
+
+def board_profile(board, headless=True):
+    """-> what the board currently shows on your profile. Reads; never writes, never saves.
+
+    The cookie jar is deliberately NOT written back: this is a look, and a look should not be
+    able to change anything at all, including the session.
+    """
+    from playwright.sync_api import sync_playwright
+    if board not in PROFILE_PAGE:
+        raise ValueError(f"no profile page known for {board!r}")
+    url, extract = PROFILE_PAGE[board]
+    with sync_playwright() as pw:
+        browser, ctx, page = _open(pw, headless=headless)
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(3000)
+            dismiss_consent(page)
+            page.wait_for_timeout(1200)
+            if signed_in_to(page, board) is False:
+                raise RuntimeError(f"not signed in to {board}")
+            got = page.evaluate(extract)
+            got["url"] = page.url
+            return got
+        finally:
+            browser.close()
+
+
 def board_applications(board, headless=True):
     """-> [{url, title, when}] straight from the board's own "my applications" page.
 
@@ -730,11 +795,22 @@ def board_applications(board, headless=True):
     return out
 
 
+BOARD_APEX = {"ejobs": "ejobs.ro", "hipo": "hipo.ro", "bestjobs": "bestjobs.eu"}
+
+
 def board_of(url):
-    host = (urlsplit(url).hostname or "").lower()
-    return ("ejobs" if "ejobs.ro" in host else
-            "hipo" if "hipo.ro" in host else
-            "bestjobs" if "bestjobs.eu" in host else "")
+    """Which board this url belongs to, exactly. "" when it is none of them.
+
+    The apex itself or a subdomain of it, never a substring: "ejobs.ro" in host is also true of
+    ejobs.ro.attacker.com, and this function decides which site's apply flow runs against a real
+    session and whose cookies are written back afterwards. ats_host below is already fail-closed
+    this way; there was no reason for this one not to be.
+    """
+    host = (urlsplit(url).hostname or "").lower().rstrip(".")
+    for board, apex in BOARD_APEX.items():
+        if host == apex or host.endswith("." + apex):
+            return board
+    return ""
 
 
 def signed_in_to(page, board):
@@ -830,7 +906,12 @@ def mini_interview(page, board=""):
         return []
     sel = "textarea, input[type=text], select"
     nodes = []
-    for scope in ("[role=dialog]", ".ejobs-modal", ".MiniInterview__Content", "form"):
+    # NOT "form". Every board page carries a search form, and the docstring above says what
+    # happens then: the answer is typed into the site's own search box, the box then looks
+    # answered, and the application goes out with junk in it. No container, no questions -
+    # the job is handed to the person instead, which is the safe direction.
+    for scope in ("[role=dialog]", ".ejobs-modal", ".MiniInterview__Content",
+                  "[class*=mini-interviu]", "[class*=MiniInterview]"):
         # :is() is required - "scope a, b, c" only scopes the first selector in the list
         nodes = page.query_selector_all(f"{scope} :is({sel})")
         if nodes:
@@ -865,7 +946,7 @@ def _hipo_form(page, out):
         print(f"[hipo] could not preselect the form: {type(e).__name__}: {e}")
 
 
-def board_apply(url, headless=True, profile=None, job_title="", auto_send=True):
+def board_apply(url, headless=True, profile=None, job_title="", auto_send=False):
     """Press a board's one-click apply.
 
     eJobs has two flavours. Most postings submit on the click, sending the CV stored on your
@@ -908,6 +989,13 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=True):
                     out["external"] = True
                     out["error"] = ("this employer takes applications on their own site - "
                                     "open the posting and apply there")
+                elif any(d in (page.url or "").lower()
+                         for d in BOARD_UI[board].get("denied", ())):
+                    # Signed out, not closed. BestJobs declares no signed_out markers, so
+                    # signed_in_to can only ever answer None for it and the guard above never
+                    # fires - which filed every remaining job in the batch as "closed on the
+                    # board": permanently skipped, never applied to, and never mentioned.
+                    out["error"] = f"not signed in to {board}"
                 else:
                     out["closed"] = True
                     out["error"] = "this posting is closed - the board offers no way to apply"
@@ -952,10 +1040,17 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=True):
                             out["submitted"] = True
                             return out
                     out["needs_you"] = True
+                    out["clicked"] = True
                     out["error"] = "sent the mini interviu but saw no confirmation - check it"
                     return out
 
-            out["error"] = "clicked apply but nothing happened - open the posting and check"
+            # It may well have gone. On eJobs a one-click apply IS the application, and a page
+            # that confirms slower than we waited looks identical to one that did nothing.
+            # Reporting "nothing happened" left the row untouched at 'new', so the next weekly
+            # run applied to the same employer again.
+            out["clicked"] = True
+            out["error"] = ("pressed apply but saw no confirmation - check the board before "
+                            "applying again")
         except Exception as e:
             out["error"] = f"{type(e).__name__}: {e}"
         finally:

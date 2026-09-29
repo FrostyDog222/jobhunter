@@ -792,7 +792,15 @@ TITLE_CUE = (r"limb[aăi]|language|speaking|speaker|vorbitor|nativ|native|fluent
              r"knowledge|support|agent|consultant|advisor|adviser|representative|specialist|"
              r"desk|market|customer|client|sales|translator|traduc|interpret|teacher|profesor|"
              r"trainer|tutor")
-_TITLE_DEMAND = re.compile(rf"(?:{TITLE_CUE})\W{{0,12}}$|^\W{{0,12}}(?:{TITLE_CUE})")
+# The ADJACENT word, not merely one somewhere in the window. "Swedish Support Agent" demands
+# Swedish because Support follows it; "Deutsche Bank Specialist" ends in a cue too, and does not.
+# Two windows, two rules. The text BEFORE the language must END in a cue
+# ("Customer Support with German"); the text AFTER it must BEGIN with one
+# ("Swedish Support Agent"). One regex holding both alternatives, applied to both
+# sides, made "Deutsche Bank Specialist" a demand - the text after "Deutsche"
+# happens to end in "Specialist".
+_CUE_BEFORE = re.compile(rf"\b(?:{TITLE_CUE})\W{{0,3}}$")
+_CUE_AFTER = re.compile(rf"^\W{{0,3}}(?:{TITLE_CUE})\b")
 
 
 # Which language names appear at all, in one pass. Without this the gate scanned the whole ad
@@ -819,14 +827,17 @@ def required_languages(job):
             continue
         hit = next((m for m in (re.search(rf"\b{n}\b", title) for n in names) if m), None)
         if hit:
-            # "German Language Support Agent" demands German; "German Bakery Assistant" does not
-            around = title[max(0, hit.start() - 24):hit.start()] + "\n" \
-                + title[hit.end():hit.end() + 24]
-            if _TITLE_DEMAND.search(title[max(0, hit.start() - 24):hit.start()]) \
-                    or _TITLE_DEMAND.search(title[hit.end():hit.end() + 24]) \
-                    or re.search(rf"(?:{TITLE_CUE})", around):
+            # "German Language Support Agent" demands German; "German Bakery Assistant" does not.
+            # Anchored on purpose: a cue merely present SOMEWHERE in the window is no evidence at
+            # all, because TITLE_CUE holds specialist, support, agent, sales, customer and with -
+            # which is most job titles ever written. That unanchored check vetoed Deutsche Bank.
+            if _CUE_BEFORE.search(title[max(0, hit.start() - 24):hit.start()]) \
+                    or _CUE_AFTER.search(title[hit.end():hit.end() + 24]):
                 spans[canon] = None
-            continue
+                continue
+            # ...and if the title merely NAMES the language, that settles nothing, so fall
+            # through and read the body. Skipping it here let "Bakery Assistant German" past a
+            # description that said "fluent German is required, mandatory".
         for n in names:
             m = (re.search(rf"\b{n}\b[^.\n]{{0,40}}?{NEAR}", body)
                  or re.search(rf"{NEAR}[^.\n]{{0,40}}?\b{n}\b", body))
@@ -847,9 +858,21 @@ def required_languages(job):
     # alternatives. Speaking any ONE of them answers the ad; the gate used to read the list as
     # a set of requirements and veto on the ones the person happened not to have.
     name_of = {n: canon for canon, names in SPOKEN.items() for n in names}
-    run = re.compile(r"\b[a-z]+\b(?:\s*(?:,|/|\bsau\b|\bor\b)\s*\b[a-z]+\b)+")
+    # An explicit "or"/"sau"/"/" is required somewhere in the run. A bare comma is not a choice:
+    # "germana, maghiara, nivel avansat ambele" lists two languages the ad wants BOTH of, and
+    # reading that as an alternation let the job through to someone who speaks neither.
+    # The trailing ",? *(sau|or)" also lets a three-way list match, which ", or " did not.
+    # ", or" is ONE separator. Treating the comma and the "or" separately made the pattern
+    # take "or" as the next item in the list and stop, so "german, or italian, or spanish"
+    # ended at "german, or" and Spanish stayed a hard veto on a job needing any of three.
+    run = re.compile(r"\b[a-z]+\b(?:\s*(?:,\s*)?(?:\bor\b|\bsau\b|/)\s*\b[a-z]+\b"
+                     r"|\s*,\s*\b[a-z]+\b)+")
+    real_choice = re.compile(r"\bsau\b|\bor\b|/")
     for text in (body, title):
         for m in run.finditer(text):
+            # a comma list with no "or" in it anywhere is a list of requirements, not a choice
+            if not real_choice.search(m.group(0)):
+                continue
             group = set()
             for word in re.findall(r"[a-z]+", m.group(0)):
                 canon = next((c for n, c in name_of.items() if re.fullmatch(n, word)), None)

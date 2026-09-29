@@ -1882,6 +1882,14 @@ async def apply_batch(body: dict = Body(...)):
                             "error": "no longer in your list - it was cleared or deleted"})
             continue
         board = j["source"] if prefill.apply_mode(j["source"]) == "auto" else ""
+        # `source` authorises the send; the url decides where the browser goes. A row stored as
+        # ejobs with a hipo.ro url passed this gate and then ran the Hipo flow, which is
+        # deliberately manual-only.
+        if board and prefill.board_of(j["url"]) != board:
+            results.append({"url": url, "title": j["title"],
+                            "error": f"this row says {board} but its link is not a {board} "
+                                     f"link - not applying"})
+            continue
         if not board:
             results.append({"url": url, "title": j["title"],
                             "error": ("apply to this one by hand"
@@ -1894,7 +1902,9 @@ async def apply_batch(body: dict = Body(...)):
             break
         res = await off(lambda u=url, t=j["title"]: prefill.board_apply(
             u, headless=True, profile=p, job_title=t,
-            auto_send=body.get("auto_send", True)))
+            # default False: a caller that forgets the flag must not thereby submit an
+            # employer's screening questions. The dashboard passes True explicitly.
+            auto_send=body.get("auto_send", False)))
         if res.get("submitted") or res.get("already"):
             with db() as c:
                 _mark_applied(c, url)
@@ -1906,6 +1916,14 @@ async def apply_batch(body: dict = Body(...)):
             with db() as c:
                 c.execute("UPDATE jobs SET note='apply on the employer site' "
                           "WHERE url=? AND status != 'applied'", (url,))
+        elif res.get("clicked"):
+            # Pressed, not confirmed. Recorded as done-for-now rather than left untouched:
+            # leaving it 'new' put it straight back into next week's list and applied twice.
+            with db() as c:
+                c.execute("UPDATE jobs SET status=CASE WHEN status IN ('new','ready') "
+                          "THEN 'opened' ELSE status END, "
+                          "note='pressed apply, no confirmation seen - check the board' "
+                          "WHERE url=?", (url,))
         elif res.get("needs_you"):
             # Screening questions: normally open it for the person, and take it out of the next
             # batch either way. hand_off=False is the scheduled run, where opening a window at
@@ -1922,7 +1940,11 @@ async def apply_batch(body: dict = Body(...)):
             "sent": sum(1 for r in results if r.get("submitted")),
             "skipped": sum(1 for r in results if r.get("already")),
             "needs_you": sum(1 for r in results if r.get("needs_you")),
-            "failed": sum(1 for r in results if r.get("error"))}
+            # a needs_you or already result carries an error string too, and counting it
+            # here as well made sent+skipped+needs_you+failed exceed the number of jobs
+            "failed": sum(1 for r in results if r.get("error")
+                          and not (r.get("submitted") or r.get("already")
+                                   or r.get("needs_you")))}
 
 
 @app.get("/api/cv/{name}")
@@ -1952,6 +1974,51 @@ def boards():
     """Which sources the app can apply on, and which you apply to by hand."""
     return {"auto": list(prefill.AUTO_APPLY), "manual": list(prefill.MANUAL_APPLY),
             "profiles": {b: ui["profile"] for b, ui in prefill.BOARD_UI.items()}}
+
+
+# What a board holds versus what this app holds. Read-only by design - see prefill.board_profile.
+def _roles_of(sections):
+    """Role lines out of a board's rendered experience section. A role line is short, has no
+    date in it, and is followed by something; everything else there is prose."""
+    lines = []
+    for head, body in (sections or {}).items():
+        if not str(head).lower().startswith(("experien", "ce stiu", "ce \u0219tiu")):
+            continue
+        lines += [l for l in body if 2 < len(l) < 70]
+    drop = re.compile(r"\d{4}|prezent|ani |luni|vezi mai mult|recomandare|^\W+$", re.I)
+    return [l for l in lines if not drop.search(l)]
+
+
+@app.get("/api/boards/{board}/profile")
+async def board_profile(board: str):
+    """Show what this board currently holds about you, beside what this app holds.
+
+    Nothing is written to the board, now or ever: this opens the page, reads it and closes.
+    Changing a board profile is done by the person, on the board, which is the only way a
+    half-finished write cannot leave it neither theirs nor ours.
+    """
+    if board not in prefill.PROFILE_PAGE:
+        raise HTTPException(400, f"No profile page is known for {board}.")
+    if not prefill.session_for(board):
+        raise HTTPException(400, f"Not signed in to {board}. Sign in from the dashboard first.")
+    try:
+        got = await off(lambda: prefill.board_profile(board))
+    except Exception as e:
+        raise HTTPException(400, f"Could not read your {board} profile: {e}")
+    me = profile()
+    mine = [f"{e.get('role','')} - {e.get('company','')}".strip(" -")
+            for e in (me.get("experience") or []) if e.get("role")]
+    theirs = _roles_of(got.get("sections"))
+    fold = lambda s: re.sub(r"[^a-z0-9]", "", str(s).lower())
+    missing = [r for r in mine
+               if not any(fold(r.split(" - ")[0]) and fold(r.split(" - ")[0]) in fold(t)
+                          for t in theirs)]
+    return {"board": board, "url": got.get("url"),
+            "board_sections": {k: v[:12] for k, v in (got.get("sections") or {}).items()},
+            "board_fields": got.get("fields") or {},
+            "app_roles": mine, "board_roles": theirs[:20],
+            "roles_missing_on_board": missing,
+            "app_summary": (me.get("summary") or "")[:400]}
 
 
 @app.get("/api/signin")

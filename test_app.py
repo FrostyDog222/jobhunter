@@ -1219,4 +1219,70 @@ _pf2 = (app.HERE / "templates" / "profile.html").read_text(encoding="utf-8")
 assert "el.type === 'checkbox' ? el.checked" in _pf2, "the tick would save as the string 'on'"
 assert "function fillFlags" in _pf2, "the tick would come back unticked after a reload"
 
+
+# 4a. The language gate, both directions, on the phrasings that actually broke it. I claimed
+# this was tested once already; it was tested against titles that happened to avoid the cue
+# words, which is not the same thing. Three separate faults were found afterwards: an
+# unanchored cue search that made "Deutsche Bank Specialist" a German requirement, a `continue`
+# that stopped the body being read whenever the title merely named a language, and a comma list
+# read as a free choice when the ad wanted every language in it.
+_ROEN2 = {"languages": [{"name": "Romanian"}, {"name": "English"}]}
+_DE2 = {"languages": [{"name": "German"}, {"name": "Romanian"}]}
+for _who, _t, _b in (
+        (_ROEN2, "Deutsche Bank Specialist", "Fluent English required."),
+        (_ROEN2, "German Bakery Sales Assistant", "Fluent English required."),
+        (_ROEN2, "Operator Polish Line Customer Goods", "Fluent English required."),
+        (_ROEN2, "Greek Yogurt Line Operator", "We need you."),
+        (_ROEN2, "French Fries Production Operator", "We need you."),
+        (_ROEN2, "Operator", "Cunostinte de germana, avantaj"),
+        (_ROEN2, "Operator", "Limba germana, nivel avansat, nu este obligatorie."),
+        (_DE2, "Agent", "Fluent German, Dutch or Swedish."),
+        (_DE2, "Agent", "German/Dutch fluent."),
+        (_DE2, "Agent", "Fluent german, or italian, or spanish, required.")):
+    _ok, _why = app.llm.language_gate(_who, {"title": _t, "description": _b})
+    assert _ok, f"false veto: {_t!r} / {_b!r} -> {_why}"
+for _who, _t, _b in (
+        (_ROEN2, "Swedish Support Agent", "We need you."),
+        (_ROEN2, "German Language Support Agent", "Join us."),
+        (_ROEN2, "Customer Support with German", "Join us."),
+        # the title only NAMES the language - the body is where the demand is, and skipping it
+        # let this through as no demand at all
+        (_ROEN2, "Bakery Assistant German", "Fluent German is required, C1 level, mandatory."),
+        (_ROEN2, "Sales Assistant", "Fluent German is required, mandatory."),
+        (_ROEN2, "Agent", "Obligatoriu: limba germana nivel C1."),
+        # "both mandatory" is not a choice
+        (_ROEN2, "Agent", "Cerinte obligatorii: germana, maghiara, nivel avansat ambele"),
+        (_DE2, "Agent", "Fluent Dutch or Swedish required.")):
+    _ok, _ = app.llm.language_gate(_who, {"title": _t, "description": _b})
+    assert not _ok, f"leaked a real demand: {_t!r} / {_b!r}"
+
+# 4b. Applying. Nothing here has happened - auto_apply is off - but the weekly run was one
+# checkbox away from every one of them.
+import inspect as _iB
+# the unattended run must never submit a screening answer nobody read
+assert '"auto_send": False' in (app.HERE / "auto_apply.py").read_text(encoding="utf-8"), \
+    "the weekly run would submit model-written answers to an employer"
+# and a caller that forgets the flag must not thereby send
+assert 'body.get("auto_send", False)' in _iB.getsource(app.apply_batch)
+assert _iB.signature(app.prefill.board_apply).parameters["auto_send"].default is False
+
+# an application that may already have gone must not be offered again next week
+_pa = _iB.getsource(app.prefill.board_apply)
+assert 'out["clicked"] = True' in _pa, "a possibly-sent application is still reported as nothing"
+assert 'res.get("clicked")' in _iB.getsource(app.apply_batch)
+
+# a dead session must stop the batch, not bury every remaining job as "closed on the board"
+assert '"denied"' in _pa, "a signed-out board still reads as a closed posting"
+
+# board_of decides which site's flow runs against a real session: exact host, like ats_host
+assert app.prefill.board_of("https://ejobs.ro.attacker.com/x") == ""
+assert app.prefill.board_of("https://www.ejobs.ro/x") == "ejobs"
+assert app.prefill.board_of("https://ejobs.ro/x") == "ejobs"
+# and the row's source must agree with its url before anything is sent
+assert "is not a" in _iB.getsource(app.apply_batch)
+
+# the mini-interview must not type into the site's own search form
+assert ', "form"' not in _iB.getsource(app.prefill.mini_interview), \
+    "every board page has a search form; the model's answer would be typed into it"
+
 print("ok")
