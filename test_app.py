@@ -344,7 +344,17 @@ _src = _i3.getsource(app.get_auto)
 assert 'k == "keep_signed_in"' in _src, "get_auto must return the switch, or it draws unticked"
 assert "keep_signed_in" in _i3.getsource(app._set_auto), "set_auto must accept it"
 assert "keep_signed_in" in _i3.getsource(app.keep_signed_in)
-assert app.KEEP_HOURS * 3600 < 6 * 3600, "must touch more often than Hipo's ~6h session"
+# It has to fire more often than the SHORTEST session it is keeping alive, not the longest.
+# Measured: eJobs' access token is minted with 1.0 hours on it, Hipo's runs 6. At four hours the
+# keep-alive was slower than the thing it was keeping alive, so eJobs was dead for three hours
+# out of every four while the dashboard showed a green dot - found by an application failing.
+assert app.KEEP_MINUTES * 60 < 3600, "must touch more often than eJobs' 1h access token"
+_ksrc = _i3.getsource(app.keep_signed_in)
+assert "-RepetitionDuration" in _ksrc, \
+    "a repetition with no duration is one Task Scheduler may stop repeating"
+# ...and the cached answer must expire before the session it describes
+assert _pf.BOARD_CHECK_STALE <= 3 * 3600, \
+    "a cached sign-in older than the shortest board session is a guess that reads as a fact"
 
 # 1x. A model that wraps its one answer in a list cost a whole job on the 144-ad run
 # ("score returned list, not an object"), and nothing re-scores it afterwards.

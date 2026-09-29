@@ -1000,6 +1000,7 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=False)
             markers = BOARD_UI[board]["applied"]
 
             if signed_in_to(page, board) is False:
+                remember_signin(board, False)          # so the dashboard stops showing green
                 out["error"] = f"not signed in to {board} - use the sign-in button first"
                 return out
             low = own_text(page)
@@ -1317,9 +1318,10 @@ def verify_boards(boards=tuple(BOARD_UI)):
 
 
 # A saved sign-in does not last for ever, and nothing about the cached answer says how old it
-# is. Twelve hours is the line: long enough that opening the app repeatedly does not launch a
-# browser each time, short enough that a session which died overnight is caught before a search.
-BOARD_CHECK_STALE = 12 * 3600
+# is. Two hours is the line. It was twelve, which is how the dashboard came to show a green dot
+# over an eJobs session that had been dead for five: the shortest board session here is one hour,
+# so a twelve-hour-old "signed in" was not information, it was a guess that read as a fact.
+BOARD_CHECK_STALE = 2 * 3600
 
 
 def board_checked_ago():
@@ -1328,6 +1330,21 @@ def board_checked_ago():
         return max(0.0, time.time() - BOARD_STATE.stat().st_mtime)
     except OSError:
         return None
+
+
+def remember_signin(board, signed_in):
+    """Write down what a live check just learned, so the rest of the app stops disagreeing.
+
+    Applying opens a browser on the board's own page, which is the most expensive and the most
+    current check this app ever performs - and its answer was being dropped on the floor. The
+    dashboard went on showing a green dot from a cached answer hours older, and the alert that
+    exists to say "you are signed out" stayed quiet.
+    """
+    try:
+        BOARD_STATE.write_text(json.dumps({**board_status(), board: bool(signed_in)}),
+                               encoding="utf-8")
+    except OSError:
+        pass                              # a check we could not write down is not worth failing
 
 
 def board_status():

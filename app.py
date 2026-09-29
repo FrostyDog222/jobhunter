@@ -246,7 +246,11 @@ KEEP_TASK = "jobhunter keep signed in"
 # Hipo's session cookie is the shortest at about six hours, and it is renewed to a full
 # six every time the site is visited. Four hours leaves room for a laptop that was asleep
 # when a run was due without letting the window close.
-KEEP_HOURS = 4
+# Every 45 minutes, because eJobs' access token is minted with 1.0 hours on it - measured, not
+# assumed - and a keep-alive slower than the thing it is keeping alive is decoration. Hipo's
+# session cookie runs 6 hours and BestJobs' half a year, so eJobs sets the pace for all three.
+# A visit renews it: the refresh token behind it is good for over a year.
+KEEP_MINUTES = 45
 DAYS = {"MON": "Monday", "TUE": "Tuesday", "WED": "Wednesday", "THU": "Thursday",
         "FRI": "Friday", "SAT": "Saturday", "SUN": "Sunday"}
 
@@ -343,7 +347,10 @@ def keep_signed_in(on):
         f"$a = New-ScheduledTaskAction -Execute '{pyw}' -Argument 'auto.py --touch' "
         f"-WorkingDirectory '{HERE}';"
         f"$t = New-ScheduledTaskTrigger -Once -At (Get-Date) "
-        f"-RepetitionInterval (New-TimeSpan -Hours {KEEP_HOURS});"
+        f"-RepetitionInterval (New-TimeSpan -Minutes {KEEP_MINUTES}) "
+        # Without a duration Task Scheduler is free to stop repeating; 3650 days is "until you
+        # turn it off", which is what the switch on the dashboard actually means.
+        f"-RepetitionDuration (New-TimeSpan -Days 3650);"
         f"$s = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries "
         f"-DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew "
         f"-ExecutionTimeLimit (New-TimeSpan -Minutes 10);"
