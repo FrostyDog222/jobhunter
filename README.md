@@ -128,9 +128,19 @@ for, and the **gaps**. *Best for you* is everything scoring 75 or more.
 **How many people you are up against.** BestJobs publishes, for every ad, how many have already
 applied — and no other board here does. Where it is known the card says so, and the colour is the
 point: under 25 is green and worth today, over 150 is red and your CV has a pile to survive
-first. It also breaks ties. Almost every score lands on a multiple of five, so the whole *Best
-for you* band is two or three values wide; within a band, the ad with 46 applicants now comes
-before the one with 1437. The **Few applicants** tile shows just those.
+first. The **Few applicants** tile shows just those.
+
+It also breaks ties, which matters more than it sounds: almost every score lands on a multiple of
+five, so the whole *Best for you* band is only two or three values wide and something has to
+order it. Within a band the list is sorted by how contested each job is, in three groups —
+barely touched (under 25 applicants, or posted in the last three days), busy, and crowded — so a
+quiet ad the board counted and a fresh ad nobody counted rank together, ahead of one with 1437.
+Boards that publish no count are ranked by how recently the ad went up instead of being dumped
+at the bottom.
+
+**Employers who answer.** BestJobs also flags, on about one ad in four, that this employer
+actually replies to applications. Where it does, the card carries a green **replies** badge. It
+is the only signal anywhere in this app about the employer's behaviour rather than about you.
 
 It also decides which ads get read in full. One request to BestJobs returns 100 and only 20 are
 worth a detail fetch and a model call: half of those go to the board's own relevance order, and
@@ -164,11 +174,11 @@ invented: no employer, date, degree, tool or achievement that is not in your pro
 
 | where the job is | what the app does |
 |---|---|
-| eJobs, BestJobs | Applies for you, after you confirm. Tick several and send up to 20 in one run. |
+| eJobs, BestJobs | Applies for you, after you confirm. Tick several and send up to 50 in one run. |
 | Hipo | Applies for you, after you confirm — see the note below on what it does and does not tell you. Some Hipo ads redirect to the employer's own site instead; those are marked and opened, never submitted. |
-| Manual apply view | The *Manual apply* card filters to everything you have to send yourself. Those jobs are never picked up by batch apply or the weekly run. |
+| **You apply yourself** | One tile gathers everything you have to send by hand — employer forms, ads that redirect to the employer's own site, and anything on a board this app cannot apply on. None of them are ever picked up by batch apply or by the scheduled run, so they never take a slot and are never reported as a failure. |
 | Employer forms (Greenhouse, Lever, Ashby, Workable, Workday and others) | Opens the form with your details filled in and the CV attached, then stops. You read it and press submit. |
-| Ads that redirect to the employer's own site | Recognised while the ad is read, marked *apply on the employer site*, and never clicked. They gather under **You apply yourself**. Most Hipo ads are this kind. |
+| Ads that redirect to the employer's own site | Recognised while the ad is read, marked *apply on the employer site*, and never clicked. Most Hipo ads and a fair share of BestJobs' are this kind. |
 | Anything else | Opens the ad and your tailored CV side by side. |
 
 **How long a sign-in lasts.** Measured by removing one cookie at a time from a copy of the saved
@@ -184,10 +194,15 @@ session and reloading the board:
 does not wake a sleeping machine: the only board that cannot survive a night is the one this app
 never applies on anyway.
 
-**Signing in again by itself (optional, off).** The weekly run happens with nobody at the
-keyboard, so a board that has signed you out by then means no applications that week. Under
+**Signing in again by itself (optional, off).** The scheduled run happens with nobody at the
+keyboard, so a board that has signed you out by then means no applications at all that day. Under
 *Settings → Job board accounts* you can save a board sign-in and let the app log in again on its
 own — once, only when the board has just said you are signed out, and never twice in a row.
+
+A saved sign-in shows a green **saved** badge beside the *Forget* button, and the password field
+has an eye you can hold to check what you typed before saving it. Only a password the board
+itself rejects counts against the two attempts; a timeout, a dropped connection or a board having
+a bad morning does not, so a week of poor wifi cannot quietly switch the feature off.
 
 It stays on this PC. One file in this folder, encrypted with Windows DPAPI so only your Windows
 account can read it, never sent anywhere except the board's own login page. It is excluded from
@@ -227,34 +242,41 @@ The salary figure you wrote goes to every employer that asks, so set one you wou
 
 ## The scheduled run
 
-Under *Settings → Weekly run*, Windows can run your search once a week on its own, so the list
-is already searched and scored when you next open the app. It works with the app closed — the
-black window does not need to be open — and a run missed because the PC was off happens the next
-time it is on.
+Under *Settings → Weekly run*, Windows can run your search on its own, so the list is already
+searched and scored when you next open the app. It works with the app closed — the black window
+does not need to be open — and a run missed because the PC was off happens the next time it is on.
+
+**Pick the days and the hour.** Any set of days from one to seven, with shortcuts for *Every
+day*, *Weekdays* and *Once a week*, and a time to start. The clock matches how Windows shows
+yours, so a PC set to 24 hours never offers you AM/PM. Worth thinking about rather than ticking
+everything: each run spends AI quota on the scoring whether or not you look at the result, and a
+posting appears once rather than daily — so seven days a week costs seven times one for mostly
+the same jobs. Daily suits a hard hunt in a fast market; it is not automatically better.
 
 By default it searches and scores, and leaves the applying to you.
 
 **Applying without you there** is a second switch, off until you turn it on, and it asks once
-more before it takes. When it is on the weekly run also applies to the best of what it found:
+more before it takes. When it is on the run also applies to the best of what it found:
 
 | limit | default |
 |---|---|
 | boards | eJobs, BestJobs and Hipo — never an employer form, never an ad that redirects to the employer's own site |
 | score | 85 or above, your choice |
-| how many | 5 per week, anything from 1 to 50. The **score** usually decides this, not the cap — at 85 there are rarely more than single figures waiting, so asking for 50 sends however many qualify. 50 is a wall against a slipped keystroke: fifty applications are only twenty minutes, but fifty sent with a stale board profile is fifty employers who saw it. To send more, lower the score before raising the cap |
+| how many | 5 per run, anything from 1 to 50. The **score** usually decides this, not the cap — at 85 there are rarely more than single figures waiting, so asking for 50 sends however many qualify. 50 is a wall against a slipped keystroke: fifty applications are only twenty minutes, but fifty sent with a stale board profile is fifty employers who saw it. To send more, lower the score before raising the cap |
 | which rows | only ones nobody has touched; applied, opened, skipped and vetoed are left alone |
 | screening questions | marked and left for you — no browser window opens on an empty desk |
 
-Everything it sent is listed in the panel with its score, so Monday morning shows you exactly
-what went out.
+Everything it sent is listed in the panel with its score, so the next time you open the app you
+see exactly what went out — along with what the search itself found, which is written down even
+on the runs that send nothing.
 
 Ticking the switch does not just warn you in the abstract: it lists **the actual jobs that would
-have gone out this week** at your current score and cap, by name and employer, and tells you how
-many a stricter score would send. If you change the score or the cap afterwards, it asks again.
+go out** at your current score and cap, by name and employer, and tells you how many a stricter
+score would send. If you change the score or the cap afterwards, it asks again.
 
 Think about it before switching it on. An application cannot be recalled; it carries the salary
 figure from your profile and the CV stored on your **board** profile, not a tailored one; the
-score is a model's opinion; and you find out a week later.
+score is a model's opinion; and you find out afterwards.
 
 ## Applied history
 
@@ -270,26 +292,21 @@ to by hand then stop showing up as still to do. It only ever adds.
 
 ## After you apply
 
-Pressing Apply is the start of the part that gets you hired, not the end. Every applied job shows
-how long it has been waiting, and once that passes **ten days** the line turns amber and says it
-is worth a nudge — long enough not to pester someone still reading, short enough that the job is
-not filled by the time you write.
+Pressing Apply is the start of the part that gets you hired, not the end. Every applied job says
+how long it has been waiting — *sent today*, *waiting 4 days* — and once that passes **ten days**
+the line turns amber and says it is worth a nudge. Long enough not to pester someone still
+reading, short enough that the job is not filled by the time you write.
 
-Four buttons on each applied card end the wait, one click each, nothing to type:
+That is the whole of it, and deliberately so. There were buttons here for marking an application
+*seen*, *interview*, *rejected* or *offer*, and a **Waiting to hear** view built on them. They
+are gone. A tracker only tells the truth if every application is kept up to date by hand, and
+nobody does that for long — an out-of-date tracker saying "3 waiting to hear" is not a blank
+screen, it is a claim about the world that is false. What is left costs you nothing to keep
+honest, because the app already knows the date it sent each one.
 
-| | |
-|---|---|
-| **seen** | the employer opened your application — a different silence from one who never looked |
-| **interview** | they want to talk to you |
-| **rejected** | a no. Worth recording: it stops that one taking up room |
-| **offer** | the point of all this |
-
-Two views go with them. **Waiting to hear** is everything with no answer yet, longest wait first,
-so the top of the list is what to do something about today. **Worth a nudge** is the subset that
-has gone past ten days.
-
-Rejections are kept, not deleted. A board that already has your application will not take a second
-one, and the record is what stops the weekly run offering the same employer back to you.
+Applied jobs stay in the list for good. A board that already has your application will not take a
+second one, and that record is what stops the scheduled run offering the same employer back to
+you.
 
 ## Getting a newer version
 
@@ -378,8 +395,8 @@ and rebuilds it.
     templates/    dashboard, profile, the CV, and templates/cv/*.css (one file per CV template)
     share.py      builds the clean zip
     update.py     the update, and the one list of what it may never overwrite
-    auto.py       the weekly run, started by Windows Task Scheduler
-    auto_apply.py the applying step of the weekly run, and the limits on it
+    auto.py       the scheduled run, started by Windows Task Scheduler
+    auto_apply.py the applying step of that run, and the limits on it
     lang.py       the Romanian for every sentence in the app, keyed by the English
     creds.py      optional board sign-ins, encrypted to the Windows account (DPAPI)
     test_app.py   the whole suite; `python test_app.py` prints ok or the first failure
@@ -388,7 +405,7 @@ and rebuilds it.
     profile.json  your data          settings.json  your preferences
     db.sqlite     jobs and history   out/           generated CVs
     .env          API keys           .session.json  board sign-ins
-    auto.log      what the weekly run did            auto_last.json  its last summary
+    auto.log      what the scheduled run did         auto_last.json  its last summary
 
 None of those leave the machine: `share.py` excludes every one of them, and `.gitignore` keeps
 them out of the repository.
