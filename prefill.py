@@ -1182,8 +1182,19 @@ def auto_signin(board, username, password, headless=True):
             page.wait_for_timeout(3000)
             dismiss_consent(page)
             page.wait_for_timeout(1200)
-            u = page.query_selector(form["user"])
-            p = page.query_selector(form["pass"])
+            # The VISIBLE one. Hipo renders this same form three times - twice inside a
+            # display:none header flyout, once in the page body - and query_selector returns
+            # document order, so the fill spent forty seconds retrying an invisible field.
+            def visible(sel):
+                for el in page.query_selector_all(sel):
+                    try:
+                        if el.is_visible() and el.is_editable():
+                            return el
+                    except Exception:
+                        continue
+                return None
+
+            u, p = visible(form["user"]), visible(form["pass"])
             if not u or not p:
                 # the form moved, or the board answered with something else entirely
                 return False, "could not find the sign-in form on that page"

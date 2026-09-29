@@ -748,6 +748,14 @@ RO = {
         "Să nu ai încredere într-un program de pe internet cu parola ta este o alegere cât se poate de rezonabilă.",
     "Leave these empty and sign in by hand with the buttons above — everything else in the app works exactly the same, you just sign in yourself when a session lapses.":
         "Lasă câmpurile goale și autentifică-te manual cu butoanele de mai sus — tot restul aplicației funcționează exact la fel, doar că te conectezi singur când expiră o sesiune.",
+    "Show password":
+        "Arată parola",
+    "Hide password":
+        "Ascunde parola",
+    "not saved":
+        "nesalvat",
+    "Encrypted to this Windows account. It never leaves this PC.":
+        "Criptat pentru acest cont Windows. Nu părăsește niciodată acest PC.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

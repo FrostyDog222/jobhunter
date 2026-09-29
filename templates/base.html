@@ -99,6 +99,10 @@ a{color:var(--accent)} a:hover{text-decoration:none}
                               pushing the model name off the side of the card */
   border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
 .chainrow .mark{width:12px;flex:0 0 auto}
+.peek{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:0;
+  padding:2px 6px;font-size:14px;line-height:1;cursor:pointer;opacity:.5;width:auto;color:inherit}
+.peek:hover, .peek.on{opacity:1}
+.peek:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:4px}
 /* a model name is "nvidia/deepseek-ai/deepseek-v4.1-flash" - longer than a phone is wide, so it
    shortens with an ellipsis rather than deciding how wide the row is */
 .chainrow .muted{flex:1 1 90px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

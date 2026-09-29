@@ -2032,4 +2032,12 @@ assert _assrc.count("btn.click()") == 1, "more than one submit in a sign-in atte
 assert "print(" not in _assrc, "a sign-in attempt prints something, and it holds a password"
 assert "password" not in _assrc.split("return False, f\"{type(e).__name__}")[1][:120]
 
+
+# 5l. Hipo renders its login form three times - twice inside a display:none header flyout, once
+# in the page body. query_selector returns document order, so the fill spent forty seconds
+# retrying an invisible field and gave up. Take the one you can SEE.
+_as2 = _iK.getsource(_pfm.auto_signin)
+assert "def visible(sel)" in _as2 and "is_visible()" in _as2,     "auto_signin is back to taking the first field in document order"
+assert "query_selector(form[" not in _as2, "a single query_selector can pick a hidden copy"
+
 print("ok")

@@ -1280,15 +1280,23 @@ async function loadCreds(){
     const st = (d.boards || {})[b] || {};
     return `<div style="flex:1 1 210px">
       <label for="cu_${esc(b)}">${esc(SBOARDS[b] || b)}</label>
-      <input id="cu_${esc(b)}" autocomplete="off" placeholder="${esc(t('email or username'))}"
-        ${st.saved ? `value="" placeholder="${esc(t('saved'))}"` : ''}>
-      <input id="cp_${esc(b)}" type="password" autocomplete="new-password"
-        placeholder="${esc(st.saved ? t('saved — type to replace') : t('password'))}"
-        style="margin-top:6px">
-      <div style="display:flex;gap:6px;margin-top:6px">
+      <input id="cu_${esc(b)}" autocomplete="off"
+        placeholder="${esc(st.saved ? t('saved — type to replace') : t('email or username'))}">
+      <div style="position:relative;margin-top:6px">
+        <input id="cp_${esc(b)}" type="password" autocomplete="new-password"
+          placeholder="${esc(st.saved ? t('saved — type to replace') : t('password'))}"
+          style="padding-right:38px">
+        <button type="button" class="peek" data-peek="cp_${esc(b)}" aria-label="${esc(t('Show password'))}"
+          title="${esc(t('Show password'))}">&#128065;</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap">
         <button class="ghost tiny" data-savecred="${esc(b)}">${esc(t('Save'))}</button>
-        ${st.saved ? `<button class="ghost tiny danger" data-forgetcred="${esc(b)}"
-           >${esc(t('Forget'))}</button>` : ''}
+        ${st.saved ? `<span class="pill" style="border-color:var(--good);color:var(--good)"
+           title="${esc(t('Encrypted to this Windows account. It never leaves this PC.'))}"
+           >&#10003; ${esc(t('saved'))}</span>
+          <button class="ghost tiny danger" data-forgetcred="${esc(b)}"
+           >${esc(t('Forget'))}</button>`
+         : `<span class="muted" style="font-size:12px">${esc(t('not saved'))}</span>`}
       </div>
       ${st.stopped ? `<div class="warn" style="font-size:12px;margin-top:4px">${esc(
           t('Stopped using this one - it failed twice. Save it again to re-enable.'))}</div>` : ''}
@@ -1302,7 +1310,25 @@ async function loadCreds(){
   localiseDOM($('#credsrow'));
 }
 
+// Hold-to-read would be safer, but a password you are checking for a typo is one you want to
+// look at for more than a second. It goes back to dots on the next click, on blur, and whenever
+// the panel redraws - it is never left readable behind your back.
 document.addEventListener('click', e => {
+  const peek = e.target.dataset && e.target.dataset.peek;
+  if(peek){
+    const f = document.getElementById(peek);
+    if(f){
+      const showing = f.type === 'text';
+      f.type = showing ? 'password' : 'text';
+      e.target.setAttribute('aria-label', t(showing ? 'Show password' : 'Hide password'));
+      e.target.setAttribute('title', t(showing ? 'Show password' : 'Hide password'));
+      e.target.classList.toggle('on', !showing);
+      if(!showing) f.addEventListener('blur', () => {
+        f.type = 'password'; e.target.classList.remove('on');
+      }, {once: true});
+    }
+    return;
+  }
   const save = e.target.dataset && e.target.dataset.savecred;
   if(save) return busy(e.target, async () => {
     const u = $('#cu_' + save).value.trim(), p = $('#cp_' + save).value;
