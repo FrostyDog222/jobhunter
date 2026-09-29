@@ -968,4 +968,22 @@ assert "slice(0, 10)" in _dash, "a full ISO closing date is still dropped"
 _prof = (app.HERE / "templates" / "profile.html").read_text(encoding="utf-8")
 assert "r.failed" in _prof, "the purge toast still says 'erased' when nothing was"
 
+
+# 3l. A file that is not what its name says gets advice, not an internal error - and the advice
+# for a .doc is "Save As a .docx", whose commonest answer is to RENAME the file.
+import inspect as _i8
+_usrc = _i8.getsource(app._cv_text)
+assert "CV_MAX" in _usrc, "an upload of any size still goes to a paid model call"
+assert _usrc.count("HTTPException(400") >= 3, "a renamed file still 500s"
+# a photo is checked by its bytes every time it is used, not once when it arrived
+assert "_photo_kind" in _i8.getsource(app.photo_path), "a broken image can still reach a CV"
+# isdecimal, not isdigit: int("²") raises on a path a model wrote
+assert not chr(178).isdecimal() and chr(178).isdigit()
+assert "isdecimal()" in _i8.getsource(app.apply_suggestion)
+assert "path must be a dotted string" in _i8.getsource(app.apply_suggestion)
+# every template wraps a long unbroken address instead of printing it off the page
+for _name in app.cv_templates():
+    _css = (app.CV_DIR / f"{_name}.css").read_text(encoding="utf-8")
+    assert "overflow-wrap:anywhere" in _css, f"{_name} clips long words off the page"
+
 print("ok")

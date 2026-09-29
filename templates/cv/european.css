@@ -6,7 +6,10 @@
    column is empty for most of a CV, and an empty column that stops halfway reads as a mistake
    while one that runs to the bottom reads as a design. Painted on the body, so it costs no
    element and cannot disturb the reading order. */
-body{font:10pt/1.38 Calibri,"Segoe UI",Arial,sans-serif;color:#1a1a1a;margin:0;
+/* A long corporate email or a LinkedIn url has no break in it, and three of these
+   four templates printed it off the right edge of the page - unreadable, on the
+   document being sent. */
+body{overflow-wrap:anywhere;font:10pt/1.38 Calibri,"Segoe UI",Arial,sans-serif;color:#1a1a1a;margin:0;
   font-variant-ligatures:none;
   background:linear-gradient(to right,#eef3f7 0 38mm,#fff 38mm)}
 

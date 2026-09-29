@@ -1,7 +1,10 @@
 /* Classic - one plain column, Calibri, thin rules, dates on the right. No photo unless you
    add one. The safest thing to send when the employer screens with software. */
 @page{size:A4}
-body{font:10.5pt/1.45 Calibri,"Segoe UI",sans-serif;color:#1a1a1a;margin:0;
+/* A long corporate email or a LinkedIn url has no break in it, and was
+   printed off the right edge of the page - unreadable, on the document being
+   sent. */
+body{overflow-wrap:anywhere;font:10.5pt/1.45 Calibri,"Segoe UI",sans-serif;color:#1a1a1a;margin:0;
   font-variant-ligatures:none}
 h1{font-size:20pt;margin:0;letter-spacing:-.4pt}
 .role{font-size:11pt;color:#444;margin:2px 0 6px}

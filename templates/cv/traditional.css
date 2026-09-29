@@ -1,7 +1,10 @@
 /* Traditional - Georgia serif, centred name, bold capital headings on black rules, no
    colour. For banks, law, the public sector and academia. */
 @page{size:A4}
-body{font:10pt/1.4 Georgia,"Times New Roman",serif;color:#000;margin:0;
+/* A long corporate email or a LinkedIn url has no break in it, and three of these
+   four templates printed it off the right edge of the page - unreadable, on the
+   document being sent. */
+body{overflow-wrap:anywhere;font:10pt/1.4 Georgia,"Times New Roman",serif;color:#000;margin:0;
   font-variant-ligatures:none}
 h1{font-size:19pt;font-weight:bold;text-align:center;margin:0;line-height:1.2}
 .role{font-size:11pt;font-style:italic;text-align:center;color:#222;margin:1px 0 3px}

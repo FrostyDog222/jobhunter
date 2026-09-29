@@ -681,12 +681,26 @@ PHOTO_MAX = 6 * 1024 * 1024
 
 
 def photo_path():
-    """-> the stored photo, or None."""
+    """-> the stored photo, or None. Checked by its bytes, not by its name.
+
+    The upload checks the signature and nothing checked it again, so a file left by another
+    tool, a hand-copied one, or an interrupted write was base64'd into the CV and declared
+    image/jpeg on the strength of its extension - a broken-image box on a document being sent
+    to an employer, with no warning anywhere.
+    """
     for ext in ("jpg", "png"):
         f = HERE / f"photo.{ext}"
-        if f.exists():
-            return f
+        try:
+            if f.exists() and _photo_kind(f.read_bytes()[:16]):
+                return f
+        except OSError:
+            continue
     return None
+
+
+def _photo_kind(head):
+    """-> ("jpg", "image/jpeg") from the leading bytes, or None."""
+    return next((v for sig, v in PHOTO_KINDS.items() if head.startswith(sig)), None)
 
 
 def photo_data_uri(use=None):
@@ -906,13 +920,37 @@ def _docx_text(data):
     return "\n".join(out)
 
 
+# The whole CV goes to a model, and a model call is the expensive thing this app does. A 22 MB
+# text file read fine, took five seconds, and handed 23 million characters straight to it.
+CV_MAX = 8 * 1024 * 1024
+
+
 def _cv_text(name, data):
-    ext = name.lower().rsplit(".", 1)[-1]
+    ext = str(name or "").lower().rsplit(".", 1)[-1]
+    if len(data) > CV_MAX:
+        raise HTTPException(400, f"That file is {len(data) // (1024 * 1024)} MB. A CV is a few "
+                                 f"pages - please use one under {CV_MAX // (1024 * 1024)} MB.")
     if ext == "pdf":
         import pypdf
-        raw = "\n".join(pg.extract_text() or "" for pg in pypdf.PdfReader(io.BytesIO(data)).pages)
+        # The advice for a .doc is "Save As a .docx", and the commonest response to that is to
+        # RENAME the file - which then reached the library as a zip that is not a zip and came
+        # back as a 500 with nothing a person could act on.
+        try:
+            raw = "\n".join(pg.extract_text() or ""
+                            for pg in pypdf.PdfReader(io.BytesIO(data)).pages)
+        except Exception:
+            raise HTTPException(400, "That file is named .pdf but does not open as one. If you "
+                                     "renamed it, use Save As in Word instead - or paste the "
+                                     "text in.")
     elif ext == "docx":
-        raw = _docx_text(data)
+        try:
+            raw = _docx_text(data)
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(400, "That file is named .docx but does not open as one. If you "
+                                     "renamed a .doc, use Save As in Word to make a real .docx "
+                                     "- or paste the text in.")
     elif ext == "doc" or data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
         # Word 97. Decoding it as text yields a couple of hundred characters of binary noise,
         # which is long enough to pass the "did we read anything" check and be parsed as a CV.
@@ -1031,6 +1069,8 @@ async def suggestions():
 
 @app.post("/api/suggest/apply")
 def apply_suggestion(s: dict = Body(...)):
+    if not isinstance(s, dict) or not isinstance(s.get("path"), str):
+        raise HTTPException(400, "path must be a dotted string into the profile")
     """Write one accepted suggestion into the profile at its dotted path.
 
     The path and the value are both model output, so both are checked before anything is
@@ -1045,7 +1085,9 @@ def apply_suggestion(s: dict = Body(...)):
     node = p
     for k in parts[:-1]:
         if isinstance(node, list):
-            if not k.isdigit() or int(k) >= len(node):
+            # isdecimal, not isdigit: "\u00b2".isdigit() is True and int("\u00b2") raises, so a
+            # superscript in a model-written path came out as a 500 rather than a refusal
+            if not k.isdecimal() or int(k) >= len(node):
                 raise HTTPException(400, f"suggestion points outside the profile: {s['path']}")
             node = node[int(k)]
         elif isinstance(node, dict) and k in node:
@@ -1054,7 +1096,7 @@ def apply_suggestion(s: dict = Body(...)):
             raise HTTPException(400, f"suggestion points outside the profile: {s['path']}")
     last, new = parts[-1], s.get("value")
     if isinstance(node, list):
-        if not last.isdigit() or int(last) >= len(node):
+        if not last.isdecimal() or int(last) >= len(node):
             raise HTTPException(400, f"suggestion points outside the profile: {s['path']}")
         old = node[int(last)]
     else:
