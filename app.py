@@ -212,6 +212,7 @@ def _ps(script):
 
 
 _TASK = [0.0, None]
+_KEEP = [0.0, None]
 
 
 def task_state():
@@ -226,10 +227,18 @@ def task_state():
     return _TASK[1]
 
 
-def _task_state():
+def keep_state():
+    """-> what Windows knows about the keep-signed-in task. Same cache window as the other."""
+    if _KEEP[1] is not None and time.monotonic() - _KEEP[0] < 15:
+        return _KEEP[1]
+    _KEEP[:] = [time.monotonic(), _task_state(KEEP_TASK)]
+    return _KEEP[1]
+
+
+def _task_state(which=None):
     code, out, _ = _ps(
         f"$ErrorActionPreference='SilentlyContinue';"
-        f"$t = Get-ScheduledTask -TaskName '{TASK}';"
+        f"$t = Get-ScheduledTask -TaskName '{which or TASK}';"
         f"if (-not $t) {{ '{{}}' }} else {{ $i = $t | Get-ScheduledTaskInfo;"
         f"[pscustomobject]@{{ exists=$true; state=[string]$t.State;"
         f" next=[string]$i.NextRunTime; last=[string]$i.LastRunTime;"
@@ -272,6 +281,7 @@ def keep_signed_in(on):
     hours is enough to stay signed in without typing a password again. Nothing is applied for
     and nothing is searched: it loads each board and saves the refreshed cookies.
     """
+    _KEEP[1] = None          # whatever we are about to do, the cached answer is now stale
     _TASK[1] = None
     if not on:
         _ps(f"Unregister-ScheduledTask -TaskName '{KEEP_TASK}' -Confirm:$false "
@@ -302,9 +312,18 @@ def get_auto():
         last = None
     # keep_signed_in is not an auto_ key but the same panel owns it: without it here the
     # checkbox always drew itself unticked, however the scheduled task was actually set
+    task, keep = task_state(), keep_state()
+    # Two pieces of state that can drift apart: settings.json says what you asked for, Windows
+    # says what is actually scheduled. Nothing compared them, so a task removed behind the
+    # app's back - a purge, a failed registration, a tidy-up in Task Scheduler - left the
+    # checkbox ticked over nothing at all, and the first symptom was sign-ins expiring again.
+    drift = [name for name, want, got in
+             (("the weekly run", bool(s.get("auto_enabled")), task.get("exists")),
+              ("keep me signed in", bool(s.get("keep_signed_in")), keep.get("exists")))
+             if want and not got]
     return {"settings": {k: v for k, v in s.items()
                          if k.startswith("auto_") or k == "keep_signed_in"},
-            "task": task_state(), "last": last}
+            "task": task, "keep": keep, "drift": drift, "last": last}
 
 
 @app.post("/api/auto")

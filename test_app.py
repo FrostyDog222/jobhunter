@@ -598,7 +598,12 @@ assert "saveSettings(" not in _prof, "the profile page has no saveSettings"
 # restored from a variable in a finally block, which is no help if the run is interrupted during
 # the Chromium launch below - and the file it was holding is the user's actual CV data.
 _real, _scratch = app.PROFILE, app.HERE / ".profile.test.json"
-app.PROFILE = _scratch
+# PROFILE_BAK too. Redirecting only PROFILE meant every save_profile() below wrote its backup
+# to the REAL profile.previous.json - so running the tests quietly replaced the user's one copy
+# of their previous CV with this block's scratch data, and "restore the previous copy" would
+# have handed back {"summary": "old", "role": "Dev"}.
+_realbak, _scratchbak = app.PROFILE_BAK, app.HERE / ".profile.test.prev.json"
+app.PROFILE, app.PROFILE_BAK = _scratch, _scratchbak
 try:
     app.save_profile({**app.llm.EMPTY, "summary": "old",
                       "experience": [{"role": "Dev", "bullets": ["a", "b"]}]})
@@ -620,9 +625,9 @@ try:
     assert out.read_bytes()[:4] == b"%PDF" and out.stat().st_size > 2000
     out.unlink()
 finally:
-    app.PROFILE = _real
-    if _scratch.exists():
-        _scratch.unlink()
+    app.PROFILE, app.PROFILE_BAK = _real, _realbak
+    for _f in (_scratch, _scratchbak):
+        _f.unlink(missing_ok=True)
 
 # 4. Every route reaches the function it is named after. Adding a plain helper directly under a
 # decorator silently registers the HELPER as the endpoint, and the route keeps answering - with
@@ -1052,5 +1057,24 @@ assert app.llm._parse_reply("p", 'Here: {"fit":80} - or {"fit":90} instead.') ==
 # ...but the first balanced span is a LAST resort: taken earlier it grabs an inner array
 _md = '{"fit": 65, "gaps": ["SQL"], "untapped": [**"Team work** here"]}'
 assert app.llm._parse_reply("m", _md)["fit"] == 65, "an inner array was mistaken for the answer"
+
+
+# 3p. settings.json and the Windows task scheduler are two separate pieces of state and nothing
+# compared them, so a task removed behind the app's back - a purge, a failed registration, a
+# tidy-up in Task Scheduler - left the checkbox ticked over nothing at all. The first symptom
+# was board sign-ins quietly expiring again, weeks later.
+import inspect as _i9
+_gsrc = _i9.getsource(app.get_auto)
+assert '"drift"' in _gsrc, "a switch can still say ON while nothing is scheduled"
+assert "keep_state()" in _gsrc, "the keep-alive task's real state is never asked for"
+assert "_KEEP[1] = None" in _i9.getsource(app.keep_signed_in),     "the cached task state survives the change that invalidates it"
+_dash2 = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "a.drift" in _dash2, "the page never shows the mismatch"
+
+# 3q. The suite must not touch the user's own files. PROFILE was redirected to a scratch path
+# and PROFILE_BAK was not, so every save_profile() below wrote its backup over the real
+# profile.previous.json - the one copy of the CV before the last save.
+_tsrc = (app.HERE / "test_app.py").read_text(encoding="utf-8")
+assert "app.PROFILE, app.PROFILE_BAK = _scratch, _scratchbak" in _tsrc,     "the tests still write their backup over the real one"
 
 print("ok")

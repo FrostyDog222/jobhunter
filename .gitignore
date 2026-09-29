@@ -18,6 +18,7 @@ srv.err.log
 settings.json
 .boards.json
 .profile.test.json
+.profile.test.prev.json
 jobhunter.zip
 .claude/
 auto.log

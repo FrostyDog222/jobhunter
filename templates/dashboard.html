@@ -689,8 +689,16 @@ async function loadAuto(){
     if(el.type === 'checkbox') el.checked = !!a.settings[k]; else el.value = a.settings[k] ?? '';
   }
   applyRow();
+  // Windows and this page can disagree - a task can vanish without the setting changing - and
+  // a switch that says ON over nothing is worse than one that says OFF.
+  const drift = a.drift || [];
+  $('#autostate').style.color = drift.length ? 'var(--bad)' : '';
   const next = a.task.exists ? taskDate(a.task.next) : null;
-  const bits = [];
+  const bits = drift.length
+    ? [`⚠ ${drift.join(' and ')} ${drift.length > 1 ? 'are' : 'is'} switched on here but `
+       + `NOT scheduled in Windows, so nothing is running. Press Save the schedule to set `
+       + `${drift.length > 1 ? 'them' : 'it'} up again.`]
+    : [];
   bits.push(a.task.exists
     ? (next ? `Scheduled — next run <b>${esc(next)}</b>.` : 'Scheduled with Windows.')
     : 'Not scheduled. Tick the box and save to set it up.');
