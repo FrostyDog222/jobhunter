@@ -684,4 +684,19 @@ assert len(app._gap_key("experience with order processing systems").split()) <= 
 assert app._gap_key("on‑site presence in Bucharest") == "on-site presence bucharest"
 assert "_gap_key(x)" in _i6.getsource(app.recurring_gaps), "the tally does not normalise"
 
+
+# 2t. One place formats a time. A second toLocaleTimeString anywhere means a clock on the page
+# that the Settings switch does not reach, which is exactly the bug this replaces.
+_tpl = {f.name: f.read_text(encoding="utf-8") for f in (app.HERE / "templates").glob("*.html")}
+assert "const hhmm" in _tpl["base.html"], "the shared time formatter is gone"
+for _n, _t in _tpl.items():
+    _extra = _t.count("toLocaleTimeString") - (1 if _n == "base.html" else 0)
+    assert _extra == 0, f"{_n} formats a time without hhmm() - the clock switch will not reach it"
+assert app.DEFAULTS["clock"] == "24", "24-hour is the default here"
+assert 'id="clock"' in _tpl["dashboard.html"] and "saveSettings({clock" in _tpl["dashboard.html"]
+# the switch has to survive a reload like every other setting
+assert "CLOCK = S.clock" in _tpl["dashboard.html"] and "CLOCK = st.clock" in _tpl["profile.html"]
+# whose app this is, on every page, from the one template they share
+assert "FrostyDog" in _tpl["base.html"]
+
 print("ok")

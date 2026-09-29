@@ -294,7 +294,7 @@ document.addEventListener('click', async e => {
 $('#save').onclick = e => busy(e.target, async () => {
   if(!LOADED) return toast('Your profile has not loaded, so there is nothing to save yet. '
                          + 'Reload the page.', 9000);
-  await api('/api/profile', collect()); $('#saved').textContent = 'saved ' + new Date().toLocaleTimeString();
+  await api('/api/profile', collect()); $('#saved').textContent = 'saved ' + hhmm(new Date());
 }, 'saving...');
 
 /* ---------- download my CV ---------- */
@@ -384,7 +384,8 @@ $('#photo_in_cv').onchange = async e => {
                          : 'New CVs will be written without a photo.');
 };
 api('/api/settings', undefined, 'GET')
-  .then(st => { $('#photo_in_cv').checked = !!st.photo_in_cv; })
+  .then(st => { $('#photo_in_cv').checked = !!st.photo_in_cv;
+                CLOCK = st.clock === '12' ? '12' : '24'; })
   .catch(()=>{});
 loadPhoto();
 

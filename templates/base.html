@@ -68,9 +68,21 @@ h2{font-size:15px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06e
   <a href="/profile" class="{{ 'on' if page=='profile' }}">Profile</a>
 </header>
 <main>{% block body %}{% endblock %}</main>
+<footer style="text-align:center;padding:0 16px 30px;margin-top:-50px">
+  <span class="muted">jobhunter — built by
+    <a href="https://github.com/FrostyDog222" target="_blank" rel="noopener">FrostyDog</a>.
+    Everything it knows stays in this folder.</span>
+</footer>
 <div id="toast"></div>
 <script>
 const $ = s => document.querySelector(s);
+
+// Every time printed anywhere in the app comes through here, so the switch in Settings is one
+// variable rather than a hunt through the templates. 24-hour is the default because that is how
+// the time is written here; en-US is only borrowed for its am/pm, not for its date order.
+let CLOCK = '24';
+const hhmm = d => d.toLocaleTimeString(CLOCK === '12' ? 'en-US' : 'en-GB',
+                                       {hour: '2-digit', minute: '2-digit'});
 let _t;
 // Show a real percentage while something long is running, or fall back to the sliding bar.
 // `pct` null puts it back to indeterminate.

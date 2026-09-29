@@ -102,6 +102,10 @@ SETTINGS = HERE / "settings.json"
 # what the dashboard remembers between visits. Secrets stay in .env; these are preferences,
 # and they travel with a folder copy while .env deliberately does not.
 DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
+            # Romania writes the time as 14:30, so that is the default; "12" is for anyone who
+            # reads a clock the other way. It only changes how a time is printed, never what is
+            # stored - applied_at stays ISO in the database either way.
+            "clock": "24",
             # The county you could actually take a job in. Not derived from the profile address:
             # "Saravale" is a village and no town list will place it, and guessing wrong here
             # would quietly mislabel every result. Blank means "do not judge distance".

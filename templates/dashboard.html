@@ -246,6 +246,11 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
         <option value="">Open the browser to review</option>
         <option value="1">Dry run — just report</option>
       </select></div>
+    <div><label>Clock</label>
+      <select id="clock" title="How times are shown on this page. It changes nothing that is stored.">
+        <option value="24">24-hour — 14:30</option>
+        <option value="12">12-hour — 2:30 PM</option>
+      </select></div>
   </div>
 
   <b style="display:block;margin-top:18px">Where you can work</b>
@@ -572,6 +577,8 @@ async function loadSettings(){
   try { S = await api('/api/settings', undefined, 'GET'); } catch(e){ S = {}; }
   $('#lang').value = S.lang || 'auto';
   $('#headless').value = S.headless || '';
+  CLOCK = S.clock === '12' ? '12' : '24';
+  $('#clock').value = CLOCK;
   $('#cvask').checked = !!S.cv_ask;
   $('#home_county').value = S.home_county || '';
   restoreSearch();
@@ -590,6 +597,9 @@ $('#home_county').onchange = async e => {
                        : 'Distance is no longer judged.');
 };
 $('#headless').onchange = e => saveSettings({headless: e.target.value});
+// redraw, because "applied 28 Sep, 23:21" is already on the cards and has to change with it
+$('#clock').onchange = async e => { CLOCK = e.target.value === '12' ? '12' : '24';
+  await saveSettings({clock: CLOCK}); draw(); loadAuto(); };
 $('#cvask').onchange = e => saveSettings({cv_ask: e.target.checked});
 
 $('#importhist').onclick = e => busy(e.target, async () => {
@@ -652,7 +662,7 @@ for(const id of ['auto_apply_min_fit', 'auto_apply_cap'])
 // PowerShell hands back "10/04/2026 09:00:00", and a task that has never run reports 1999
 const taskDate = v => { const d = new Date(v); return isNaN(d) || d.getFullYear() < 2001 ? null
   : d.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'})
-    + ', ' + d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}); };
+    + ', ' + hhmm(d); };
 
 async function loadAuto(){
   let a;
@@ -844,7 +854,7 @@ document.addEventListener('toggle', e => {
 // "2026-09-26 21:14:03" -> "26 Sep 2026, 21:14"
 const fmtWhen = s => { const d = new Date(String(s).replace(' ', 'T'));
   return isNaN(d) ? s : d.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'})
-    + ', ' + d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}); };
+    + ', ' + hhmm(d); };
 // mirrors prefill.ATS - the application forms the app can fill in for you
 const ATS = /:\/\/([a-z0-9-]+\.)*(greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|smartrecruiters\.com|teamtailor\.com|recruitee\.com|personio\.de|personio\.com|jobvite\.com)(\/|$)/i;
 // filled from /api/boards - AUTO are boards this app submits on, MANUAL are boards you
