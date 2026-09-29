@@ -94,6 +94,13 @@ a{color:var(--accent)} a:hover{text-decoration:none}
 #alerts .alert b{display:block;font-size:14px;margin-bottom:2px}
 #alerts .alert .muted{font-size:12.8px}
 #alerts .alert a.act{white-space:nowrap;font-weight:600;font-size:13px;align-self:center}
+.chainrow{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;
+  border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.chainrow .mark{width:12px;flex:0 0 auto}
+.chainrow .gap{flex:1}
+button.tiny{padding:3px 9px;font-size:12px}
+button.ghost.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
+button.ghost.danger:hover:not(:disabled){color:var(--bad);border-color:var(--bad)}
 .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--dim)}
 h2{font-size:15px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
 /* Appears once you are past a screenful. Bottom-right, clear of the toast in the middle. */

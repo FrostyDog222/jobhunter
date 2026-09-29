@@ -1152,4 +1152,30 @@ assert "too small" in _wb, "the failure does not say what actually went wrong"
 # a score out of range is clamped rather than stored as-is
 assert 'max(0, min(100, fit))' in _wb
 
+
+# 3v. Pause and remove. Two different verbs: pause keeps the key and skips the provider, remove
+# deletes the key. Pause deliberately does NOT reuse the circuit breaker - that means "this one
+# just failed, try again in five minutes", clears itself, lives only in memory, and so would be
+# invisible to the weekly run, which is a separate process. .env is the only store all four
+# readers share, and cfg() re-reads it on every call so a pause applies without a restart.
+import inspect as _iA
+assert "LLM_PAUSED" in _iA.getsource(app.llm.paused)
+assert "paused()" in _iA.getsource(app.llm.chain), "a paused provider is still in the chain"
+_psrc = _iA.getsource(app.llm.set_paused)
+assert "_BLOWN" not in _psrc, "pause must not be built on the self-clearing breaker"
+# remove has to stop every OTHER setting naming the provider whose key it just deleted
+_fsrc = _iA.getsource(app.llm.forget)
+for _k in ("LLM_PROVIDER", "LLM_CHAIN", "LLM_PAUSED"):
+    assert _k in _fsrc, f"forget() leaves {_k} pointing at a provider with no key"
+# ollama has no key, so it can be paused but never removed
+assert app.llm.PROVIDERS["ollama"][0] is None
+# and the panel must never leave someone with nothing
+assert "only provider left" in _iA.getsource(app.pause_llm)
+
+# 3w. The panel used to state things that were not true.
+assert "usable_only" in _iA.getsource(app.llm.active),     "active() still names a spent provider as live"
+assert "_BLOWN.pop" in _iA.getsource(app.set_llm),     "a rejected key still parks the working one for five minutes"
+assert "No key is saved for" in _iA.getsource(app.set_llm),     "choosing a keyless provider can still be answered by a different one"
+assert "await off(" in _iA.getsource(app.set_llm), "the test call still blocks the event loop"
+
 print("ok")

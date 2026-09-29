@@ -1040,6 +1040,12 @@ def get_llm():
     cur = {"provider": None, "model": None, "error": None}
     try:
         cur["provider"], cur["model"], _ = llm.active()
+        if llm.active(usable_only=True) is None:
+            # every provider is breaker-marked: ask() will refuse them all, so the panel must
+            # not draw a live marker next to one of them
+            cur["error"] = ("Every provider is rate limited or out of quota right now. They "
+                            "come back on their own - or add another key.")
+            cur["stalled"] = True
         if cur["provider"] == "ollama" and not llm.ollama_up():
             cur["error"] = ("Ollama is selected but is not running on this PC. Start Ollama, "
                             "or pick another provider and paste its key.")
@@ -1049,8 +1055,13 @@ def get_llm():
     return {**cur,
             "chain": [{"provider": p, "model": m, "live": (p, m) == live,
                        "blocked": llm._breaker((p, m)) or ""} for p, m, _ in llm.chain()],
+            "paused": sorted(llm.paused()),
             "providers": {n: {"env": env, "default": dflt,
-                              "keyed": bool(llm.cfg(env)) if env else llm.ollama_up()}
+                              "keyed": bool(llm.cfg(env)) if env else llm.ollama_up(),
+                              "paused": n in llm.paused(),
+                              # ollama has no key to forget, and a provider with none saved has
+                              # nothing to remove either
+                              "removable": bool(env and llm.cfg(env))}
                           for n, (env, _, dflt) in llm.PROVIDERS.items()}}
 
 
@@ -1078,16 +1089,63 @@ async def set_llm(body: dict = Body(...)):
             await off(llm.test_key, p, model, key)
         except Exception as e:
             had = " Your previous key is untouched." if llm.cfg(env) else ""
+            # _call marks the breaker before it raises, so a typo used to park the provider for
+            # five minutes - taking the WORKING saved key out of the chain with it, while this
+            # message promised the opposite.
+            llm._BLOWN.pop((p, model or llm.PROVIDERS[p][2]), None)
             raise HTTPException(400, f"{p} would not accept that key: {e}.{had}")
 
+    # Choosing a provider you have no key for, and leaving the key box blank, skipped the
+    # test entirely - then the final check call was answered by some OTHER provider in the
+    # chain and reported as "it answered a test call". Say what is actually true instead.
+    if env and not key and not llm.cfg(env):
+        raise HTTPException(400, f"No key is saved for {p}, and the box is empty. Paste its key "
+                                 f"here - nothing was changed.")
     kv = {"LLM_PROVIDER": p, "LLM_MODEL": model}
     if env and key:                      # blank key = keep the one already saved
         kv[env] = key
+    # saving a key for a provider you had paused means you want it back
+    if p in llm.paused():
+        llm.set_paused(p, False)
     llm.set_cfg(**kv)
     try:
-        return {**get_llm(), "check": llm.ask("Reply with JSON only.", 'Return {"ok": true}', 100)}
+        # off the event loop, like every other model call in this file: a chain walk can take
+        # a minute with a retrying provider, and on the loop that freezes the whole dashboard
+        check = await off(lambda: llm.ask("Reply with JSON only.", 'Return {"ok": true}', 100))
+        return {**get_llm(), "check": check}
     except Exception as e:
         raise HTTPException(400, f"Saved, but the test call failed: {e}")
+
+
+@app.post("/api/llm/pause")
+def pause_llm(body: dict = Body(...)):
+    """Stop using one provider, or start again. Its key is left exactly where it is."""
+    p = body.get("provider")
+    if p not in llm.PROVIDERS:
+        raise HTTPException(400, f"unknown provider {p!r}")
+    try:
+        llm.set_paused(p, bool(body.get("paused")))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    # Refusing to pause the last one standing: an empty chain fails every call with "no model
+    # configured", which reads as a broken app rather than a choice somebody made.
+    if not llm.chain():
+        llm.set_paused(p, False)
+        raise HTTPException(400, "That is the only provider left, so pausing it would stop the "
+                                 "app doing anything. Add another one first.")
+    return get_llm()
+
+
+@app.post("/api/llm/forget")
+def forget_llm(body: dict = Body(...)):
+    """Delete a provider's saved key. Not undoable - the key is gone and has to be pasted again."""
+    p = body.get("provider")
+    if p not in llm.PROVIDERS:
+        raise HTTPException(400, f"unknown provider {p!r}")
+    if body.get("confirm") != "FORGET":
+        raise HTTPException(400, "Not confirmed.")
+    llm.forget(p)
+    return get_llm()
 
 
 @app.get("/api/llm/models")

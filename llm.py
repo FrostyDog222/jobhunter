@@ -28,7 +28,10 @@ PROVIDERS = {
 
 
 def _dotenv():
-    f = pathlib.Path(__file__).parent / ".env"
+    # ENV, not a second copy of the same expression: set_cfg writes to ENV, so a reader that
+    # works out the path for itself can end up reading a different file from the one just
+    # written - which is exactly what happened the first time this was put under test.
+    f = ENV
     if not f.exists():
         return {}
     out = {}
@@ -52,7 +55,6 @@ def set_cfg(**kv):
     _BLOWN.clear()          # the user just changed provider or key; give it a fresh chance
     if kv.get("LLM_PROVIDER"):
         kv.setdefault("LLM_CHAIN", None)   # an explicit pick beats a previously pinned chain
-    """Write settings into .env, keeping whatever else is in there (including other providers' keys)."""
     cur = _dotenv()
     for k, v in kv.items():
         if v is None or v == "":
@@ -103,6 +105,10 @@ def models(provider=None):
     _, base, _ = PROVIDERS[provider]
     headers = ({"x-api-key": key, "anthropic-version": "2023-06-01"} if provider == "anthropic"
                else {"Authorization": f"Bearer {key}"})
+    # the same rule _request follows: a provider that takes no key gets no header, because
+    # "Bearer " with nothing after it is not a legal header value
+    if not key or key == "-":
+        headers.pop("Authorization", None)
     r = httpx.get(f"{base}/models", headers=headers, timeout=30)
     r.raise_for_status()
     return sorted(m["id"] for m in r.json().get("data", []))
@@ -207,6 +213,44 @@ def ollama_up():
     return _OLLAMA[1]
 
 
+def paused():
+    """-> the providers a person has switched off. Kept in .env beside the keys, because it has
+    to survive a restart and apply to the weekly run too, which is a separate process."""
+    return {p.strip() for p in (cfg("LLM_PAUSED") or "").split(",")
+            if p.strip() in PROVIDERS}
+
+
+def set_paused(provider, off):
+    """Switch one provider off or back on. Never touches its key."""
+    if provider not in PROVIDERS:
+        raise ValueError(f"unknown provider {provider!r}")
+    now = paused()
+    now.add(provider) if off else now.discard(provider)
+    set_cfg(LLM_PAUSED=",".join(sorted(now)) or "")
+    return now
+
+
+def forget(provider):
+    """Delete a provider's key. The chain and the pause list must not go on naming it."""
+    env = PROVIDERS.get(provider, (None,))[0]
+    if provider not in PROVIDERS:
+        raise ValueError(f"unknown provider {provider!r}")
+    kv = {env: ""} if env else {}
+    # ...and stop pointing at it from anywhere else, or the next call selects a provider whose
+    # key we just deleted and reports it as "out of quota"
+    if cfg("LLM_PROVIDER") == provider:
+        kv["LLM_PROVIDER"] = ""
+        kv["LLM_MODEL"] = ""
+    keep = [e for e in (cfg("LLM_CHAIN") or "").split(",")
+            if e.strip() and e.strip().partition(":")[0] != provider]
+    if (cfg("LLM_CHAIN") or "").strip():
+        kv["LLM_CHAIN"] = ",".join(keep)
+    now = paused()
+    now.discard(provider)
+    kv["LLM_PAUSED"] = ",".join(sorted(now))
+    set_cfg(**kv)
+
+
 def chain():
     """Every provider we could use, in the order to try them.
 
@@ -235,6 +279,8 @@ def chain():
         # Ollama backs the others up only when it is actually running here. Listing it
         # unconditionally made a machine with no keys and no Ollama look fully set up.
         out += [_entry(n) for n in PROVIDERS if n != want and (n != "ollama" or ollama_up())]
+    off = paused()
+    out = [e for e in out if e and e[0] not in off]
     seen, uniq = set(), []
     for e in out:
         if e and e[:2] not in seen:
@@ -243,7 +289,7 @@ def chain():
     return uniq
 
 
-def active():
+def active(usable_only=False):
     """The entry a call would use right now: first in the chain that is not rate-limited out."""
     opts = chain()
     if not opts:
@@ -251,7 +297,15 @@ def active():
             "No AI model is set up yet. Open Settings on the dashboard, pick a provider and "
             "paste its key - the 'Get a key' link beside the list goes straight to where that "
             "provider hands them out, and several are free.")
-    return next((e for e in opts if not _breaker(e[:2])), opts[0])
+    live = next((e for e in opts if not _breaker(e[:2])), None)
+    if live:
+        return live
+    # Everything is breaker-marked. ask() will refuse all of them and raise QuotaError, so
+    # returning the first one anyway made the panel print a live marker and a red "spent" pill
+    # on the same row, and the header name a provider that cannot answer.
+    if usable_only:
+        return None
+    return opts[0]
 
 
 def _request(provider, model, key, system, user, max_tokens):

@@ -1099,12 +1099,31 @@ async function loadLlm(){
   $('#model').value = LLM.provider ? LLM.model : '';
   $('#llmnote').textContent = LLM.error
     || 'A ✓ means a key is already saved. Ollama runs locally and needs none.';
-  $('#chain').innerHTML = '<div class="muted" style="margin-top:8px">Fallback order — when one runs out of quota the next takes over:</div>'
-    + (LLM.chain || []).map(c => `<div style="padding:3px 0;font-size:13px">
-         ${c.live ? '▶' : '<span style="opacity:.35">·</span>'}
-         <b>${esc(c.provider)}</b> <span class="muted">${esc(c.model)}</span>
-         ${c.blocked ? '<span class="pill" style="border-color:var(--bad);color:var(--bad)">spent</span>' : ''}
-       </div>`).join('');
+  // Every provider the app knows about, not just the ones in the chain - a paused one has
+  // been taken OUT of the chain, and a list it cannot appear in is no place to un-pause it.
+  const inChain = Object.fromEntries((LLM.chain || []).map(c => [c.provider, c]));
+  const known = Object.entries(LLM.providers || {})
+    .filter(([n, p]) => p.keyed || p.paused)
+    .sort(([a], [b]) => ((inChain[b] ? 1 : 0) - (inChain[a] ? 1 : 0)) || a.localeCompare(b));
+  $('#chain').innerHTML = '<div class="muted" style="margin-top:8px">'
+    + t('Fallback order — when one runs out of quota the next takes over:') + '</div>'
+    + known.map(([n, p]) => {
+        const c = inChain[n];
+        return `<div class="chainrow" data-prov="${esc(n)}">
+         <span class="mark">${c && c.live ? '▶' : '<span style="opacity:.35">·</span>'}</span>
+         <b${p.paused ? ' style="opacity:.5"' : ''}>${esc(n)}</b>
+         <span class="muted">${esc(c ? c.model : (p.default || ''))}</span>
+         ${p.paused ? `<span class="pill">${t('paused')}</span>` : ''}
+         ${c && c.blocked ? '<span class="pill" style="border-color:var(--bad);color:var(--bad)">'
+             + t('spent') + '</span>' : ''}
+         <span class="gap"></span>
+         <button class="ghost tiny" data-pause="${esc(n)}" data-to="${p.paused ? '0' : '1'}"
+           title="${p.paused ? t('Start using this one again') : t('Keep the key, but stop using this one for now')}"
+           >${p.paused ? t('Resume') : t('Pause')}</button>
+         ${p.removable ? `<button class="ghost tiny danger" data-forget="${esc(n)}"
+           title="${t('Delete this key. You will have to paste it again to use this provider.')}"
+           >${t('Remove')}</button>` : ''}
+       </div>`; }).join('');
   drawKeyLink();
   steps();                 // step one of the checklist depends on the model being set
   localiseDOM();   // this panel is innerHTML, so the server pass never saw it
@@ -1174,6 +1193,33 @@ document.addEventListener('click', async e => {
     window.addEventListener('focus', recheck, {once:true});
   });
 });
+document.addEventListener('click', async e => {
+  const pause = e.target.dataset && e.target.dataset.pause;
+  if(!pause) return;
+  const off = e.target.dataset.to === '1';
+  await busy(e.target, async () => {
+    LLM = await api('/api/llm/pause', {provider: pause, paused: off});
+    loadLlm();
+    toast(off ? `${pause} ${t('is paused. Its key is kept.')}`
+              : `${pause} ${t('is back in the chain.')}`);
+  }, off ? t('pausing...') : t('resuming...'));
+});
+
+document.addEventListener('click', async e => {
+  const gone = e.target.dataset && e.target.dataset.forget;
+  if(!gone) return;
+  // Not undoable, and the key is not shown anywhere, so there is no copying it back out first.
+  if(!confirm(t('Delete the saved key for') + ' ' + gone + '?\n\n'
+            + t('This cannot be undone - you will have to paste the key again to use this '
+              + 'provider. Pause it instead if you only want to stop using it for a while.')))
+    return;
+  await busy(e.target, async () => {
+    LLM = await api('/api/llm/forget', {provider: gone, confirm: 'FORGET'});
+    loadLlm();
+    toast(`${gone} ${t('removed. Its key is deleted.')}`);
+  }, t('removing...'));
+});
+
 $('#prov').addEventListener('change', drawKeyLink);
 $('#prov').onchange = async () => {
   const p = $('#prov').value;

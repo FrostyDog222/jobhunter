@@ -482,7 +482,40 @@ RO = {
     "Measured here on twelve real ads: llama3.1:8b answered 11 of them in about 30 seconds each, but its score differed from the hosted model by around 30 points and it scored higher five times out of six — it parks near 60 for almost everything, including jobs a hosted model rates 10. A list full of 60s looks like a good week and is not. Worth it for privacy, or as the backstop when a free tier runs dry; not the one to judge which jobs deserve an application.":
         "Măsurat aici pe douăsprezece anunțuri reale: llama3.1:8b a răspuns la 11 dintre ele în circa 30 de secunde fiecare, dar scorul lui a diferit de cel al modelului online cu aproximativ 30 de puncte și a punctat mai sus de cinci ori din șase — se oprește pe la 60 aproape pentru orice, inclusiv pentru joburi pe care un model online le dă 10. O listă plină de 60 pare o săptămână bună, dar nu este. Merită pentru intimitate sau ca rezervă când un plan gratuit se golește; nu pentru a judeca ce joburi merită o aplicare.",
     "Measured here on twelve real ads: llama3.1:8b answered 11 of them in about 30 seconds each, but its score differed from the hosted model by around 30 points and it scored higher five times out of six — it parks near 60 for almost everything, including jobs a hosted model rates 10. A list full of 60s looks like a good week and is not. Writing a tailored CV asks much more of it and succeeded once in three tries, taking a minute or two each. Worth it for privacy, or as the backstop when a free tier runs dry; not the one to judge which jobs deserve an application. With a hosted provider saved as well, a local failure costs only the wait, because the next provider in the chain picks it up.":
-        "Măsurat aici pe douăsprezece anunțuri reale: llama3.1:8b a răspuns la 11 dintre ele în circa 30 de secunde fiecare, dar scorul lui a diferit de cel al modelului online cu aproximativ 30 de puncte și a punctat mai sus de cinci ori din șase — se oprește pe la 60 aproape pentru orice, inclusiv pentru joburi pe care un model online le dă 10. O listă plină de 60 pare o săptămână bună, dar nu este. Scrierea unui CV adaptat îi cere mult mai mult și a reușit o dată din trei încercări, cu un minut-două de fiecare dată. Merită pentru intimitate sau ca rezervă când un plan gratuit se golește; nu pentru a judeca ce joburi merită o aplicare. Dacă ai salvat și un furnizor online, un eșec local costă doar așteptarea, pentru că preia următorul furnizor din lanț.",}
+        "Măsurat aici pe douăsprezece anunțuri reale: llama3.1:8b a răspuns la 11 dintre ele în circa 30 de secunde fiecare, dar scorul lui a diferit de cel al modelului online cu aproximativ 30 de puncte și a punctat mai sus de cinci ori din șase — se oprește pe la 60 aproape pentru orice, inclusiv pentru joburi pe care un model online le dă 10. O listă plină de 60 pare o săptămână bună, dar nu este. Scrierea unui CV adaptat îi cere mult mai mult și a reușit o dată din trei încercări, cu un minut-două de fiecare dată. Merită pentru intimitate sau ca rezervă când un plan gratuit se golește; nu pentru a judeca ce joburi merită o aplicare. Dacă ai salvat și un furnizor online, un eșec local costă doar așteptarea, pentru că preia următorul furnizor din lanț.",
+    # ---- pausing and removing a provider
+    "Fallback order — when one runs out of quota the next takes over:":
+        "Ordinea de rezervă — când unul rămâne fără cotă, preia următorul:",
+    "paused":
+        "pe pauză",
+    "spent":
+        "epuizat",
+    "Pause":
+        "Pune pe pauză",
+    "Resume":
+        "Reia",
+    "Keep the key, but stop using this one for now":
+        "Păstrează cheia, dar nu-l mai folosi deocamdată",
+    "Start using this one again":
+        "Începe să-l folosești din nou",
+    "Delete this key. You will have to paste it again to use this provider.":
+        "Șterge această cheie. Va trebui să o lipești din nou ca să folosești acest furnizor.",
+    "is paused. Its key is kept.":
+        "este pe pauză. Cheia lui este păstrată.",
+    "is back in the chain.":
+        "este din nou în lanț.",
+    "removed. Its key is deleted.":
+        "șters. Cheia lui a fost ștearsă.",
+    "pausing...":
+        "se pune pe pauză...",
+    "resuming...":
+        "se reia...",
+    "removing...":
+        "se șterge...",
+    "Delete the saved key for":
+        "Ștergi cheia salvată pentru",
+    "This cannot be undone - you will have to paste the key again to use this provider. Pause it instead if you only want to stop using it for a while.":
+        "Asta nu se poate anula - va trebui să lipești cheia din nou ca să folosești acest furnizor. Pune-l pe pauză dacă vrei doar să nu-l mai folosești o vreme.",}
 
 # Longest first, so replacing a short string can never eat part of a longer one that contains it.
 PAIRS = sorted(RO.items(), key=lambda kv: -len(kv[0]))
