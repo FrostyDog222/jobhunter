@@ -243,6 +243,15 @@ class _FakeBoards:
     def verify_boards(self, boards): self.probed = True; return self.live
     def session_for(self, b): return self.cached[b]
     def apply_mode(self, src): return "auto" if src in self.AUTO_APPLY else "manual"
+    def auto_signin(self, *a, **k):
+        raise AssertionError("the suite must never attempt a real sign-in")
+class _NoCreds:
+    """No saved credentials, whatever is on this machine. Without injecting this the suite read
+    the REAL credential store and came one missing method away from a genuine sign-in."""
+    MAX_FAILS = 2
+    def get(self, board): return None
+    def note_failure(self, board): return 1
+    def note_success(self, board): pass
 class _FakeApp:
     """Just enough app for candidates(): a db() whose one query answers with these rows."""
     def __init__(self, rows): self.rows = rows
@@ -253,7 +262,11 @@ class _FakeApp:
         return _cx.nullcontext(_C())
 def _weekly(live, cached, rows=()):
     pf, ap = _FakeBoards(live, cached), _FakeApp(rows)
-    r = _aa.run(ap, pf, {"auto_apply_min_fit": 70, "auto_apply_cap": 5}, lambda *a: None)
+    _real_creds, _aa.creds = _aa.creds, _NoCreds()
+    try:
+        r = _aa.run(ap, pf, {"auto_apply_min_fit": 70, "auto_apply_cap": 5}, lambda *a: None)
+    finally:
+        _aa.creds = _real_creds
     return pf.probed, r["note"]
 # cache says signed in, the board says otherwise -> that board is dropped...
 _probed, _note = _weekly({"ejobs": False, "bestjobs": True}, {"ejobs": True, "bestjobs": True})

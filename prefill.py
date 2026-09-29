@@ -1197,14 +1197,23 @@ def auto_signin(board, username, password, headless=True):
             if not btn:
                 return False, "could not find the sign-in button"
             btn.click()
-            # a login is a navigation; give it room, then ask the board rather than the form
-            for _ in range(20):
-                page.wait_for_timeout(1000)
-                if _probe_signed_in(page, board):
-                    _save(ctx, only_host=BOARD_HOSTS.get(board),
-                          visited=(BOARD_HOSTS.get(board) or "",))
-                    remember_signin(board, True)
-                    return True, "signed in"
+            # A login is ONE navigation. Wait for it to land, then ask the board once.
+            #
+            # Not in a loop: _probe_signed_in navigates to a members-only page, waits, dismisses
+            # the consent banner and retries itself once - so polling it twenty times is up to
+            # forty page loads, and each one navigates away from the page the login just
+            # produced. Measured: the first real attempt ran for eight minutes before it was
+            # killed. It is the check that is slow, not the login.
+            try:
+                page.wait_for_load_state("networkidle", timeout=30000)
+            except Exception:
+                page.wait_for_timeout(6000)       # a SPA that never goes idle is still fine
+            page.wait_for_timeout(2500)           # ...and let the token call after it finish
+            if _probe_signed_in(page, board):
+                _save(ctx, only_host=BOARD_HOSTS.get(board),
+                      visited=(BOARD_HOSTS.get(board) or "",))
+                remember_signin(board, True)
+                return True, "signed in"
             return False, "the sign-in did not take - wrong password, or the board asked "\
                           "something extra (a code, a captcha) that needs you at the keyboard"
         except Exception as e:

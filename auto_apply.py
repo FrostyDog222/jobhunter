@@ -16,6 +16,7 @@ It sends the CV that sits on your board profile, and the salary figure from your
 to employers whose ads nobody read. That is the deal; the dashboard says so before you switch
 it on.
 """
+import creds
 import datetime
 
 
@@ -70,7 +71,6 @@ def run(app, prefill, settings, log):
     # an account gets locked.
     for board in list(out):
         try:
-            import creds
             saved = creds.get(board)
         except Exception as e:                   # a credentials file we cannot read is not fatal
             log(f"could not read the saved sign-in for {board}: {type(e).__name__}")
