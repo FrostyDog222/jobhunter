@@ -2015,6 +2015,10 @@ async def apply_batch(body: dict = Body(...)):
             u, headless=True, profile=p, job_title=t,
             # default False: a caller that forgets the flag must not thereby submit an
             # employer's screening questions. The dashboard passes True explicitly.
+            # The dashboard's batch button does NOT pass this, deliberately: a job with
+            # screening questions is handed back and opened for you, because twenty sets of
+            # answers nobody read is not something to send on one click. The single Apply
+            # button, which asks about that one job by name, does submit them.
             auto_send=body.get("auto_send", False)))
         if res.get("submitted") or res.get("already"):
             with db() as c:
@@ -2241,7 +2245,10 @@ def one_job(c, url):
 def set_status(body: dict = Body(...)):
     url = _url_of(body)
     status = body.get("status")
-    if status not in ("new", "ready", "opened", "applied", "skipped"):
+    # "vetoed" is here for undo only - Mark applied on a row the language gate vetoed, then
+    # Undo, has to put it back where it was, and it used to answer "not a status: vetoed".
+    # Vetoed rows are precisely the ones you overrule by hand, so this was not a corner.
+    if status not in ("new", "ready", "opened", "applied", "skipped", "vetoed"):
         raise HTTPException(400, f"not a status: {status}")
     with db() as c:
         if status == "applied":

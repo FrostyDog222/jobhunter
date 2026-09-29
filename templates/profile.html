@@ -232,7 +232,7 @@ function renderChips(path){
   box.innerHTML = at(path).get().map((v,i) =>
       `<span class="chip"><span>${esc(v)}</span><button type="button" data-chip="${path}"
          data-i="${i}" title="Remove">&times;</button></span>`).join('')
-    + `<input class="chipin" data-add-chip="${path}" placeholder="+ add">`;
+    + `<input class="chipin" id="chip_${path}" data-add-chip="${path}" placeholder="+ add">`;
   localiseDOM(box);        // built with innerHTML, so the server's pass never saw it
   if(keep) box.querySelector('.chipin').focus();
 }
@@ -407,6 +407,10 @@ addEventListener('beforeunload', e => {
   e.returnValue = '';
 });
 document.addEventListener('click', async e => {
+  // Ctrl/Cmd/shift-click and middle-click open a new tab and leave THIS page untouched, so
+  // there is nothing to flush and nothing to warn about. Taking them over turned "open the
+  // dashboard in a new tab" into "navigate away from my half-typed profile".
+  if(e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
   const a = e.target.closest('a[href]');
   if(!a || !LOADED || (!DIRTY && !SAVING)) return;
   if(a.target === '_blank' || a.hasAttribute('download')) return;
@@ -478,7 +482,13 @@ document.addEventListener('change', async e => {
   if(!e.target.classList.contains('cvphoto')) return;
   const all = {};
   document.querySelectorAll('.cvphoto').forEach(b => all[b.dataset.for] = b.checked);
-  await api('/api/settings', {cv_photo: all});   // so a reload does not undo the choice
+  // same as #photo_in_cv: a tick that saves nothing and says nothing shows a setting that is
+  // not on disk
+  try { await api('/api/settings', {cv_photo: all}); }   // so a reload does not undo the choice
+  catch(err){
+    e.target.checked = !e.target.checked;
+    toast('⚠ ' + friendly(err.message), 8000);
+  }
 });
 document.addEventListener('click', e => {
   const tpl = e.target.dataset && e.target.dataset.cv;
@@ -488,9 +498,27 @@ document.addEventListener('click', e => {
   // the tick belonging to this template, not a single answer for all of them
   const box = document.querySelector(`.cvphoto[data-for="${CSS.escape(tpl)}"]`);
   const photo = box && box.checked ? '1' : '0';
-  window.location.href = `/api/profile/cv?template=${encodeURIComponent(tpl)}&lang=${lang}`
-                       + `&photo=${photo}`;
-  toast('Building your CV — the download starts in a moment.', 5000);
+  busy(e.target, async () => {
+    // The PDF is built from the profile ON DISK, and an edit can still be sitting on the 900 ms
+    // autosave timer - so a CV downloaded straight after typing was missing the last thing typed.
+    if(DIRTY && !(await saveNow()))
+      return toast(t('Your last change could not be saved, so the CV was not built. '
+                   + 'Fix that first or the PDF will be out of date.'), 9000);
+    toast(t('Building your CV — the download starts in a moment.'), 5000);
+    // fetched, not navigated to: location.href on a 400 or a 500 replaced this whole page with
+    // {"detail": ...} and the person lost the profile they were editing
+    const r = await fetch(`/api/profile/cv?template=${encodeURIComponent(tpl)}&lang=${lang}`
+                        + `&photo=${photo}`);
+    if(!r.ok) throw new Error(await r.text().then(b => {
+      try { return JSON.parse(b).detail; } catch(_) { return r.statusText; } }));
+    const blob = await r.blob();
+    const name = (r.headers.get('content-disposition') || '').match(/filename="?([^"]+)"?/);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name ? name[1] : 'cv.pdf';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+  }, 'building...');
 });
 drawCvButtons();
 
@@ -519,9 +547,16 @@ $('#photodel').onclick = e => busy(e.target, async () => {
   toast('Photo removed. CVs will simply have none.');
 }, 'removing...');
 $('#photo_in_cv').onchange = async e => {
-  await api('/api/settings', {photo_in_cv: e.target.checked});
-  toast(e.target.checked ? 'Your photo will be put on new CVs.'
-                         : 'New CVs will be written without a photo.');
+  // A save that fails in silence leaves the box where you put it, so the page shows a setting
+  // that is not on disk - and the next CV comes out the other way round with no explanation.
+  try {
+    await api('/api/settings', {photo_in_cv: e.target.checked});
+    toast(e.target.checked ? t('Your photo will be put on new CVs.')
+                           : t('New CVs will be written without a photo.'));
+  } catch(err){
+    e.target.checked = !e.target.checked;         // say what is true, not what was clicked
+    toast('\u26a0 ' + friendly(err.message), 8000);
+  }
 };
 api('/api/settings', undefined, 'GET')
   .then(st => { $('#photo_in_cv').checked = !!st.photo_in_cv;
@@ -541,6 +576,10 @@ $('#purge').onclick = e => busy(e.target, async () => {
   const typed = prompt('Type ERASE to confirm.');
   if((typed || '').trim().toUpperCase() !== 'ERASE') return toast('Nothing was erased.');
   const r = await api('/api/purge', {confirm: 'ERASE'});
+  // Immediately: there may be an autosave sitting on its 900 ms timer, and it would POST the
+  // whole profile back AFTER the wipe - re-creating profile.json from the copy in this tab,
+  // straight past the wipe guard, because by then there is nothing on disk left to guard.
+  clearTimeout(_timer); DIRTY = false; LOADED = false; P = {};
   toast(r.failed && r.failed.length
     ? `Erased ${r.removed.length} item(s), but ${r.failed.length} could NOT be removed and are `
       + `still on this PC: ${r.failed.map(f => String(f).split(':')[0]).join(', ')}. `
@@ -610,6 +649,15 @@ $('#up').onclick = e => busy(e.target, async () => {
 setTimeout(syncCurrency, 300);
 
 $('#pasteBtn').onclick = e => busy(e.target, async () => {
+  // Upload asks before replacing a profile. Paste replaces exactly as much and asked nothing,
+  // and an empty box was a paid model call on nothing at all.
+  if(!$('#paste').value.trim())
+    return toast(t('Paste the text of your CV into the box first.'));
+  const hasSomething = (P.experience || []).length || (P.skills || []).length
+                       || (P.summary || '').trim() || (P.name || '').trim();
+  if(hasSomething && !confirm(t('This replaces your whole profile with whatever the model reads '
+      + 'out of that text. The copy it replaces is kept as profile.previous.json. Continue?')))
+    return;
   P = await api('/api/profile/paste', {text: $('#paste').value}); render(); toast('Parsed — review the fields.');
 }, 'parsing...');
 

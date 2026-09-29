@@ -145,7 +145,7 @@ h2{font-size:15px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06e
     <a href="https://github.com/FrostyDog222" target="_blank" rel="noopener">FrostyDog</a>.
     Everything it knows stays in this folder.</span>
 </footer>
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <button id="totop" class="ghost" title="Back to top" aria-label="Back to top" hidden>&#8593;</button>
 <script>
 const $ = s => document.querySelector(s);
@@ -154,6 +154,11 @@ const $ = s => document.querySelector(s);
 // Empty in English, so every call below is a no-op and the English page is untouched.
 const T = {{ T | default({}, true) | tojson }};
 const t = s => T[String(s)] ?? s;
+// Translate the sentence, THEN drop the live values in. The other order leaves a half-English
+// line, and it is the only way a translation can put a value somewhere else in the sentence.
+// t() alone cannot help a string with a number in it, which is most of what this app says.
+const fill = (key, vars) => Object.entries(vars || {})
+  .reduce((out, [k, v]) => out.split('{' + k + '}').join(v), t(key));
 
 // Walk what was just rendered and swap whole text nodes and the three attributes a person
 // reads. Exact matches only: text this dictionary has never heard of is left alone, which is
@@ -189,8 +194,8 @@ function progress(pct, label){
   const bar = document.getElementById('bar');
   if(pct == null){ bar.classList.remove('known'); bar.style.removeProperty('--pct'); }
   else { bar.classList.add('known'); bar.style.setProperty('--pct', pct + '%'); }
-  const b = document.getElementById('busylabel');
-  if(b) b.textContent = label || '';
+  // every busy button, not just the first one the document happened to hold
+  for(const b of document.querySelectorAll('.busylabel')) b.textContent = label || '';
 }
 
 // The job list runs to dozens of pages and the search bar is at the very top of all of them.
@@ -208,9 +213,13 @@ function progress(pct, label){
 function toast(m, ms=3200){ const el=$('#toast'); el.textContent=t(m); el.style.display='block';
   clearTimeout(_t); _t=setTimeout(()=>el.style.display='none', ms); }
 async function api(url, body, method){
-  const r = await fetch(url, body===undefined ? {} : {
-    method: method||'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-  return unwrap(r);
+  // The method is honoured whether or not there is a body. It used to be read only inside the
+  // body branch, so api(url, undefined, 'DELETE') sent a GET - and the one call that does that,
+  // Remove photo, fetched the image instead of deleting it and reported an internal error.
+  const opts = body === undefined ? {method: method || 'GET'}
+             : {method: method || 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)};
+  return unwrap(await fetch(url, opts));
 }
 async function unwrap(r){
   const body = await r.text();
@@ -245,8 +254,10 @@ const friendly = m => { const hit = FRIENDLY.find(([re]) => re.test(String(m)));
 let _busy = 0;   // ref-counted: two things running at once must not switch the bar off early
 async function busy(btn, fn, label){
   const old = btn.innerHTML; btn.disabled = true;
+  // class, not id: two buttons working at once used to put two id="busylabel" elements in the
+  // page, and getElementById only ever found the first, so the second button's count never moved
   btn.innerHTML = '<span class="spin"></span>' + t(label || 'working...')
-                + '<span id="busylabel" style="margin-left:6px;opacity:.85"></span>';
+                + '<span class="busylabel" style="margin-left:6px;opacity:.85"></span>';
   if(++_busy === 1) document.getElementById('bar').classList.add('on');
   try { return await fn(); } catch(e){ toast('⚠ ' + friendly(e.message), 8000); }
   finally {

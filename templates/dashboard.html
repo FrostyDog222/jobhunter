@@ -601,7 +601,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 {% endblock %}
 
 {% block js %}
-let JOBS = [], LLM = {}, S = {}, TPLS = {}, PAGE = 1, lastView = '', PROFILE = {}, OFFLINE = false;
+let JOBS = [], LLM = {}, S = {}, TPLS = {}, PAGE = 1, lastView = '', PROFILE = null, OFFLINE = false;   // null until the request lands: see drawAlerts
 let BOARDS_IN = null;    // what the last sign-in check said, or null before it has run
 const PER_PAGE = 20;
 
@@ -654,11 +654,6 @@ async function drawOllamaHelp(){
   const done = v => v ? '<span style="color:var(--good)">&#10003;</span> '
                       : '<span style="color:var(--dim)">&#9675;</span> ';
   const pick = bestOllamaModel(models);
-  // Translate the sentence, THEN drop the live value in. The other order leaves a half-English
-  // line, and it is the only way a translation can put the value somewhere else in the sentence.
-  const fill = (key, vars) => Object.entries(vars || {})
-    .reduce((out, [k, v]) => out.split('{' + k + '}').join(v), t(key));
-
   const link = '<a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com/download</a>';
   const steps = [
     [up, fill('Install Ollama from {link} and let it finish. It then runs quietly in the '
@@ -879,7 +874,7 @@ $('#keep_signed_in').onchange = async e => {
 // "I did not know what to type there" - so offer the two answers that are already on the page:
 // the titles this person has actually held, and whatever they just searched for.
 $('#auto_from_cv').onclick = () => {
-  const mine = [...new Set([PROFILE.title, ...(PROFILE.experience || []).map(x => x.role)]
+  const mine = [...new Set([(PROFILE || {}).title, ...((PROFILE || {}).experience || []).map(x => x.role)]
                   .map(x => (x || '').trim()).filter(Boolean))].slice(0, 4);
   if(!mine.length) return toast('Your profile has no job titles yet — fill it in first, or type '
                               + 'the roles you are looking for.', 7000);
@@ -918,22 +913,28 @@ function tplCards(selected){
 }
 function drawTemplates(){
   $('#tplpick').innerHTML = tplCards(S.cv_template || '')
-    || '<span class="muted">No templates found in templates/cv/.</span>';
+    || `<span class="muted">${t('No templates found in templates/cv/.')}</span>`;
   localiseDOM();   // this panel is innerHTML, so the server pass never saw it
 }
-function pickTemplate(c){
-  saveSettings({cv_template: c.dataset.tpl});
-  toast(fill('Default template: {name}.', {name: TPLS[c.dataset.tpl].name}));
+// NOT pickTemplate: that name already belongs to the modal below, and since both are hoisted
+// declarations the modal one won everywhere. Clicking a template tile under Settings opened the
+// tailor modal over the Settings panel and never saved a default.
+async function setDefaultTemplate(c){
+  try {
+    await saveSettings({cv_template: c.dataset.tpl});
+    drawTemplates();                     // so the tick and aria-pressed follow the click
+    toast(fill('Default template: {name}.', {name: TPLS[c.dataset.tpl].name}));
+  } catch(e){ toast('\u26a0 ' + friendly(e.message), 8000); }
 }
 $('#tplpick').addEventListener('click', e => {
-  const c = e.target.closest('.tpl'); if(c) pickTemplate(c);
+  const c = e.target.closest('.tpl'); if(c) setDefaultTemplate(c);
 });
 // Enter and Space, because that is what a button does - and preventDefault on Space, or the
 // page scrolls instead of choosing
 $('#tplpick').addEventListener('keydown', e => {
   if(e.key !== 'Enter' && e.key !== ' ') return;
   const c = e.target.closest('.tpl'); if(!c) return;
-  e.preventDefault(); pickTemplate(c);
+  e.preventDefault(); setDefaultTemplate(c);
 });
 // -> a template key, or null if cancelled. Asks only when there is no default or you asked it to.
 const PHOTO_HINT = {yes: 'better with one', no: 'this one is better without',
@@ -999,12 +1000,17 @@ const DESC = new Map();
 async function showDescription(pre){
   const url = pre.dataset.desc;
   if(!url || pre.dataset.loaded) return;
-  pre.dataset.loaded = '1';
   if(!DESC.has(url)){
     try { DESC.set(url, (await api('/api/job/description?url=' + encodeURIComponent(url),
                                    undefined, 'GET')).description); }
-    catch(e){ pre.textContent = 'Could not load the ad. ' + friendly(e.message); return; }
+    catch(e){
+      // the flag is set only on success: it used to be set first, so one failed load meant this
+      // ad could never be opened again without reloading the whole page
+      pre.textContent = t('Could not load the ad.') + ' ' + friendly(e.message);
+      return;
+    }
   }
+  pre.dataset.loaded = '1';
   pre.textContent = DESC.get(url);
 }
 document.addEventListener('toggle', e => {
@@ -1019,7 +1025,10 @@ const fmtWhen = s => { const d = new Date(String(s).replace(' ', 'T'));
 const ATS = /:\/\/([a-z0-9-]+\.)*(greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|smartrecruiters\.com|teamtailor\.com|recruitee\.com|personio\.de|personio\.com|jobvite\.com)(\/|$)/i;
 // filled from /api/boards - AUTO are boards this app submits on, MANUAL are boards you
 // apply to yourself in your own browser. Defaults keep the list usable if the call fails.
-let AUTO = ['ejobs'], MANUAL = ['hipo'];
+// Kept in step with prefill.AUTO_APPLY / MANUAL_APPLY. BestJobs was missing here, so whenever
+// /api/boards failed every BestJobs card silently lost its Apply button and its tick box and
+// rendered as an ordinary link - on the board with the second most jobs in the list.
+let AUTO = ['ejobs', 'bestjobs'], MANUAL = ['hipo'];
 const BOARD = j => AUTO.includes(j.source);
 const HAND = j => MANUAL.includes(j.source);
 
@@ -1061,7 +1070,7 @@ const PRESETS = {
 // The examples below describe one career. Whoever runs this has their own, and it is already
 // written down in their profile - so their job titles lead the list.
 function drawPresets(){
-  const mine = [...new Set([PROFILE.title, ...(PROFILE.experience || []).map(e => e.role)]
+  const mine = [...new Set([(PROFILE || {}).title, ...((PROFILE || {}).experience || []).map(e => e.role)]
                   .map(x => (x || '').trim()).filter(Boolean))].slice(0, 6);
   $('#preset').innerHTML = '<option value="">Pick a role family…</option>'
     + (mine.length ? '<optgroup label="From your profile">'
@@ -1090,7 +1099,7 @@ function mirrorControls(){
 // because they are the terms that find their own work, then the example families. Typing is
 // never blocked - a datalist suggests, it does not constrain.
 function drawTerms(){
-  const mine = [...new Set([PROFILE.title, ...(PROFILE.experience || []).map(e => e.role)]
+  const mine = [...new Set([(PROFILE || {}).title, ...((PROFILE || {}).experience || []).map(e => e.role)]
                   .map(x => (x || '').trim()).filter(Boolean))].slice(0, 6);
   // one entry per example family, plus each individual term, so both work while typing
   const examples = Object.values(PRESETS).flatMap(v => v.split(',').map(x => x.trim()));
@@ -1167,8 +1176,15 @@ const SBOARDS = {ejobs:'eJobs', bestjobs:'BestJobs', hipo:'Hipo (test)'};
 const NAMES = {...SBOARDS, hipo:'Hipo'};   // every board, including manual ones
 let recheckedOnce = false;
 async function loadSignins(){
-  let st = {boards:{}};
-  try { st = await api('/api/signin', undefined, 'GET'); } catch(e){}
+  let st = null;
+  try { st = await api('/api/signin', undefined, 'GET'); }
+  catch(e){
+    // null, not {}: an empty object is truthy, so a failed call used to render as "signed out of
+    // eJobs, BestJobs and Hipo" in red, over sessions that were perfectly fine
+    BOARDS_IN = null;
+    $('#boardstate').textContent = t('Could not check the board sign-ins just now.');
+    return;
+  }
   // The cached answer has no expiry of its own, so it happily said "signed in" for a session
   // that had died overnight. When it is old, ask the boards for real - in the background, once
   // per page load, because it launches a browser and takes a few seconds.
@@ -1488,7 +1504,11 @@ async function load(){
 function drawAlerts(){
   const box = $('#alerts');
   if(!box) return;
-  const P = PROFILE || {}, out = [];
+  // PROFILE is null until the request lands and stays null if it fails. Treating that as an
+  // empty profile flashed "your profile is missing your name" on every single page load, and
+  // left it on screen for good when the call failed.
+  if(PROFILE === null) return;
+  const P = PROFILE, out = [];
   const missing = BOARDS_IN
     ? Object.entries(SBOARDS).filter(([k]) => !BOARDS_IN[k]).map(([, n]) => n) : [];
 
@@ -1618,7 +1638,9 @@ $('#selall').onclick = () => {
     toast(`${boxes.length} match, selected the first ${cap} — that is the most one run will send.`, 8000);
 };
 $('#clear').onclick = e => busy(e.target, async () => {
-  const n = JOBS.filter(j => ['new','vetoed'].includes(j.status)).length;
+  // ...and not the tailored ones: the server keeps any row holding a CV, so counting those
+  // here made the dialog promise 12 and the toast answer 9
+  const n = JOBS.filter(j => ['new','vetoed'].includes(j.status) && !j.cv).length;
   if(!n) return toast('Nothing to clear - every row here is one you have acted on.');
   const kept = JOBS.length - n;
   if(!confirm(`Delete ${n} result(s) you have not acted on?
@@ -1646,6 +1668,7 @@ $('#sendpicked').onclick = e => {
       ? [`(${all.length - urls.length} more are ticked; one run sends 20, the rest stay selected.)`, '']
       : []),
     'Have you read each job ad? Open "Read the job ad" on any you are unsure about.',
+    'Any job with screening questions is not sent — it opens in a window for you to finish.',
     'Each goes to a real employer under your name, with the salary figure from your',
     'profile, and none of it can be taken back.',
   ].join('\n');
@@ -1845,10 +1868,18 @@ loadLlm().catch(e => {
   console.error(e);
 });
 loadSignins();
-api('/api/cv/templates', undefined, 'GET').then(t => { TPLS = t; return loadSettings(); }).catch(()=>{});
+// loadSettings() used to be chained INSIDE this promise, so a failure here left every control
+// on its markup default, the search bar empty, and the picker claiming there are no templates
+// in templates/cv/ - which is a statement about the person's disk, not about a failed request.
+api('/api/cv/templates', undefined, 'GET')
+  .then(x => { TPLS = x; })
+  .catch(() => { toast(t('Could not read the CV templates. The rest of the page still works.'), 8000); })
+  .finally(() => loadSettings());
 loadGaps();
 api('/api/profile', undefined, 'GET')
-  .then(p => { PROFILE = p || {}; drawPresets(); drawTerms(); steps(); }).catch(()=>{});
+  .then(p => { PROFILE = p || {}; drawPresets(); drawTerms(); steps(); drawAlerts(); })
+  .catch(e => { toast(t('Could not read your profile, so the checklist and the alerts above are '
+                      + 'not showing. The app itself is fine - reload the page.'), 9000); });
 loadAuto();
 // keep the auto/manual split in step with the server rather than hard-coding it twice
 api('/api/boards', undefined, 'GET')
