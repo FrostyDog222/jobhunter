@@ -252,6 +252,29 @@ def _request(provider, model, key, system, user, max_tokens):
                           {"role": "user", "content": user}]})
 
 
+def _balanced(txt, open_ch, close_ch):
+    """The first complete bracketed span, counting depth and ignoring brackets inside strings."""
+    start = txt.find(open_ch)
+    if start < 0:
+        return None
+    depth, in_str, esc = 0, False, False
+    for i, ch in enumerate(txt[start:], start):
+        if esc:
+            esc = False
+        elif ch == "\\" and in_str:
+            esc = True
+        elif ch == '"':
+            in_str = not in_str
+        elif not in_str:
+            if ch == open_ch:
+                depth += 1
+            elif ch == close_ch:
+                depth -= 1
+                if depth == 0:
+                    return txt[start:i + 1]
+    return None
+
+
 def _parse_reply(provider, txt):
     """The model's text -> an object. Every failure raises RuntimeError, never
     JSONDecodeError: ask() catches RuntimeError to fail over, and a ValueError escaping
@@ -282,6 +305,17 @@ def _parse_reply(provider, txt):
             return json.loads(cand)
         except json.JSONDecodeError:
             continue
+    # Last resort: the FIRST balanced span. The greedy searches above run from the first
+    # bracket to the LAST one, so a reply offering a second object - "here it is {...}, or
+    # {...} instead" - parsed as neither, the provider was marked failed, and a quota was spent
+    # walking down the chain over a reply whose first object was perfectly good. This goes last
+    # because taken earlier it grabs an inner array and calls that the answer.
+    for cand in (_balanced(txt, "{", "}"), _balanced(txt, "[", "]")):
+        if cand:
+            try:
+                return json.loads(cand)
+            except json.JSONDecodeError:
+                continue
     # head AND tail: a reply that is merely cut short looks identical to a malformed one
     # when you only log the first 300 characters, which is why the last one took a
     # capture harness to diagnose

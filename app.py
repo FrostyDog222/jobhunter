@@ -309,6 +309,11 @@ def get_auto():
 
 @app.post("/api/auto")
 def set_auto(body: dict = Body(...)):
+    with _FILES:                  # the same read-modify-write as /api/settings, the same lock
+        return _set_auto(body)
+
+
+def _set_auto(body):
     cur = settings()
     for k in ("auto_enabled", "auto_day", "auto_time", "auto_query", "auto_location",
               "auto_county", "auto_country", "keep_signed_in",
@@ -422,6 +427,15 @@ def _same_shape(value, default):
 
 @app.post("/api/settings")
 def save_settings(body: dict = Body(...)):
+    # One lock across read AND write. Locking settings() and save_settings_file() separately
+    # still loses an update: this endpoint and /api/auto both read the whole file, change their
+    # own keys and write it all back, so whichever finishes second erases the other's change.
+    # Measured: saving the clock while switching the weekly run on kept only one of them.
+    with _FILES:
+        return _save_settings(body)
+
+
+def _save_settings(body):
     cur = settings()
     for k in DEFAULTS:
         if k not in body:

@@ -336,7 +336,7 @@ assert _pf._probe_signed_in(_p, "ejobs") is True and _p.loads == 1    # healthy 
 import inspect as _i3
 _src = _i3.getsource(app.get_auto)
 assert 'k == "keep_signed_in"' in _src, "get_auto must return the switch, or it draws unticked"
-assert "keep_signed_in" in _i3.getsource(app.set_auto), "set_auto must accept it"
+assert "keep_signed_in" in _i3.getsource(app._set_auto), "set_auto must accept it"
 assert "keep_signed_in" in _i3.getsource(app.keep_signed_in)
 assert app.KEEP_HOURS * 3600 < 6 * 3600, "must touch more often than Hipo's ~6h session"
 
@@ -861,14 +861,15 @@ assert app._same_shape("x", "") and not app._same_shape(1, "")
 assert app._same_shape(True, False) and not app._same_shape(1, False), "a bool is not an int here"
 assert app._same_shape(5, 0) and not app._same_shape(True, 0)
 assert app._same_shape({}, {}) and not app._same_shape([], {})
-assert "_same_shape" in _i6.getsource(app.save_settings), "settings are not type-checked"
+assert "_same_shape" in _i6.getsource(app._save_settings), "settings are not type-checked"
 
 # 3c. Both small JSON files are read and written from several threads at once. Unique temp names
 # were not enough on Windows: os.replace fails while anyone has the destination open, so a
 # reader alone broke a save, and a save handed a reader an EMPTY profile - the same read the
 # anti-wipe guard asks permission from.
 assert "mkstemp" in _i6.getsource(app._atomic_write), "a fixed temp name races other writers"
-for _fn in (app.profile, app.settings, app.save_profile, app.save_settings_file):
+for _fn in (app.profile, app.settings, app.save_profile, app.save_settings_file,
+            app.save_settings, app.set_auto):   # read-modify-write needs one lock across both
     assert "_FILES" in _i6.getsource(_fn), f"{_fn.__name__} touches the file outside the lock"
 
 # 3d. A guard on data loss cannot be an assert: python -O removes it and the guard is simply
@@ -1030,5 +1031,26 @@ assert app.DEFAULTS["ui_lang"] == "en", "English is the default for a new user"
 assert app.t("Dashboard", "ro") == "Panou" and app.t("Dashboard", "en") == "Dashboard"
 assert app.t("a string nobody translated", "ro") == "a string nobody translated", \
     "an untranslated string must fall back to English, never show a key"
+
+
+# 3n. A town name inside a longer one is not a match. Campulung Moldovenesc is in Suceava and
+# contains Arges's Campulung; Turnu Magurele is in Teleorman and contains Ilfov's Magurele.
+# Both reported the wrong county, which shows a job as near when it is hours away - but an ad
+# naming several towns really is open in all of them, so this cannot just take the longest.
+for _loc, _c, _want in (
+        ("Campulung Moldovenesc", "arges", False), ("Campulung Moldovenesc", "suceava", True),
+        ("Turnu Magurele", "ilfov", False), ("Turnu Magurele", "teleorman", True),
+        ("Campulung", "arges", True), ("Magurele", "ilfov", True),
+        ("Bacau, Iasi, Roman, Vaslui", "iasi", True),
+        ("Bacau, Iasi, Roman, Vaslui", "bacau", True),
+        ("Bacau, Iasi, Roman, Vaslui", "cluj", False)):
+    assert scrape.in_county(_loc, _c) is _want, f"in_county({_loc!r}, {_c!r})"
+
+# 3o. A reply that offers a second object parsed as neither, so a good answer was thrown away
+# and a quota spent walking down the chain.
+assert app.llm._parse_reply("p", 'Here: {"fit":80} - or {"fit":90} instead.') == {"fit": 80}
+# ...but the first balanced span is a LAST resort: taken earlier it grabs an inner array
+_md = '{"fit": 65, "gaps": ["SQL"], "untapped": [**"Team work** here"]}'
+assert app.llm._parse_reply("m", _md)["fit"] == 65, "an inner array was mistaken for the answer"
 
 print("ok")

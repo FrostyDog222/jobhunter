@@ -531,13 +531,28 @@ def in_county(text, county):
     bare = re.sub(r"(^|-)(romania|national)($|-)", "-", flat).strip("-")
     if not bare:
         return True
-    display, towns = entry
-    # word-boundary on the slug, so "Ilfov" does not match "Ilfoveni" and "Arad" does not
-    # match "Paradis"
-    for name in (display, county, *towns):
-        n = _slug(name)
-        if n and re.search(rf"(^|-){re.escape(n)}($|-)", flat):
-            return True
+    # Every place name that appears, with where it appears. An ad naming several towns is open
+    # in all of them, so this cannot pick a single winner - but a short name sitting INSIDE a
+    # longer one is not a match at all: "Campulung Moldovenesc" is in Suceava and contains
+    # Arges's "Campulung", "Turnu Magurele" is in Teleorman and contains Ilfov's "Magurele".
+    # Both used to report the wrong county, which shows a job as near when it is hours away.
+    hits = []
+    for slug, (display, towns) in COUNTIES.items():
+        for name in (display, slug, *towns):
+            n = _slug(name)
+            if not n:
+                continue
+            for m in re.finditer(rf"(^|-){re.escape(n)}($|-)", flat):
+                hits.append((m.start(1), m.start(1) + len(n) + 1, slug))
+    want = (county or "").lower()
+    for start, end, slug in hits:
+        if slug != want:
+            continue
+        # shadowed by a longer name that covers the same words?
+        if any(o_start <= start and end <= o_end and (o_end - o_start) > (end - start)
+               for o_start, o_end, o_slug in hits if o_slug != want):
+            continue
+        return True
     return False
 
 
