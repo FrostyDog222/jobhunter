@@ -1483,15 +1483,30 @@ for _f in sorted(app.HERE.glob("*.py")) + sorted((app.HERE / "templates").rglob(
 # 4h. One weekly run at a time. Two pick candidates from the same table before either marks
 # anything applied, so the same employer gets two applications minutes apart and the "5 a week"
 # cap becomes 5 per process. They also share one Playwright profile directory.
-import subprocess, auto as _auto
+import subprocess, tempfile as _tf0, auto as _auto
 assert callable(_auto.only_one)
-assert _auto.only_one(), "could not take the lock"
-_second = subprocess.run(
-    [sys.executable, "-c", "import sys; sys.path.insert(0, sys.argv[1]); import auto; "
-                           "print('GOT', auto.only_one())", str(app.HERE)],
-    capture_output=True, text=True)
-assert _second.stdout.strip().endswith("GOT False"), \
-    f"a second run was allowed to start: {_second.stdout!r} {_second.stderr[-300:]!r}"
+# A lock file of its own, NOT the real one. Using the real one made this fail whenever a weekly
+# run was actually in progress - the lock doing its job read as the test failing.
+_lockdir = _tf0.mkdtemp()
+_keep_lock, _auto.LOCK = _auto.LOCK, pathlib.Path(_lockdir) / ".auto.lock"
+try:
+    assert _auto.only_one(), "could not take a lock nothing else is holding"
+    _second = subprocess.run(
+        [sys.executable, "-c",
+         "import sys, pathlib; sys.path.insert(0, sys.argv[1]); import auto; "
+         "auto.LOCK = pathlib.Path(sys.argv[2]); print('GOT', auto.only_one())",
+         str(app.HERE), str(_auto.LOCK)],
+        capture_output=True, text=True)
+    assert _second.stdout.strip().endswith("GOT False"), \
+        f"a second run was allowed to start: {_second.stdout!r} {_second.stderr[-300:]!r}"
+finally:
+    for _h in _auto._HELD:
+        try:
+            _h.close()
+        except Exception:
+            pass
+    _auto._HELD.clear()
+    _auto.LOCK = _keep_lock
 
 # 4i. "Ai aplicat" anywhere on the page counted as THIS job. Both boards print a rail of similar
 # jobs under the posting, and a card there carries the same badge for a different job - so a job
