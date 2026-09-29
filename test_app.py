@@ -1779,7 +1779,7 @@ assert "loadLlm().catch(" in _dash4u or "loadLlm().catch(" in (
 # which is that the session is not accepted outside the browser window that made it.
 _rm = (app.HERE / "README.md").read_text(encoding="utf-8")
 assert "118 stored jobs" not in _rm, "the README still quotes one snapshot of one database"
-assert "not accepted once you leave that window" in _rm
+assert "Hipo applies like the others now" in _rm,     "the README still says Hipo is manual-apply"
 assert "## Erasing everything" in _rm, "the one button that cannot be undone is undocumented"
 for _fact in ("asks twice", "scheduled tasks", "stay sent"):
     assert _fact in _rm.split("## Erasing everything")[1].split("## ")[0], _fact
@@ -2064,5 +2064,22 @@ assert 'elif board == "hipo":' in _hsrc
 _closed_arm = _hsrc.split('elif board == "hipo":')[1].split("else:")[0]
 assert "already applied" in _closed_arm, "a Hipo job you applied to can still be filed as closed"
 assert 'out["closed"] = True' not in _closed_arm, "the Hipo arm still marks the posting closed"
+
+
+# 5n. On Hipo "Apply to this job" is two different buttons wearing the same words. Read off
+# eight live postings without clicking any of them:
+#     /locuri-de-munca/candidat/aplica/269733       an application ON Hipo, through its form
+#     /locuri-de-munca/redirectAnuntExtern/270394   target=_blank, off to the employer's site
+# Five of the eight were the second kind. apply_control matched on the text, so the app would
+# click a redirect believing it was applying: nothing sent, a tab opened on somebody else's
+# site, and the row filed as "pressed apply, no confirmation seen". The href decides now,
+# because the label cannot.
+_acsrc = _iK.getsource(_pfm.apply_control)
+assert "LEAVES_BOARD" in _acsrc, "apply_control is back to trusting the button's words"
+assert _pfm.LEAVES_BOARD.search("https://www.hipo.ro/locuri-de-munca/redirectAnuntExtern/270394")
+assert not _pfm.LEAVES_BOARD.search("https://www.hipo.ro/locuri-de-munca/candidat/aplica/269733")
+# external_apply must still recognise the same thing, or the card says "closed" for a posting
+# that is very much open
+assert "redirectanuntextern" in _iK.getsource(_pfm.external_apply).lower()
 
 print("ok")

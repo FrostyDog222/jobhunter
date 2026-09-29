@@ -913,8 +913,14 @@ def external_apply(page, board):
     return False
 
 
+# Links that leave the board for the employer's own site, whatever their label says. Hipo uses
+# the SAME words - "Apply to this job" - for its own application form and for a redirect to the
+# employer, so the text cannot tell them apart and the href has to.
+LEAVES_BOARD = re.compile(r"redirectanuntextern|/redirect", re.I)
+
+
 def apply_control(page, board):
-    """The board's own apply control, never a social-login variant of it."""
+    """The board's own apply control: never a social-login variant, never a link off the board."""
     ui = BOARD_UI[board]
     for el in page.query_selector_all("a, button"):
         try:
@@ -923,8 +929,14 @@ def apply_control(page, board):
             text = (el.inner_text() or "").strip().lower()
             if not text or not re.search(ui["apply"], text):
                 continue
-            if re.search(ui["avoid"], text + " " + (el.get_attribute("href") or ""), re.I):
+            href = el.get_attribute("href") or ""
+            if re.search(ui["avoid"], text + " " + href, re.I):
                 continue             # "Aplica cu LinkedIn" is a different flow entirely
+            if LEAVES_BOARD.search(href):
+                # Sampled eight live Hipo postings: five of them carried this. Clicking it sends
+                # nothing, opens the employer's site in a new tab, and leaves the row looking
+                # like a failed application.
+                continue
             return el
         except Exception:
             continue
