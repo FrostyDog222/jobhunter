@@ -124,6 +124,13 @@ def _connect():
             # number there was drawn as an amber pill beside genuine ones like "mass posting".
             c.execute("UPDATE jobs SET note = '' "
                       "WHERE source='bestjobs' AND note GLOB '[0-9]*'")
+    # BestJobs' flag was written as "applies on the employer site" and every filter looks for
+    # "apply on the employer site", which is not a substring of it. The writer is fixed, but the
+    # rows already stored outlive that fix - and each one is still invisible to the auto-apply
+    # skip and to the dashboard's "you apply" badge, so it still takes one of the week's slots
+    # and is still reported as a failure. Idempotent: the second run matches nothing.
+    c.execute("UPDATE jobs SET note = replace(note, 'applies on the employer site', ?) "
+              "WHERE note LIKE '%applies on the employer site%'", (EXTERNAL_NOTE,))
     _SCHEMA_DONE = True
     return c
 

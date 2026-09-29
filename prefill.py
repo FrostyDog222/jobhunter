@@ -344,10 +344,15 @@ def dismiss_consent(page):
     If the url moves, it was the wrong control - go back and give up.
     """
     def guarded(pattern):
-        before = page.url
+        # Ignoring the fragment, because a fragment is not a navigation. eJobs opens its cookie
+        # panel at #cookies - the same page - and comparing the full url read that as "the wrong
+        # control took us elsewhere", so it went back and left the wall standing. The wall then
+        # intercepted the apply click for the full 30s timeout and the application was filed as
+        # failed. Every board whose consent panel is a hash route was failing this way.
+        before = page.url.split("#")[0]
         if not _click_matching(page, pattern):
             return False
-        if page.url != before:
+        if page.url.split("#")[0] != before:
             try:
                 page.go_back(wait_until="domcontentloaded", timeout=15000)
                 page.wait_for_timeout(600)
@@ -359,11 +364,44 @@ def dismiss_consent(page):
     try:
         if guarded(REJECT):
             return "rejected"
-        if guarded(SETTINGS) and guarded(SAVE):
-            return "saved necessary-only"
+        if guarded(SETTINGS):
+            _turn_off_optional(page)
+            if guarded(SAVE):
+                return "saved necessary-only"
         return ""
     except Exception:
         return ""
+
+
+# The "off" side of a consent toggle. Whole-word only: these sit beside prose that uses the same
+# words, and this clicks things.
+OPTIONAL_OFF = re.compile(r"^\s*(inactiv|dezactivat|dezactiveaz[ăa]|oprit|off|disabled?|"
+                          r"decline|reject)\s*$", re.I)
+
+
+def _turn_off_optional(page):
+    """In an open consent panel, switch the optional groups off before saving.
+
+    Saving whatever was preselected is not "without accepting tracking", it is a hope about
+    someone else's default - and eJobs preselects nothing visible, so there was nothing to read.
+    Necessary cookies have no switch to turn off, so they are untouched by construction.
+    """
+    here = page.url.split("#")[0]
+    clicked = 0
+    for el in page.query_selector_all("div, span, button, label, [role=switch], [role=button]"):
+        if clicked >= 10:                       # a panel with more groups than this is not one
+            break
+        try:
+            if el.inner_text() and OPTIONAL_OFF.fullmatch(el.inner_text()) and el.is_visible():
+                el.click(timeout=2000)
+                clicked += 1
+                page.wait_for_timeout(200)
+                if page.url.split("#")[0] != here:   # it was a link, not a switch - undo it
+                    page.go_back(wait_until="domcontentloaded", timeout=15000)
+                    return clicked
+        except Exception:
+            continue                            # a switch that will not move is not fatal
+    return clicked
 
 
 def reach_form(page):

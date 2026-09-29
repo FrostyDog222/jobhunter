@@ -2269,6 +2269,25 @@ assert _aa6.candidates(_FakeApp([{"url": "https://www.bestjobs.eu/ro/loc-de-munc
                                   "note": _n6}]),
                        _pfm, 70, 5) == [],     "a job nobody can apply to from here still costs one of the week's slots"
 
+# 6b2. ...and the rows already stored outlive the commit that fixed the writer, so each one was
+# still taking one of the week's slots. One idempotent UPDATE beside the migrations.
+_notedir = pathlib.Path(_tf.mkdtemp())
+_keepdb6 = app.DB
+try:
+    app.DB, app._SCHEMA_DONE = _notedir / "db.sqlite", False
+    with app.db() as _c6:
+        _c6.execute("INSERT INTO jobs(url, source, note) VALUES(?,?,?)",
+                    ("u1", "bestjobs", "mass posting \u00b7 applies on the employer site"))
+    app._SCHEMA_DONE = False                 # next connection re-runs the migrations
+    with app.db() as _c6:
+        _got6 = _c6.execute("SELECT note FROM jobs WHERE url='u1'").fetchone()[0]
+    assert _got6 == "mass posting \u00b7 " + app.EXTERNAL_NOTE, _got6
+finally:
+    app.DB, app._SCHEMA_DONE = _keepdb6, False
+    with app.db() as _c6:
+        pass
+    _sh6.rmtree(_notedir, ignore_errors=True)
+
 # 6c. board_apply sets clicked AND needs_you on the "sent the mini interviu, saw no
 # confirmation" path. clicked was tested first, so the job was filed as pressed-and-forgotten
 # and no window ever opened - while the run's own report still said "needs you" about it.
@@ -2325,5 +2344,54 @@ finally:
 assert app._migrate_days({"auto_days": 5})["auto_days"] == ["SUN"]
 assert app._migrate_days({"auto_days": "SUN"})["auto_days"] == ["SUN"]
 assert app._migrate_days({"auto_days": ["MON", "nope"]})["auto_days"] == ["MON"]
+
+
+# 6i. A cookie wall left standing swallowed the apply click for the full 30s timeout, and the
+# application came back "failed". Found by sending a real one. eJobs opens its consent panel at
+# #cookies - the SAME page - and guarded() compared the whole url, so a fragment read as "that
+# control navigated us somewhere else"; it went back and left the wall over the apply button.
+# No browser needed: dismiss_consent only ever asks a page for its url, its elements, go_back.
+class _El6:
+    def __init__(self, text, page=None, goes_to=None):
+        self.text, self.page, self.goes_to, self.clicks = text, page, goes_to, 0
+    def inner_text(self): return self.text
+    def is_visible(self): return True
+    def is_disabled(self): return False
+    def get_attribute(self, _n): return None
+    def click(self, **k):
+        self.clicks += 1
+        if self.goes_to is not None and self.page is not None:
+            self.page.url = self.goes_to
+
+class _Page6:
+    """eJobs to the letter: no reject button, a settings link that only adds a fragment."""
+    def __init__(self, settings_goes_to):
+        self.url = "https://www.ejobs.ro/user/locuri-de-munca/x/1"
+        self.went_back = 0
+        self.settings = _El6("Modific\u0103 set\u0103rile", self, settings_goes_to)
+        self.off = [_El6("Inactiv"), _El6("Inactiv"), _El6("Inactiv")]
+        self.save = _El6("Salveaz\u0103 set\u0103rile")
+        self.accept_all = _El6("Accept\u0103 toate")
+    def query_selector_all(self, _sel):
+        return [self.settings, self.accept_all] + self.off + [self.save]
+    def wait_for_timeout(self, _ms): pass
+    def go_back(self, **k):
+        self.went_back += 1
+        self.url = self.url.split("#")[0]
+
+_pg6 = _Page6("https://www.ejobs.ro/user/locuri-de-munca/x/1#cookies")
+assert _pfm.dismiss_consent(_pg6) == "saved necessary-only",     "a fragment still counts as a navigation, so the cookie wall stays over the apply button"
+assert _pg6.save.clicks == 1 and _pg6.went_back == 0
+assert _pg6.accept_all.clicks == 0, "it accepted all cookies"
+# ...and the optional groups are switched off rather than saved at whatever was preselected,
+# which is what "without accepting tracking" in that docstring has to mean
+assert all(o.clicks == 1 for o in _pg6.off), "the optional cookie groups were left as found"
+
+# A control that really does leave the page is still the wrong control, and is still undone.
+_pg6b = _Page6("https://www.ejobs.ro/cookies-policy")
+assert _pfm.dismiss_consent(_pg6b) == "" and _pg6b.went_back == 1,     "a real navigation is no longer treated as a mis-click"
+
+# and the off-switch text is matched whole, because it sits beside prose using the same words
+assert _pfm.OPTIONAL_OFF.fullmatch("Inactiv") and not _pfm.OPTIONAL_OFF.fullmatch("Inactiv de la")
 
 print("ok")
