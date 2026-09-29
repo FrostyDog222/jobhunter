@@ -1,6 +1,6 @@
-<p align="center">
-  <img src="static/logo.webp" alt="jobhunter" width="320">
-</p>
+<!-- GitHub strips CSS out of a README, so the background cannot be set around the image -
+     it has to be part of it. static/banner.png is the artwork on its own navy, edge to edge. -->
+<img src="static/banner.png" alt="jobhunter - Find Jobs. Tailor Your CV. Get Hired." width="100%">
 
 # jobhunter
 
