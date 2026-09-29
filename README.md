@@ -164,6 +164,7 @@ invented: no employer, date, degree, tool or achievement that is not in your pro
 | Hipo | Applies for you, after you confirm — see the note below on what it does and does not tell you. Some Hipo ads redirect to the employer's own site instead; those are marked and opened, never submitted. |
 | Manual apply view | The *Manual apply* card filters to everything you have to send yourself. Those jobs are never picked up by batch apply or the weekly run. |
 | Employer forms (Greenhouse, Lever, Ashby, Workable, Workday and others) | Opens the form with your details filled in and the CV attached, then stops. You read it and press submit. |
+| Ads that redirect to the employer's own site | Recognised while the ad is read, marked *apply on the employer site*, and never clicked. They gather under **You apply yourself**. Most Hipo ads are this kind. |
 | Anything else | Opens the ad and your tailored CV side by side. |
 
 **How long a sign-in lasts.** Measured by removing one cookie at a time from a copy of the saved

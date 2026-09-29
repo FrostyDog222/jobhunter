@@ -38,6 +38,13 @@ DESC = {"bestjobs": re.compile(r'<div class="[^"]*job-description[^"]*"[^>]*>(.*
         "ejobs": re.compile(r'<div class="jobs-show-main-description__section">(.*?)</div>', re.S)}
 
 
+# A posting that hands the application to the employer's own website. Hipo writes it straight
+# into the href, so reading the page once at search time settles it - no browser, no attempt,
+# and the "you apply yourself" list is right before anything is clicked.
+GOES_EXTERNAL = re.compile(r"redirectAnuntExtern", re.I)
+EXTERNAL_NOTE = "apply on the employer site"
+
+
 def _markup(source, page):
     """The ad body from the board's own markup, every section of it, or ""."""
     pat = DESC.get(source)
@@ -715,6 +722,9 @@ def hydrate(jobs, timeout=30, on_progress=None, report=None):
                     if report is not None:
                         report["unread"] = report.get("unread", 0) + 1
                     continue
+                if GOES_EXTERNAL.search(page):
+                    # keep whatever the board already said about the ad; this is one more fact
+                    j["note"] = " · ".join(x for x in (j.get("note"), EXTERNAL_NOTE) if x)
                 jp = _jobposting(page)
                 markup = _markup(j["source"], page)
                 if not jp:

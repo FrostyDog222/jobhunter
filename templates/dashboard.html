@@ -246,11 +246,11 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     the browser that opens, never into this app. eJobs often hangs on its redirect afterwards —
     that is fine, the session is already saved; just close the tab once it says
     <i>Autentificare reușită</i>.</p>
-  <p class="muted">Hipo is <b>manual apply</b> for now: its sign-in used to stop working the
-    moment the login window closed. A fix for the likely cause is in, so <i>Sign in to Hipo
-    (test)</i> is there to find out - if it shows <i>signed in</i> afterwards, it worked. Until
-    then those jobs open in your own browser and you send them yourself. They are
-    never picked up by <i>Select all shown</i> or batch apply.</p>
+  <p class="muted">Hipo applies like the other two now — its sign-in used to stop working the
+    moment the login window closed, and that was fixed. One thing to know: Hipo confirms nothing.
+    When an application goes through it simply removes the apply button, so that is what the app
+    reads as success. Many Hipo ads also hand you to the employer's own site rather than taking
+    an application; those are marked and opened for you, never submitted.</p>
   <div id="signedout" style="display:none;margin:10px 0;padding:10px 12px;border-radius:8px;
     border:1px solid color-mix(in srgb,var(--bad) 45%,var(--line));
     background:color-mix(in srgb,var(--bad) 8%,transparent)">
@@ -379,7 +379,15 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
         <option value="WED">Wednesday</option><option value="THU">Thursday</option>
         <option value="FRI">Friday</option><option value="SAT">Saturday</option>
         <option value="SUN" selected>Sunday</option></select></div>
-      <div><label for="auto_time">Time</label><input id="auto_time" type="time" value="09:00"></div>
+      <div><label for="auto_hh">Time</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select id="auto_hh" style="flex:1"></select>
+          <b class="muted">:</b>
+          <select id="auto_mm" style="flex:0 0 auto;width:auto"></select>
+          <select id="auto_ampm" style="flex:0 0 auto;width:auto;display:none"></select>
+        </div>
+        <!-- the value every other piece of code reads, always 24-hour "HH:MM" -->
+        <input id="auto_time" type="hidden" value="09:00"></div>
       <div><label for="auto_min_fit">Worth my attention from</label><input id="auto_min_fit" type="number"
         min="0" max="100" step="5" value="75" title="Jobs scoring this or higher are counted in the summary"></div>
     </div>
@@ -574,7 +582,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <option value="skipped">Skipped</option>
     <option value="vetoed">Vetoed on language</option>
     <option value="@quiet">Few applicants so far</option>
-    <option value="@manual">Manual apply only</option>
+    <option value="@manual">You apply yourself</option>
   </select>
   <select id="minfit" title="The list is sorted best-first anyway, so this hides the tail rather than finding the head.">
     <option value="0" selected>Any fit</option><option value="50">Fit 50+</option>
@@ -617,13 +625,12 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 </div>
 
 <div class="card muted" id="manualnote" style="display:none;font-size:13px">
-  <b style="color:var(--fg)">Manual apply — you send these yourself.</b>
-  Boards this app cannot submit on. There are none at the moment: eJobs, BestJobs and Hipo all
-  accept an application from here. A board lands in this list when its sign-in stops being
-  accepted outside its own login window, which is where Hipo sat until its sessions began
-  working headlessly. <b>Open to apply</b> takes you to the posting in your own browser, where
-  you are already signed in. Anything listed here is never picked up by <i>Select all shown</i>
-  or batch apply, so nothing in it is sent by accident.
+  <b style="color:var(--fg)">You send these yourself.</b>
+  Everything the app cannot submit for you: freehire, the employer-run forms, and any board
+  posting whose apply button hands you to the employer's own website rather than taking an
+  application. <b>Tailor CV</b> then <b>Open to apply</b> is the flow — the app writes the PDF
+  and opens the form with what it can fill already filled, and you press send. None of these is
+  ever picked up by <i>Select all shown</i> or batch apply, so nothing here goes out by accident.
 </div>
   <details id="gapsbox" class="card" style="display:none;margin:0 0 12px">
     <summary style="cursor:pointer"><b>What employers keep asking for</b>
@@ -762,7 +769,7 @@ $('#headless').onchange = e => saveSettings({headless: e.target.value});
 $('#ui_lang').onchange = async e => { await saveSettings({ui_lang: e.target.value});
   location.reload(); };
 $('#clock').onchange = async e => { CLOCK = e.target.value === '12' ? '12' : '24';
-  await saveSettings({clock: CLOCK}); draw(); loadAuto(); };
+  await saveSettings({clock: CLOCK}); draw(); loadAuto(); drawTimePicker(); };
 $('#cvask').onchange = e => saveSettings({cv_ask: e.target.checked});
 
 $('#importhist').onclick = e => busy(e.target, async () => {
@@ -834,6 +841,7 @@ async function loadAuto(){
     const el = $('#' + k); if(!el) continue;
     if(el.type === 'checkbox') el.checked = !!a.settings[k]; else el.value = a.settings[k] ?? '';
   }
+  drawTimePicker();          // #auto_time is hidden now; the two selects are what you see
   applyRow();
   // Windows and this page can disagree - a task can vanish without the setting changing - and
   // a switch that says ON over nothing is worse than one that says OFF.
@@ -878,6 +886,40 @@ $('#autocopy').onclick = () => {
   $('#auto_country').value = $('#country').value;
   toast('Copied. Press "Save the schedule" to keep it.');
 };
+
+// <input type="time"> draws itself in the BROWSER's locale - en-US here, so "09:00 AM" no
+// matter what the clock switch says. No attribute changes that. So the app draws its own, which
+// means it can honour the setting; the stored value stays 24-hour "HH:MM" either way.
+function drawTimePicker(){
+  const [hh, mm] = ($('#auto_time').value || '09:00').split(':').map(Number);
+  const twelve = CLOCK === '12';
+  const hours = twelve ? [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+                       : Array.from({length: 24}, (_, i) => i);
+  const show = h => twelve ? String(h) : String(h).padStart(2, '0');
+  $('#auto_hh').innerHTML = hours.map(h => {
+    const v = twelve ? ((h % 12) + (hh >= 12 ? 12 : 0)) : h;
+    return `<option value="${v}" ${v === hh ? 'selected' : ''}>${show(h)}</option>`;
+  }).join('');
+  // quarter hours: this starts a background task once a week, and the minute is not a decision
+  // worth offering sixty answers to
+  $('#auto_mm').innerHTML = [0, 15, 30, 45].map(m =>
+    `<option value="${m}" ${m === mm ? 'selected' : ''}>${String(m).padStart(2, '0')}</option>`).join('');
+  $('#auto_ampm').style.display = twelve ? '' : 'none';
+  $('#auto_ampm').innerHTML = ['AM', 'PM'].map(x =>
+    `<option value="${x}" ${(hh >= 12) === (x === 'PM') ? 'selected' : ''}>${x}</option>`).join('');
+}
+
+function readTimePicker(){
+  let h = +$('#auto_hh').value;
+  if(CLOCK === '12'){
+    h = h % 12;                                   // the option carries the 24h hour already...
+    if($('#auto_ampm').value === 'PM') h += 12;   // ...but the AM/PM select can move it
+  }
+  $('#auto_time').value = String(h).padStart(2, '0') + ':'
+                        + String(+$('#auto_mm').value).padStart(2, '0');
+}
+for(const id of ['auto_hh', 'auto_mm', 'auto_ampm'])
+  document.addEventListener('change', e => { if(e.target.id === id) readTimePicker(); });
 
 $('#autosave').onclick = e => busy(e.target, async () => {
   const body = {};
@@ -1127,7 +1169,11 @@ const ATS = /:\/\/([a-z0-9-]+\.)*(greenhouse\.io|lever\.co|ashbyhq\.com|workable
 // rendered as an ordinary link - on the board with the second most jobs in the list.
 let AUTO = ['ejobs', 'bestjobs'], MANUAL = ['hipo'];
 const BOARD = j => AUTO.includes(j.source);
-const HAND = j => MANUAL.includes(j.source);
+// Jobs you send yourself. Not a board any more - every board here can be applied to - but
+// freehire and the employer-run forms, plus any board posting whose apply button hands you to
+// the employer's own site. Thirteen of fifteen Hipo ads are that last kind.
+const HAND = j => MANUAL.includes(j.source) || !BOARD(j)
+                  || /apply on the employer site/.test(j.note || '');
 
 /* ---------- search presets ----------
    A search is only as good as its terms, and the boards index Romanian wording. These are the
@@ -1269,8 +1315,8 @@ async function loadLlm(){
   drawOllamaHelp();   // ticks the steps that are already done on this PC
 }
 
-const SBOARDS = {ejobs:'eJobs', bestjobs:'BestJobs', hipo:'Hipo (test)'};
-const NAMES = {...SBOARDS, hipo:'Hipo'};   // every board, including manual ones
+const SBOARDS = {ejobs:'eJobs', bestjobs:'BestJobs', hipo:'Hipo'};
+const NAMES = {...SBOARDS};
 let recheckedOnce = false;
 // Which boards have a saved sign-in. The endpoint never returns the username or the password -
 // there is no way to read either back out of the app, which is deliberate.
@@ -1561,7 +1607,8 @@ function draw(){
       // says so on hover rather than looking like a count of everything.
       ['Few applicants', shown.filter(j => quiet(j) && j.status !== 'applied').length,
        '@quiet', '0'],
-      ['Manual apply', shown.filter(j => HAND(j) && j.status!=='applied').length, '@manual', '0'],
+      ['You apply yourself', shown.filter(j => HAND(j) && j.status!=='applied').length,
+       '@manual', '0'],
     ].map(([k,v,st,m]) => `<div class="stat ${f===st && $('#minfit').value===m ? 'active':''}"
         data-st="${st}" data-mf="${m}" title="Show only these" tabindex="0" role="button">
         <b>${v}</b><span class="muted">${k}</span></div>`).join('');
@@ -1631,7 +1678,7 @@ function draw(){
           ${closes}
           ${j.note ? `<span class="pill" style="border-color:var(--mid);color:var(--mid)">${esc(j.note)}</span>` : ''}
           ${ATS.test(j.url) ? '<span class="pill">prefillable form</span>' : ''}
-          ${HAND(j) ? '<span class="pill" title="This board has to be applied to by hand">manual apply</span>' : ''}
+          ${HAND(j) ? `<span class="pill" title="${esc(t('The app cannot send this one - tailor a CV and apply on their site'))}">${esc(t('you apply'))}</span>` : ''}
           ${j.far === false ? `<span class="pill" style="border-color:var(--good);color:var(--good)"
               title="In the county you said you can work in, or remote/nationwide">near you</span>` : ''}
         </div>

@@ -2109,7 +2109,12 @@ assert "PERSONAL" in _fmsrc or "personal" in _fmsrc
 # 5q. A posting whose apply button hands you to the employer's own site cannot be sent from
 # here, and that is permanent - so it must not fill one of the week's five and be reported as a
 # failure. Thirteen of fifteen Hipo ads are exactly that.
-assert _aa.EXTERNAL_NOTE == app.EXTERNAL_NOTE, "the two spellings of the external note drifted"
+assert _aa.EXTERNAL_NOTE == app.EXTERNAL_NOTE == scrape.EXTERNAL_NOTE,     "the three spellings of the external note drifted"
+# ...and it is recognised while the ad is READ, so the "you apply yourself" list is right before
+# anything has been clicked - it used to take a browser run and a failed-looking row to find out
+assert scrape.GOES_EXTERNAL.search('href="/locuri-de-munca/redirectAnuntExtern/270394"')
+assert not scrape.GOES_EXTERNAL.search('href="/locuri-de-munca/candidat/aplica/269733"')
+assert "GOES_EXTERNAL.search(page)" in _iK.getsource(scrape.hydrate)
 _ext = [{"url": "e1", "title": "t", "company": "c", "source": "ejobs", "fit": 90,
          "note": app.EXTERNAL_NOTE},
         {"url": "e2", "title": "t", "company": "c", "source": "ejobs", "fit": 80, "note": ""}]

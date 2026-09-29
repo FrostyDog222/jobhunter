@@ -50,7 +50,6 @@ RO = {
     "Near me / remote": "Aproape de mine / remote",
     "Closing within a week": "Se închid într-o săptămână",
     "Vetoed on language": "Respinse pe limbă",
-    "Manual apply only": "Doar aplicare manuală",
     "Any fit": "Orice potrivire",
     "Fit 50+": "Potrivire 50+",
     "Fit 70+": "Potrivire 70+",
@@ -229,7 +228,6 @@ RO = {
     "Keep me signed in": "Ține-mă autentificat",
     "Keep me signed in to the boards": "Ține-mă autentificat pe site-urile de joburi",
     "Import my Hipo applications": "Importă aplicările mele de pe Hipo",
-    "Sign in to Hipo (test)": "Autentifică-te pe Hipo (test)",
     "Hipo is": "Hipo este",
     "Weekly run": "Rulare săptămânală",
     "weekly run": "rulare săptămânală",
@@ -255,7 +253,6 @@ RO = {
     "is the template built around one.": "este modelul construit în jurul ei.",
     "What employers keep asking for": "Ce cer angajatorii în mod repetat",
     "Find jobs. Tailor your CV. Get hired.": "Găsește joburi. Adaptează-ți CV-ul. Angajează-te.",
-    "Manual apply — you send these yourself.": "Aplicare manuală — pe astea le trimiți tu.",
     "or batch apply.": "sau aplicare în grup.",
     ". Everything it knows stays in this folder.": ". Tot ce știe rămâne în acest folder.",
     "How times are shown on this page. It changes nothing that is stored.":
@@ -296,7 +293,6 @@ RO = {
         "Scorul este singurul lucru care o ține în loc.",
     "Check your board CV before you switch this on.":
         "Verifică CV-ul de pe site înainte să pornești asta.",
-    "is there to find out - if it shows": "este acolo ca să afli — dacă arată",
     ": pick a provider, press": ": alege un furnizor, apasă",
     ", paste it back and press": ", lipește-o înapoi și apasă",
     "customer support, suport clienti, relatii clienti":
@@ -348,10 +344,6 @@ RO = {
         "îți face căutarea și punctează rezultatele o dată pe săptămână, ca lista să fie gata când deschizi aplicația data viitoare.",
     "A board apply sends the CV stored on your board profile, not the tailored PDF — so keep those profiles current:":
         "O aplicare de pe site trimite CV-ul salvat în profilul tău de pe acel site, nu PDF-ul adaptat — așa că ține acele profiluri la zi:",
-    "for now: its sign-in used to stop working the moment the login window closed. A fix for the likely cause is in, so":
-        "deocamdată: autentificarea lui înceta să funcționeze în clipa în care se închidea fereastra de login. O reparație pentru cauza probabilă este pusă, deci",
-    "afterwards, it worked. Until then those jobs open in your own browser and you send them yourself. They are never picked up by":
-        "după aceea, a mers. Până atunci acele joburi se deschid în browserul tău și le trimiți tu. Nu sunt niciodată preluate de",
     "Most boards are nationwide, so a search from a village in Timiș fills up with jobs in București. Pick your county and anything outside it is marked":
         "Majoritatea site-urilor sunt naționale, așa că o căutare dintr-un sat din Timiș se umple de joburi în București. Alege-ți județul și tot ce este în afara lui este marcat",
     "A few points either way changes how much goes out, so start high with a cap of one or two and watch what it picks for a few weeks before loosening it.":
@@ -750,12 +742,24 @@ RO = {
         "nesalvat",
     "Encrypted to this Windows account. It never leaves this PC.":
         "Criptat pentru acest cont Windows. Nu părăsește niciodată acest PC.",
-    "Boards this app cannot submit on. There are none at the moment: eJobs, BestJobs and Hipo all accept an application from here. A board lands in this list when its sign-in stops being accepted outside its own login window, which is where Hipo sat until its sessions began working headlessly.":
-        "Site-uri pe care aplicația nu poate trimite candidatura. Momentan nu există niciunul: eJobs, BestJobs și Hipo acceptă toate o candidatură de aici. Un site ajunge în această listă când autentificarea lui nu mai este acceptată în afara ferestrei proprii de login - exact acolo unde a fost Hipo până când sesiunile lui au început să funcționeze fără interfață.",
-    "takes you to the posting in your own browser, where you are already signed in. Anything listed here is never picked up by":
-        "te duce la anunț în browserul tău, unde ești deja autentificat. Nimic din ce apare aici nu este preluat de",
-    "or batch apply, so nothing in it is sent by accident.":
-        "sau de aplicarea în lot, așa că nimic din el nu este trimis din greșeală.",
+    "Hipo applies like the other two now — its sign-in used to stop working the moment the login window closed, and that was fixed. One thing to know: Hipo confirms nothing. When an application goes through it simply removes the apply button, so that is what the app reads as success. Many Hipo ads also hand you to the employer's own site rather than taking an application; those are marked and opened for you, never submitted.":
+        "Hipo aplică la fel ca celelalte două acum — autentificarea lui se strica în momentul în care se închidea fereastra de login, iar asta a fost rezolvat. Un lucru de știut: Hipo nu confirmă nimic. Când o candidatură trece, pur și simplu elimină butonul de aplicare, iar asta este ce citește aplicația drept succes. Multe anunțuri Hipo te trimit la site-ul angajatorului în loc să primească o candidatură; acelea sunt marcate și deschise pentru tine, niciodată trimise.",
+    "You send these yourself.":
+        "Pe acestea le trimiți tu.",
+    "Everything the app cannot submit for you: freehire, the employer-run forms, and any board posting whose apply button hands you to the employer's own website rather than taking an application.":
+        "Tot ce aplicația nu poate trimite în locul tău: freehire, formularele angajatorilor și orice anunț de pe un site al cărui buton de aplicare te trimite la pagina angajatorului în loc să primească o candidatură.",
+    "then":
+        "apoi",
+    "is the flow — the app writes the PDF and opens the form with what it can fill already filled, and you press send. None of these is ever picked up by":
+        "este fluxul — aplicația scrie PDF-ul și deschide formularul cu ce poate completa deja completat, iar tu apeși trimite. Niciunul dintre acestea nu este preluat vreodată de",
+    "You apply yourself":
+        "Aplici tu",
+    "you apply":
+        "aplici tu",
+    "The app cannot send this one - tailor a CV and apply on their site":
+        "Aplicația nu poate trimite această candidatură - adaptează un CV și aplică pe site-ul lor",
+    "or batch apply, so nothing here goes out by accident.":
+        "sau de aplicarea în lot, așa că nimic de aici nu pleacă din greșeală.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":
