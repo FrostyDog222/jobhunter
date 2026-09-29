@@ -10,6 +10,10 @@ your profile, writes a CV tailored to the ad, and applies on the boards that all
 Everything stays on your PC except the calls to the AI model you choose — and with Ollama, not
 even those.
 
+**Windows only.** The saved board sign-ins are encrypted with Windows DPAPI and the daily run is
+a Windows scheduled task, so it will not start on macOS or Linux. Deliberate, not an oversight —
+tying the passwords to your Windows account is what keeps them unreadable on any other machine.
+
 ## Getting it
 
 The repository is public, so none of this needs a GitHub account or a login.
