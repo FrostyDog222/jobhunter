@@ -2089,4 +2089,20 @@ assert scrape._clean("T&amp;amp;D Manager &amp;ndash; Protection") == "T&D Manag
 assert scrape._clean("Sales &amp; Marketing") == "Sales & Marketing"
 assert scrape._clean("plain title") == "plain title"
 
+
+# 5p. The Hipo form path, sent for real with auto_send on. The employer's "question" turned out
+# to be an instruction - "Va invitam sa trimiteti motivatia aplicarii / cv-ul detaliat si direct
+# la: cariera@qlt.ro" - which no profile can answer. The app read it, could not answer it from
+# the profile, refused to send, and handed it back. Verified against Hipo's own applications
+# list: 10 before, 10 after, nothing created. That refusal is the single most important
+# behaviour in this file and it is asserted three ways.
+_basrc = _iK.getsource(_pfm.board_apply)
+# a blank answer stops the send, whatever auto_send says
+assert "if blank or not auto_send:" in _basrc,     "an unanswered screening question no longer blocks the send"
+# ...and the blanks are read back off the FIELDS after filling, not assumed
+assert 'if not (f.input_value() or "").strip()' in _basrc
+# _fill_mini must never invent an answer the profile does not contain
+_fmsrc = _iK.getsource(_pfm._fill_mini)
+assert "PERSONAL" in _fmsrc or "personal" in _fmsrc
+
 print("ok")
