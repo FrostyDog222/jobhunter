@@ -236,21 +236,46 @@ assert "todo[i:i + width]" in _ssrc2 and "todo[i:i + 6]" not in _ssrc2
 # days after the session died. It must ask the boards themselves before sending applications,
 # or an expired session means a week of applications silently going nowhere.
 import auto_apply as _aa
+import contextlib as _cx
 class _FakeBoards:
     AUTO_APPLY = ("ejobs", "bestjobs")
     def __init__(self, live, cached): self.live, self.cached, self.probed = live, cached, False
     def verify_boards(self, boards): self.probed = True; return self.live
     def session_for(self, b): return self.cached[b]
-def _weekly(live, cached):
-    pf = _FakeBoards(live, cached)
-    r = _aa.run(None, pf, {"auto_apply_min_fit": 70, "auto_apply_cap": 5}, lambda *a: None)
+    def apply_mode(self, src): return "auto" if src in self.AUTO_APPLY else "manual"
+class _FakeApp:
+    """Just enough app for candidates(): a db() whose one query answers with these rows."""
+    def __init__(self, rows): self.rows = rows
+    def db(self):
+        rows = self.rows
+        class _C:
+            def execute(self, *a): return list(rows)
+        return _cx.nullcontext(_C())
+def _weekly(live, cached, rows=()):
+    pf, ap = _FakeBoards(live, cached), _FakeApp(rows)
+    r = _aa.run(ap, pf, {"auto_apply_min_fit": 70, "auto_apply_cap": 5}, lambda *a: None)
     return pf.probed, r["note"]
-# cache says signed in, the board says otherwise -> nothing is sent
+# cache says signed in, the board says otherwise -> that board is dropped...
 _probed, _note = _weekly({"ejobs": False, "bestjobs": True}, {"ejobs": True, "bestjobs": True})
-assert _probed and _note and "Not signed in to ejobs" in _note, _note
-# the probe itself failed (wifi blip) -> keep the cached answer, do not declare a live session dead
+assert _probed, "an unattended run must ask the boards rather than trust a cached answer"
+# ...but the OTHER board still gets its applications. Returning on the first board that was out
+# cost a week of BestJobs applications every time an eJobs session lapsed - on a session that
+# runs six months and had nothing wrong with it.
+assert _note and "bestjobs" in _note and "Not signed in to ejobs" in _note, _note
+assert "nothing was sent" not in _note, _note
+# both out -> nothing is sent, and it says so
+_probed, _note = _weekly({"ejobs": False, "bestjobs": False}, {"ejobs": True, "bestjobs": True})
+assert _note and "nothing was sent" in _note, _note
+# the probe itself failed (wifi blip) -> keep the cached answer rather than declaring a live
+# session dead, and still only skip the board the cache says is out
 _probed, _note = _weekly({}, {"ejobs": False, "bestjobs": True})
 assert _note and "Not signed in to ejobs" in _note, _note
+# and a signed-out board's jobs must not fill the cap and then be refused one by one, which
+# could spend a week's whole allowance without sending anything
+_rows = [{"url": f"u{i}", "title": "t", "company": "c", "source": "ejobs", "fit": 90}
+         for i in range(5)] + [{"url": "b1", "title": "t", "company": "c",
+                                "source": "bestjobs", "fit": 80}]
+assert _aa.candidates(_FakeApp(_rows), _FakeBoards({}, {}), 70, 5, ["bestjobs"]) == [_rows[-1]]
 
 # 1r. links/skills/certifications/hobbies are lists of strings, but parse_cv reads a human CV and
 # sometimes returns [{"name": "Driving license Category B"}]. That showed on the profile page as

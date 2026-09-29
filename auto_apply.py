@@ -19,14 +19,25 @@ it on.
 import datetime
 
 
-def candidates(app, prefill, min_fit, cap):
-    """-> the jobs this run may apply to, best score first. Pure selection, no side effects."""
+def candidates(app, prefill, min_fit, cap, boards=None):
+    """-> the jobs this run may apply to, best score first. Pure selection, no side effects.
+
+    `boards` limits it to the ones signed in right now. Without that a signed-out board's jobs
+    filled the cap and were then refused one by one, so a week could reach its limit of five
+    having sent nothing at all.
+    """
     with app.db() as c:
         rows = [dict(r) for r in c.execute(
             "SELECT url, title, company, source, fit FROM jobs "
             "WHERE status IN ('new','ready') AND fit >= ? "
-            "ORDER BY fit DESC, found DESC", (int(min_fit),))]
-    return [r for r in rows if prefill.apply_mode(r["source"]) == "auto"][:max(0, int(cap))]
+            # same tie-break as the dashboard: a job with fewer people already in the queue is
+            # the better use of one of this week's five
+            "ORDER BY fit DESC, CASE WHEN applicants IS NULL THEN 1 ELSE 0 END, "
+            "applicants ASC, found DESC", (int(min_fit),))]
+    ok = set(boards) if boards is not None else None
+    return [r for r in rows
+            if prefill.apply_mode(r["source"]) == "auto"
+            and (ok is None or r["source"] in ok)][:max(0, int(cap))]
 
 
 def run(app, prefill, settings, log):
@@ -46,18 +57,26 @@ def run(app, prefill, settings, log):
     except Exception as e:                       # a browser that will not start is not "signed out"
         log(f"could not re-check the boards ({type(e).__name__}), using the last known status")
         live = {}
-    for board in prefill.AUTO_APPLY:
-        if not live.get(board, prefill.session_for(board)):
-            report["note"] = (f"Not signed in to {board}, so nothing was sent. "
-                              f"Sign in again under Settings.")
-            log(report["note"])
-            return report
+    # One board being out is not a reason to skip the others. This used to return on the first
+    # one it found signed out, so a lapsed eJobs session cost the week's BestJobs applications
+    # too - on a session that runs six months and had nothing wrong with it.
+    usable = [b for b in prefill.AUTO_APPLY if live.get(b, prefill.session_for(b))]
+    out = [b for b in prefill.AUTO_APPLY if b not in usable]
+    if out:
+        log(f"not signed in to {', '.join(out)} - applying on {', '.join(usable) or 'nothing'}")
+    if not usable:
+        report["note"] = (f"Not signed in to {' or '.join(out)}, so nothing was sent. "
+                          f"Sign in again under Settings.")
+        log(report["note"])
+        return report
 
-    picks = candidates(app, prefill, settings["auto_apply_min_fit"], settings["auto_apply_cap"])
+    picks = candidates(app, prefill, settings["auto_apply_min_fit"], settings["auto_apply_cap"],
+                       usable)
     report["considered"] = len(picks)
     if not picks:
         report["note"] = (f"Nothing scored {settings['auto_apply_min_fit']} or above on "
-                          f"{' or '.join(prefill.AUTO_APPLY)} this week.")
+                          f"{' or '.join(usable)} this week."
+                          + (f" (Not signed in to {', '.join(out)}.)" if out else ""))
         log(report["note"])
         return report
 
