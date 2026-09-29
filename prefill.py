@@ -1141,6 +1141,78 @@ def _fill_mini(page, fields, profile, job_title):
     return done
 
 
+# Where the username and the password go on each board, read off the signed-out page rather
+# than guessed. The submit is matched by its text because eJobs' is type=button (React) and
+# would not be found by [type=submit].
+LOGIN_FORM = {
+    "ejobs": {"url": "https://accounts.ejobs.ro/login",
+              "user": "input[type=email]", "pass": "input[type=password]",
+              "submit": r"intr[ăa] [îi]n cont"},
+    "bestjobs": {"url": "https://www.bestjobs.eu/ro/login",
+                 "user": "#email", "pass": "#password",
+                 "submit": r"intr[ăa] [îi]n cont"},
+    "hipo": {"url": "https://www.hipo.ro/locuri-de-munca/logincontcandidat",
+             "user": 'input[name="emaillogin"]', "pass": 'input[name="parolalogin"]',
+             "submit": r"^login$"},
+}
+
+
+def auto_signin(board, username, password, headless=True):
+    """Sign in from a saved username and password. -> (ok, what happened).
+
+    One attempt. No retry loop anywhere in this function or its callers: an unattended loop
+    posting a wrong password is how an account gets locked, which is far worse than being
+    signed out for a week. The caller counts failures and stops after two.
+
+    The password is typed into the board's own form and goes nowhere else. It is never printed,
+    never logged, and never put in the return value.
+    """
+    from playwright.sync_api import sync_playwright
+    form = LOGIN_FORM.get(board)
+    if not form:
+        return False, f"no login form known for {board}"
+    if not username or not password:
+        return False, "nothing saved"
+    with sync_playwright() as pw:
+        # fresh_host: a board ties its login form's nonce to a short-lived cookie, and replaying
+        # a stale one makes the POST fail - the same reason the manual sign-in does this.
+        browser, ctx, page = _open(pw, headless, fresh_host=BOARD_HOSTS.get(board))
+        try:
+            page.goto(form["url"], wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(3000)
+            dismiss_consent(page)
+            page.wait_for_timeout(1200)
+            u = page.query_selector(form["user"])
+            p = page.query_selector(form["pass"])
+            if not u or not p:
+                # the form moved, or the board answered with something else entirely
+                return False, "could not find the sign-in form on that page"
+            u.fill(username)
+            p.fill(password)
+            btn = next((e for e in page.query_selector_all("button, input[type=submit]")
+                        if e.is_visible() and re.search(
+                            form["submit"], ((e.inner_text() or "")
+                                             + (e.get_attribute("value") or "")).strip(), re.I)),
+                       None)
+            if not btn:
+                return False, "could not find the sign-in button"
+            btn.click()
+            # a login is a navigation; give it room, then ask the board rather than the form
+            for _ in range(20):
+                page.wait_for_timeout(1000)
+                if _probe_signed_in(page, board):
+                    _save(ctx, only_host=BOARD_HOSTS.get(board),
+                          visited=(BOARD_HOSTS.get(board) or "",))
+                    remember_signin(board, True)
+                    return True, "signed in"
+            return False, "the sign-in did not take - wrong password, or the board asked "\
+                          "something extra (a code, a captcha) that needs you at the keyboard"
+        except Exception as e:
+            return False, f"{type(e).__name__}: {e}"        # never the credentials
+        finally:
+            browser.close()
+
+
 def run_signin(url):
     """Open a board's sign-in page and leave it open. You type the credentials into the browser;
     the app never sees them. Closing the tab saves the session into BROWSER_DIR."""

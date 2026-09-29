@@ -730,6 +730,24 @@ RO = {
         "ai aplicat",
     "applied (date not recorded)":
         "ai aplicat (data nu a fost înregistrată)",
+    "Sign in again by itself, if a session lapses while you are away":
+        "Autentificare automată, dacă o sesiune expiră cât ești plecat",
+    "The weekly run happens with nobody at the keyboard. If a board has signed you out by then, it sends nothing that week. Save the sign-in here and it can log in again by itself —":
+        "Rularea săptămânală are loc fără nimeni la tastatură. Dacă un site te-a deconectat până atunci, nu trimite nimic în acea săptămână. Salvează aici datele de autentificare și se poate conecta singur —",
+    "once":
+        "o singură dată",
+    ", only when the board has just said you are signed out, and never twice in a row.":
+        ", doar când site-ul tocmai a spus că ești deconectat, și niciodată de două ori la rând.",
+    "It stays on this PC.":
+        "Rămâne pe acest PC.",
+    "It is written to one file in this folder, encrypted so that only your Windows account can read it, and it is never sent anywhere except the board's own login page — the same page you would type it into yourself. Nothing goes to this app's author, to GitHub, or to any server. It is left out of the zip you share with friends and out of the repository.":
+        "Se scrie într-un singur fișier din acest folder, criptat astfel încât doar contul tău Windows să îl poată citi, și nu este trimis nicăieri în afară de pagina de login a site-ului — aceeași pagină în care ai scrie-o și tu. Nimic nu ajunge la autorul aplicației, pe GitHub sau pe vreun server. Este exclus din arhiva pe care o dai prietenilor și din depozitul de cod.",
+    "Two honest caveats, then it is your call. The encryption means a copy of the file taken anywhere else — a backup, a stolen drive — is unreadable, but it cannot protect against something already running as you on this PC; nothing stored on a computer can. And a password is worth more than the cookie beside it: it does not expire, it often opens other sites too, and it can change the account's email.":
+        "Două avertismente sincere, apoi decizia îți aparține. Criptarea înseamnă că o copie a fișierului dusă oriunde altundeva — o copie de siguranță, un disc furat — este ilizibilă, dar nu te poate apăra de ceva ce rulează deja ca tine pe acest PC; nimic stocat pe un calculator nu poate. Iar o parolă valorează mai mult decât cookie-ul de lângă ea: nu expiră, deseori deschide și alte site-uri și poate schimba emailul contului.",
+    "Not trusting a tool from the internet with your password is a perfectly sensible choice.":
+        "Să nu ai încredere într-un program de pe internet cu parola ta este o alegere cât se poate de rezonabilă.",
+    "Leave these empty and sign in by hand with the buttons above — everything else in the app works exactly the same, you just sign in yourself when a session lapses.":
+        "Lasă câmpurile goale și autentifică-te manual cu butoanele de mai sus — tot restul aplicației funcționează exact la fel, doar că te conectezi singur când expiră o sesiune.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

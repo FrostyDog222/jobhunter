@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-import lang, llm, prefill, scrape
+import creds, lang, llm, prefill, scrape
 
 # Windows consoles default to cp1252, so a single print of a Romanian job title raises
 # UnicodeEncodeError and takes the whole request down with it.
@@ -2153,6 +2153,38 @@ SIGNIN = {"ejobs": "https://accounts.ejobs.ro/login",
           # is back so that can be tested: every context now shares one browser identity, which
           # is the leading explanation for why its sessions used to die.
           "hipo": "https://www.hipo.ro/locuri-de-munca/logincontcandidat"}
+
+
+@app.get("/api/signin/saved")
+def saved_signins():
+    """Which boards have a saved sign-in, and whether it is still being used.
+
+    Never the username and obviously never the password: there is no endpoint anywhere that
+    returns either, so nothing on the page can leak one.
+    """
+    return {"boards": creds.status(), "supported": sorted(prefill.LOGIN_FORM)}
+
+
+@app.post("/api/signin/saved")
+def save_signin(body: dict = Body(...)):
+    """Save a board sign-in, encrypted to this Windows account."""
+    board = (body or {}).get("board")
+    if board not in prefill.LOGIN_FORM:
+        raise HTTPException(400, f"not a board this app can sign in to: {board}")
+    try:
+        creds.save(board, body.get("username") or "", body.get("password") or "")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except OSError as e:
+        raise HTTPException(400, str(e))
+    # deliberately no echo of what was stored
+    return {"ok": True, "boards": creds.status()}
+
+
+@app.delete("/api/signin/saved")
+def forget_signin(board: str = ""):
+    creds.forget(board)
+    return {"ok": True, "boards": creds.status()}
 
 
 @app.get("/api/boards")

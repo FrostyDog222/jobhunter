@@ -268,6 +268,32 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     lasts about six hours on its own, so without this it is signed out most of the time. It sends
     nothing and applies to nothing — it only loads each board. Turn it off and sign-ins expire on
     their own again.</p>
+  <details style="margin-top:12px">
+    <summary style="cursor:pointer;font-weight:600;font-size:13.5px">Sign in again by itself, if
+      a session lapses while you are away</summary>
+    <p class="muted" style="margin:8px 0">The weekly run happens with nobody at the keyboard. If
+      a board has signed you out by then, it sends nothing that week. Save the sign-in here and
+      it can log in again by itself — <b>once</b>, only when the board has just said you are
+      signed out, and never twice in a row.</p>
+    <p class="muted" style="margin:0 0 8px;font-size:13px">
+      <b style="color:var(--good)">It stays on this PC.</b> It is written to one file in this
+      folder, encrypted so that only your Windows account can read it, and it is never sent
+      anywhere except the board's own login page — the same page you would type it into
+      yourself. Nothing goes to this app's author, to GitHub, or to any server. It is left out
+      of the zip you share with friends and out of the repository.</p>
+    <p class="warn" style="margin:0 0 8px;font-size:13px">Two honest caveats, then it is your
+      call. The encryption means a copy of the file taken anywhere else — a backup, a stolen
+      drive — is unreadable, but it cannot protect against something already running as you on
+      this PC; nothing stored on a computer can. And a password is worth more than the cookie
+      beside it: it does not expire, it often opens other sites too, and it can change the
+      account's email.
+      <b>Not trusting a tool from the internet with your password is a perfectly sensible
+      choice.</b> Leave these empty and sign in by hand with the buttons above — everything else
+      in the app works exactly the same, you just sign in yourself when a session lapses.</p>
+    <div class="row" id="credsrow"></div>
+    <p class="muted" id="credsnote" style="margin:8px 0 0;font-size:12.5px"></p>
+  </details>
+
   <p class="muted" style="margin-top:10px">A board apply sends the CV stored on your board
     profile, not the tailored PDF — so keep those profiles current:
     <span id="boardprofiles"></span></p>
@@ -1245,6 +1271,57 @@ async function loadLlm(){
 const SBOARDS = {ejobs:'eJobs', bestjobs:'BestJobs', hipo:'Hipo (test)'};
 const NAMES = {...SBOARDS, hipo:'Hipo'};   // every board, including manual ones
 let recheckedOnce = false;
+// Which boards have a saved sign-in. The endpoint never returns the username or the password -
+// there is no way to read either back out of the app, which is deliberate.
+async function loadCreds(){
+  let d;
+  try { d = await api('/api/signin/saved', undefined, 'GET'); } catch(e){ return; }
+  $('#credsrow').innerHTML = d.supported.map(b => {
+    const st = (d.boards || {})[b] || {};
+    return `<div style="flex:1 1 210px">
+      <label for="cu_${esc(b)}">${esc(SBOARDS[b] || b)}</label>
+      <input id="cu_${esc(b)}" autocomplete="off" placeholder="${esc(t('email or username'))}"
+        ${st.saved ? `value="" placeholder="${esc(t('saved'))}"` : ''}>
+      <input id="cp_${esc(b)}" type="password" autocomplete="new-password"
+        placeholder="${esc(st.saved ? t('saved — type to replace') : t('password'))}"
+        style="margin-top:6px">
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="ghost tiny" data-savecred="${esc(b)}">${esc(t('Save'))}</button>
+        ${st.saved ? `<button class="ghost tiny danger" data-forgetcred="${esc(b)}"
+           >${esc(t('Forget'))}</button>` : ''}
+      </div>
+      ${st.stopped ? `<div class="warn" style="font-size:12px;margin-top:4px">${esc(
+          t('Stopped using this one - it failed twice. Save it again to re-enable.'))}</div>` : ''}
+    </div>`;
+  }).join('');
+  const saved = Object.keys(d.boards || {});
+  $('#credsnote').textContent = saved.length
+    ? fill('Saved for {which}. Used only by the weekly run, and only when the board says you are signed out.',
+           {which: saved.map(b => SBOARDS[b] || b).join(', ')})
+    : t('Nothing saved. Sessions that lapse while you are away will simply mean no applications that week.');
+  localiseDOM($('#credsrow'));
+}
+
+document.addEventListener('click', e => {
+  const save = e.target.dataset && e.target.dataset.savecred;
+  if(save) return busy(e.target, async () => {
+    const u = $('#cu_' + save).value.trim(), p = $('#cp_' + save).value;
+    if(!u || !p) return toast(t('Type both the username and the password first.'));
+    await api('/api/signin/saved', {board: save, username: u, password: p});
+    // out of the page the moment it is on disk: nothing should be able to read it back
+    $('#cu_' + save).value = ''; $('#cp_' + save).value = '';
+    await loadCreds();
+    toast(t('Saved, encrypted to this Windows account.'));
+  }, 'saving...');
+  const forget = e.target.dataset && e.target.dataset.forgetcred;
+  if(forget) return busy(e.target, async () => {
+    if(!confirm(t('Forget the saved sign-in for this board?'))) return;
+    await api('/api/signin/saved?board=' + encodeURIComponent(forget), {}, 'DELETE');
+    await loadCreds();
+    toast(t('Forgotten.'));
+  }, 'removing...');
+});
+
 async function loadSignins(){
   let st = null;
   try { st = await api('/api/signin', undefined, 'GET'); }
@@ -1974,6 +2051,7 @@ loadLlm().catch(e => {
   console.error(e);
 });
 loadSignins();
+loadCreds();
 // loadSettings() used to be chained INSIDE this promise, so a failure here left every control
 // on its markup default, the search bar empty, and the picker claiming there are no templates
 // in templates/cv/ - which is a statement about the person's disk, not about a failed request.

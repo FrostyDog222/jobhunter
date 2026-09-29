@@ -62,6 +62,32 @@ def run(app, prefill, settings, log):
     # too - on a session that runs six months and had nothing wrong with it.
     usable = [b for b in prefill.AUTO_APPLY if live.get(b, prefill.session_for(b))]
     out = [b for b in prefill.AUTO_APPLY if b not in usable]
+
+    # A board that is out, and whose sign-in you chose to save, gets ONE attempt - here, and
+    # nowhere else in the app. This is the moment the feature exists for: nobody is at the
+    # keyboard, and without it the week sends nothing. One attempt, never a loop; two failures
+    # and creds stops handing the password over at all, because an unattended retry loop is how
+    # an account gets locked.
+    for board in list(out):
+        try:
+            import creds
+            saved = creds.get(board)
+        except Exception as e:                   # a credentials file we cannot read is not fatal
+            log(f"could not read the saved sign-in for {board}: {type(e).__name__}")
+            continue
+        if not saved:
+            continue
+        log(f"{board}: signed out, trying the sign-in you saved")
+        ok, why = prefill.auto_signin(board, *saved)
+        log(f"{board}: {'signed in again' if ok else 'could not sign in - ' + why}")
+        if ok:
+            creds.note_success(board)
+            usable.append(board)
+            out.remove(board)
+        else:
+            left = creds.MAX_FAILS - creds.note_failure(board)
+            if left <= 0:
+                log(f"{board}: not trying the saved sign-in again until you save it afresh")
     if out:
         log(f"not signed in to {', '.join(out)} - applying on {', '.join(usable) or 'nothing'}")
     if not usable:

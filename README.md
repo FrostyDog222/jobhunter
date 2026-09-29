@@ -179,6 +179,22 @@ session and reloading the board:
 does not wake a sleeping machine: the only board that cannot survive a night is the one this app
 never applies on anyway.
 
+**Signing in again by itself (optional, off).** The weekly run happens with nobody at the
+keyboard, so a board that has signed you out by then means no applications that week. Under
+*Settings → Job board accounts* you can save a board sign-in and let the app log in again on its
+own — once, only when the board has just said you are signed out, and never twice in a row.
+
+It stays on this PC. One file in this folder, encrypted with Windows DPAPI so only your Windows
+account can read it, never sent anywhere except the board's own login page. It is excluded from
+the shared zip and from the repository.
+
+Two honest caveats. The encryption means a copy taken anywhere else — a backup, a stolen drive —
+is unreadable, but nothing stored on a computer can protect against something already running as
+you. And a password is worth more than the cookie beside it: it does not expire, it often opens
+other sites too, and it can change the account's email. **Not trusting a tool from the internet
+with your password is a perfectly sensible choice** — leave it empty and sign in by hand; nothing
+else changes.
+
 Sign in once under *Settings → Job board accounts*. You type your password into the browser
 window that opens, never into this app. eJobs and BestJobs need it to apply; Hipo only needs it
 to read your application list (below).
@@ -356,6 +372,7 @@ and rebuilds it.
     auto.py       the weekly run, started by Windows Task Scheduler
     auto_apply.py the applying step of the weekly run, and the limits on it
     lang.py       the Romanian for every sentence in the app, keyed by the English
+    creds.py      optional board sign-ins, encrypted to the Windows account (DPAPI)
     test_app.py   the whole suite; `python test_app.py` prints ok or the first failure
     restart.ps1   restarts the server while you work on it; nothing in the app calls it
 

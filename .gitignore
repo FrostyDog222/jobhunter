@@ -1,5 +1,6 @@
 .browser/
 .env
+.creds.json
 profile.json
 profile.previous.json
 photo.jpg

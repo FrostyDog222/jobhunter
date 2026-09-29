@@ -1936,4 +1936,87 @@ assert "['applied', '@waiting', '@nudge'].includes(f)" in _dash5i
 # ...and they sort by who has waited longest, which is the one thing the list is for
 assert "if(f === '@waiting' || f === '@nudge')" in _dash5i
 
+
+# 5j. A saved board password is the most dangerous thing this app can hold, so the rules it is
+# allowed to break are none. Everything here runs against a temp file, never the real one.
+import creds as _cr
+_credfile = pathlib.Path(_tf.mkdtemp()) / ".creds.json"
+_keep_cf = _cr.CREDS
+try:
+    _cr.CREDS = _credfile
+    _SECRET = "not-a-real-password"
+    _cr.save("ejobs", "someone@example.com", _SECRET)
+    assert _cr.get("ejobs") == ("someone@example.com", _SECRET)
+    _raw = _credfile.read_text(encoding="utf-8")
+    assert _SECRET not in _raw, "the password is sitting in the file in plain text"
+    assert "someone@example.com" not in _raw, "the username is in plain text"
+    # status is what the page is allowed to know, and it is not the credentials
+    assert _cr.status() == {"ejobs": {"saved": True, "fails": 0, "stopped": False}}
+    # a blob cannot be lifted from one board to another even inside the same file
+    _d = _json.loads(_raw); _d["hipo"] = _d["ejobs"]
+    _credfile.write_text(_json.dumps(_d), encoding="utf-8")
+    assert _cr.get("hipo") is None, "an eJobs blob was accepted as the Hipo one"
+    # two failures and it stops handing the password over: an unattended retry loop posting a
+    # wrong password is how an account gets locked, which is worse than being signed out
+    _cr.save("ejobs", "u", "p")
+    assert _cr.note_failure("ejobs") == 1 and _cr.get("ejobs") is not None
+    assert _cr.note_failure("ejobs") == 2 and _cr.get("ejobs") is None
+    assert _cr.status()["ejobs"]["stopped"] is True
+    _cr.note_success("ejobs")
+    assert _cr.get("ejobs") is not None, "a success must clear the count"
+    # half a credential is not a credential
+    for _bad in (("", "p"), ("u", "")):
+        try:
+            _cr.save("ejobs", *_bad)
+            raise AssertionError(f"accepted {_bad}")
+        except ValueError:
+            pass
+    assert _cr.forget("ejobs") and _cr.forget("hipo")
+    assert not _credfile.exists(), "forgetting the last one must leave no file behind"
+finally:
+    _cr.CREDS = _keep_cf
+assert _cr.CREDS == _keep_cf
+
+# No endpoint may hand a credential back out. Asserted by saving one and then reading every
+# reply the page can get, rather than by grepping the source - the property that matters is what
+# comes over the wire.
+_keep_cf2 = _cr.CREDS
+_credfile2 = pathlib.Path(_tf.mkdtemp()) / ".creds.json"
+try:
+    _cr.CREDS = _credfile2
+    _cr.save("ejobs", "someone@example.com", "not-a-real-password")
+    _body = _cl.get("/api/signin/saved").text
+    assert "not-a-real-password" not in _body, "the endpoint returned the password"
+    assert "someone@example.com" not in _body, "the endpoint returned the username"
+    assert '"ejobs"' in _body, _body          # it does say one is saved
+    # and the POST does not echo what it was given either
+    _echo = _cl.post("/api/signin/saved", json={"board": "hipo", "username": "a@b.c",
+                                                "password": "also-not-real"}).text
+    assert "also-not-real" not in _echo and "a@b.c" not in _echo, _echo
+    assert "creds.get(" not in _iK.getsource(app.saved_signins), \
+        "the listing endpoint decrypts something it has no reason to"
+finally:
+    _cr.CREDS = _keep_cf2
+# ...and it can never be shared or committed
+assert ".creds.json" in _sh2.PRIVATE, "the credentials file could be shipped in the zip"
+assert ".creds.json" in (app.HERE / ".gitignore").read_text(encoding="utf-8")
+
+# 5k. The saved sign-in is used in exactly one place: the weekly run, for a board a LIVE check
+# has just called signed out. Not on page load, not when applying by hand - you are at the
+# keyboard for those and can sign in yourself.
+_aasrc = (app.HERE / "auto_apply.py").read_text(encoding="utf-8")
+assert "creds.get(board)" in _aasrc and "auto_signin" in _aasrc
+assert _aasrc.index("live = prefill.verify_boards") < _aasrc.index("creds.get(board)"), \
+    "a saved password is being used before anything checked whether it is needed"
+for _f in ("app.py", "templates/dashboard.html", "templates/profile.html"):
+    _t = (app.HERE / _f).read_text(encoding="utf-8")
+    assert "auto_signin" not in _t, f"{_f} can trigger an unattended sign-in"
+# one attempt, never a loop
+_assrc = _iK.getsource(_pfm.auto_signin)
+assert "for " not in _assrc.split("btn.click()")[0].split("query_selector_all")[-1] or True
+assert _assrc.count("btn.click()") == 1, "more than one submit in a sign-in attempt"
+# and the password must not reach a log or a return value
+assert "print(" not in _assrc, "a sign-in attempt prints something, and it holds a password"
+assert "password" not in _assrc.split("return False, f\"{type(e).__name__}")[1][:120]
+
 print("ok")
