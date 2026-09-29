@@ -699,4 +699,20 @@ assert "CLOCK = S.clock" in _tpl["dashboard.html"] and "CLOCK = st.clock" in _tp
 # whose app this is, on every page, from the one template they share
 assert "FrostyDog" in _tpl["base.html"]
 
+
+# 2u. Nothing personal leaves this folder. The photo was the hole: share.py listed the profile
+# and the database and not the photograph that goes on the CV, and .gitignore did not name it
+# either - so a public repo carried it and a shared zip would have put one person's face on
+# another person's CV.
+import share as _sh
+for _p in ("photo.jpg", "photo.png", "profile.json", "profile.previous.json", "settings.json",
+           "db.sqlite", ".env", "auto.log"):
+    assert not _sh.wanted(_sh.HERE / _p), f"share.py would ship {_p}"
+_gi = (app.HERE / ".gitignore").read_text(encoding="utf-8").split()
+for _p in ("photo.jpg", "photo.png", "profile.json", "profile.previous.json", "db.sqlite",
+           ".env", "settings.json"):
+    assert _p in _gi, f"{_p} is not in .gitignore - a commit can publish it"
+# and the app still has to be in there, or the guard above is passing by shipping nothing
+assert _sh.wanted(_sh.HERE / "app.py") and _sh.wanted(_sh.HERE / "llm.py")
+
 print("ok")

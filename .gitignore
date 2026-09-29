@@ -1,6 +1,9 @@
 .browser/
 .env
 profile.json
+profile.previous.json
+photo.jpg
+photo.png
 db.sqlite
 db.sqlite-wal
 db.sqlite-shm
