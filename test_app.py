@@ -2394,4 +2394,38 @@ assert _pfm.dismiss_consent(_pg6b) == "" and _pg6b.went_back == 1,     "a real n
 # and the off-switch text is matched whole, because it sits beside prose using the same words
 assert _pfm.OPTIONAL_OFF.fullmatch("Inactiv") and not _pfm.OPTIONAL_OFF.fullmatch("Inactiv de la")
 
+
+# 6j. Renaming a Windows scheduled task means creating one and deleting the other, and the order
+# is the whole risk. New-then-old and there is no gap. Old-then-new and a crash in between leaves
+# the automation off with nothing on screen saying so. Two tasks at once would be worse still:
+# the same search twice at the same minute, held apart only by the lock in auto.py, one of them
+# reporting a skipped run. No PowerShell is run here - the ordering is the thing being tested.
+_order6, _keep6j = [], (app._task_state, app.settings, app.schedule, app._drop_old_tasks)
+try:
+    app._task_state = lambda which=None: {"exists": which in app.OLD_TASKS}
+    app.settings = lambda: {**app.DEFAULTS, "auto_enabled": True,
+                            "auto_days": ["MON"], "auto_time": "09:00"}
+    app._drop_old_tasks = lambda: _order6.append("dropped old")
+    app.schedule = lambda on, days, at: (_order6.append(f"registered new {days} {at}"), "")[1]
+    app.retire_old_tasks()
+    assert _order6 == ["registered new ['MON'] 09:00", "dropped old"], _order6
+
+    # Windows refusing the new one must leave the old one alone: it is still doing the job.
+    _order6.clear()
+    app.schedule = lambda on, days, at: (_order6.append("tried"), "Windows said no")[1]
+    app.retire_old_tasks()
+    assert _order6 == ["tried"], f"the old task was removed after the new one failed: {_order6}"
+
+    # Nothing to migrate -> nothing happens at all, on every single app start after the first.
+    _order6.clear()
+    app._task_state = lambda which=None: {"exists": False}
+    app.schedule = lambda on, days, at: (_order6.append("tried"), "")[1]
+    app.retire_old_tasks()
+    assert _order6 == [], f"it re-registers the task on every start: {_order6}"
+finally:
+    app._task_state, app.settings, app.schedule, app._drop_old_tasks = _keep6j
+assert app.TASK == "jobhunter scheduled search" and "jobhunter weekly search" in app.OLD_TASKS,     "the old task name was dropped from OLD_TASKS, so upgraders keep a second task for ever"
+# ...and switching the run off has to switch off the old name too, or erase-everything leaves it
+assert "_drop_old_tasks()" in _iK.getsource(app.schedule)
+
 print("ok")

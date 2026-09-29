@@ -108,7 +108,7 @@ RO = {
     "My county": "Județul meu",
     "Do not judge distance": "Nu judeca distanța",
 
-    # ---- the weekly run
+    # ---- the scheduled run
     "Day": "Ziua",
     "Time": "Ora",
     "Monday": "Luni", "Tuesday": "Marți", "Wednesday": "Miercuri", "Thursday": "Joi",
@@ -120,7 +120,7 @@ RO = {
     "Use my job titles": "Folosește titlurile mele",
     "Worth my attention from": "Merită atenția mea de la",
     "Only jobs scoring": "Doar joburi cu scorul",
-    "At most, per week": "Cel mult, pe săptămână",
+    "At most, per run": "Cel mult, pe rulare",
 
     # ---- CV templates
     "Put my photo on it": "Pune-mi poza pe el",
@@ -229,8 +229,8 @@ RO = {
     "Keep me signed in to the boards": "Ține-mă autentificat pe site-urile de joburi",
     "Import my Hipo applications": "Importă aplicările mele de pe Hipo",
     "Hipo is": "Hipo este",
-    "Weekly run": "Rulare săptămânală",
-    "weekly run": "rulare săptămânală",
+    "Scheduled run": "Rulare programată",
+    "scheduled run": "rulare programată",
     "Applying for you": "Aplică în locul tău",
     "Also apply for me": "Aplică și tu în locul meu",
     "Also apply for me, without asking": "Aplică în locul meu, fără să mă întrebi",
@@ -241,7 +241,7 @@ RO = {
     "Switching any of them off": "Oprirea oricăreia dintre ele",
     "It runs with nobody watching.": "Rulează fără să se uite nimeni.",
     "It is your account doing it.": "O face contul tău.",
-    "jobhunter weekly search": "jobhunter weekly search",
+    "jobhunter scheduled search": "jobhunter scheduled search",
     "jobhunter keep signed in": "jobhunter keep signed in",
     "Which template for this CV?": "Ce model pentru acest CV?",
     "Remember this as my default": "Ține minte asta ca implicit",
@@ -337,8 +337,8 @@ RO = {
         "Citirea unui CV, propunerile de îmbunătățire și punctarea joburilor au nevoie de unul. Deschide",
     "is a second switch inside it, and it is the one that sends real applications in your name.":
         "este un al doilea comutator în interiorul ei, și este cel care trimite aplicări reale în numele tău.",
-    "does your search and scores the results once a week, so the list is ready when you next open the app.":
-        "îți face căutarea și punctează rezultatele o dată pe săptămână, ca lista să fie gata când deschizi aplicația data viitoare.",
+    "does your search and scores the results on its own, so the list is ready when you next open the app.":
+        "îți face căutarea și punctează rezultatele singură, ca lista să fie gata când deschizi aplicația data viitoare.",
     "A board apply sends the CV stored on your board profile, not the tailored PDF — so keep those profiles current:":
         "O aplicare de pe site trimite CV-ul salvat în profilul tău de pe acel site, nu PDF-ul adaptat — așa că ține acele profiluri la zi:",
     "Most boards are nationwide, so a search from a village in Timiș fills up with jobs in București. Pick your county and anything outside it is marked":
@@ -351,14 +351,14 @@ RO = {
         "șterge imediat sarcina din Windows. Nimic nu mai rulează în fundal după aceea, și poți verifica singur în Task Scheduler — se numesc",
     "· Separate spellings with commas — each is searched on freehire, eJobs, BestJobs and Hipo. Ads demanding a language you have not declared are skipped before scoring, so they cost nothing.":
         "· Separă variantele de scriere cu virgulă — fiecare este căutată pe freehire, eJobs, BestJobs și Hipo. Anunțurile care cer o limbă pe care nu ai declarat-o sunt sărite înainte de punctare, deci nu costă nimic.",
-    "A board application sends the CV stored on your eJobs and BestJobs profile, not a tailored one. If it is out of date, every application that week is out of date. Both profile links are above.":
-        "O aplicare de pe site trimite CV-ul salvat în profilul tău de eJobs și BestJobs, nu unul adaptat. Dacă este vechi, fiecare aplicare din săptămâna aceea este veche. Ambele linkuri către profiluri sunt mai sus.",
+    "A board application sends the CV stored on your eJobs and BestJobs profile, not a tailored one. If it is out of date, every application it sends is out of date. Both profile links are above.":
+        "O aplicare de pe site trimite CV-ul salvat în profilul tău de eJobs și BestJobs, nu unul adaptat. Dacă este vechi, fiecare aplicare pe care o trimite este veche. Ambele linkuri către profiluri sunt mai sus.",
     "a description of yourself. Separate them with commas: each one is searched on its own, so listing a job in both Romanian and English finds ads the other wording misses. Click the box for suggestions from your own CV.":
         "o descriere a ta. Separă-le cu virgulă: fiecare este căutat separat, așa că scriind un job și în română și în engleză găsești anunțuri pe care cealaltă formulare le ratează. Dă clic în casetă pentru sugestii din propriul tău CV.",
     "JPG or PNG. With no photo saved this is ignored, so the CV simply has none. A photo is normal on a CV in Romania and most of Europe; for the UK, Ireland or the US it is usually better left off, which is what the tick is for.":
         "JPG sau PNG. Dacă nu ai nicio poză salvată, setarea este ignorată și CV-ul pur și simplu nu are una. Poza este normală pe un CV în România și în mare parte din Europa; pentru Marea Britanie, Irlanda sau SUA este de obicei mai bine fără, și pentru asta este bifa.",
-    "Board sign-ins expire on their own after a while. Until you sign in again, applying to those jobs fails and the weekly run sends nothing — it re-checks before it applies, rather than trusting this panel. Use the button below.":
-        "Autentificările pe site-uri expiră singure după o vreme. Până te autentifici din nou, aplicarea la acele joburi eșuează și rularea săptămânală nu trimite nimic — verifică din nou înainte să aplice, în loc să se încreadă în acest panou. Folosește butonul de mai jos.",
+    "Board sign-ins expire on their own after a while. Until you sign in again, applying to those jobs fails and the scheduled run sends nothing — it re-checks before it applies, rather than trusting this panel. Use the button below.":
+        "Autentificările pe site-uri expiră singure după o vreme. Până te autentifici din nou, aplicarea la acele joburi eșuează și rularea programată nu trimite nimic — verifică din nou înainte să aplice, în loc să se încreadă în acest panou. Folosește butonul de mai jos.",
     "eJobs and BestJobs only let you apply while signed in. You type the password into the browser that opens, never into this app. eJobs often hangs on its redirect afterwards — that is fine, the session is already saved; just close the tab once it says":
         "eJobs și BestJobs te lasă să aplici doar autentificat. Parola o scrii în browserul care se deschide, niciodată în această aplicație. eJobs se blochează des la redirecționarea de după — este în regulă, sesiunea este deja salvată; închide fila când scrie",
     "Employers on eJobs often attach a short \"mini interviu\" before your application goes through. These are the questions no CV answers, so the app fills them with exactly what you write here and leaves them blank if you do not. It never invents a figure.":
@@ -367,9 +367,9 @@ RO = {
         "Cu aplicarea pornită, suma de salariu din profilul tău și orice CV se află acum în profilul tău de pe site ajung la angajatori reali, pe anunțuri pe care nu le-a citit nimeni, și afli o săptămână mai târziu. Sunt aceiași angajatori la care poate ai fi vrut să te prezinți cum trebuie.",
     "— the checkbox further up, next to the sign-in buttons. Boards renew a sign-in whenever the site is opened, so Windows visits them every two hours and the session never lapses. Hipo's lasts about six hours on its own. It only loads the pages: nothing is searched, sent, or spent.":
         "— bifa de mai sus, lângă butoanele de autentificare. Site-urile reînnoiesc autentificarea de fiecare dată când sunt deschise, așa că Windows le vizitează la două ore și sesiunea nu expiră niciodată. A celor de la Hipo ține cam șase ore de la sine. Doar încarcă paginile: nu se caută, nu se trimite și nu se consumă nimic.",
-    "Deletes everything this app holds about you — your profile and photo, every job it found and scored, your applied history, the CVs it wrote, the board sign-ins, your settings and the weekly schedule. It cannot be undone, and it does not touch anything on eJobs, BestJobs or Hipo: applications you have already sent stay sent.":
+    "Deletes everything this app holds about you — your profile and photo, every job it found and scored, your applied history, the CVs it wrote, the board sign-ins, your settings and the schedule. It cannot be undone, and it does not touch anything on eJobs, BestJobs or Hipo: applications you have already sent stay sent.":
         "Șterge tot ce știe aplicația despre tine — profilul și poza, fiecare job găsit și punctat, istoricul aplicărilor, CV-urile scrise, autentificările pe site-uri, setările și programarea săptămânală. Nu se poate anula, și nu atinge nimic pe eJobs, BestJobs sau Hipo: aplicările deja trimise rămân trimise.",
-    "— Windows starts it at the day and time you pick, with the app closed; the black run.bat window does not need to be open. It searches the same terms you saved, across the same boards, and scores everything new against your profile. It sends nothing. Each run spends AI quota on the scoring, whether or not you look at the result.":
+    "— Windows starts it on the days and at the time you pick, with the app closed; the black run.bat window does not need to be open. It searches the same terms you saved, across the same boards, and scores everything new against your profile. It sends nothing. Each run spends AI quota on the scoring, whether or not you look at the result.":
         "— Windows o pornește în ziua și la ora pe care le alegi, cu aplicația închisă; fereastra neagră run.bat nu trebuie să fie deschisă. Caută aceiași termeni pe care i-ai salvat, pe aceleași site-uri, și punctează tot ce este nou față de profilul tău. Nu trimite nimic. Fiecare rulare consumă din cota AI pentru punctare, fie că te uiți la rezultat, fie că nu.",
     "Boards renew a sign-in whenever the site is opened, so Windows visits them every few hours in the background and the session never lapses. Hipo's lasts about six hours on its own, so without this it is signed out most of the time. It sends nothing and applies to nothing — it only loads each board. Turn it off and sign-ins expire on their own again.":
         "Site-urile reînnoiesc autentificarea de fiecare dată când sunt deschise, așa că Windows le vizitează la câteva ore în fundal și sesiunea nu expiră niciodată. A celor de la Hipo ține cam șase ore de la sine, deci fără asta ești deconectat mai tot timpul. Nu trimite nimic și nu aplică nicăieri — doar încarcă fiecare site. Oprește-o și autentificările expiră din nou singure.",
@@ -419,8 +419,8 @@ RO = {
     # ---- the banner at the top of the page
     "Signed out of":
         "Deconectat de la",
-    "Applying to those boards fails until you sign in again, and the weekly run sends nothing that week. It re-checks before it applies, so this is the only warning you get.":
-        "Aplicarea pe acele site-uri eșuează până te autentifici din nou, iar rularea săptămânală nu trimite nimic în acea săptămână. Verifică din nou înainte să aplice, deci acesta este singurul avertisment pe care îl primești.",
+    "Applying to those boards fails until you sign in again, and the scheduled run sends nothing. It re-checks before it applies, so this is the only warning you get.":
+        "Aplicarea pe acele site-uri eșuează până te autentifici din nou, iar rularea programată nu trimite nimic. Verifică din nou înainte să aplice, deci acesta este singurul avertisment pe care îl primești.",
     "Sign in":
         "Autentifică-te",
     "Your profile is missing":
@@ -695,8 +695,8 @@ RO = {
         "ai aplicat (data nu a fost înregistrată)",
     "Sign in again by itself, if a session lapses while you are away":
         "Autentificare automată, dacă o sesiune expiră cât ești plecat",
-    "The weekly run happens with nobody at the keyboard. If a board has signed you out by then, it sends nothing that week. Save the sign-in here and it can log in again by itself —":
-        "Rularea săptămânală are loc fără nimeni la tastatură. Dacă un site te-a deconectat până atunci, nu trimite nimic în acea săptămână. Salvează aici datele de autentificare și se poate conecta singur —",
+    "The scheduled run happens with nobody at the keyboard. If a board has signed you out by then, it sends nothing at all. Save the sign-in here and it can log in again by itself —":
+        "Rularea programată are loc fără nimeni la tastatură. Dacă un site te-a deconectat până atunci, nu trimite nimic deloc. Salvează aici datele de autentificare și se poate conecta singur —",
     "once":
         "o singură dată",
     ", only when the board has just said you are signed out, and never twice in a row.":
@@ -741,8 +741,8 @@ RO = {
         "— după acea căutare, aplică la joburile cu cel mai mare punctaj de pe site-urile care primesc o candidatură direct: eJobs, BestJobs și Hipo. Formularele angajatorilor și anunțurile care te trimit pe site-ul angajatorului nu sunt trimise niciodată în locul tău. O aplicare pe un site atașează CV-ul salvat în profilul de pe acel site, nu PDF-ul adaptat pe care îl scrie aplicația, așa că un profil neactualizat este ceea ce vede angajatorul. Citește avertismentul de mai jos înainte să o pornești.",
     "Why the cap stops at 50.":
         "De ce limita se oprește la 50.",
-    "Not because fifty applications take too long — they are about twenty minutes, and the weekly task is allowed two hours. Because an unattended run that sends fifty applications with an out-of-date board profile is fifty employers who saw it, and you find out afterwards. The number is a wall against typing 500 by mistake. In practice the score does the limiting: a floor of 85 usually leaves single figures waiting, so the cap rarely comes into it at all. If you want more applications going out, lower the score before you raise the cap — that changes which jobs qualify, which is the decision that actually matters.":
-        "Nu pentru că cincizeci de candidaturi durează prea mult — durează cam douăzeci de minute, iar sarcina săptămânală are voie două ore. Ci pentru că o rulare fără supraveghere care trimite cincizeci de candidaturi cu un profil neactualizat pe site înseamnă cincizeci de angajatori care l-au văzut, iar tu afli după. Numărul este un zid împotriva tastării lui 500 din greșeală. În practică punctajul este cel care limitează: un prag de 85 lasă de obicei sub zece joburi în așteptare, așa că limita rareori intră în discuție. Dacă vrei să plece mai multe candidaturi, coboară punctajul înainte să ridici limita — asta schimbă ce joburi se califică, ceea ce este decizia care contează cu adevărat.",
+    "Not because fifty applications take too long — they are about twenty minutes, and the task is allowed two hours. Because an unattended run that sends fifty applications with an out-of-date board profile is fifty employers who saw it, and you find out afterwards. The number is a wall against typing 500 by mistake. In practice the score does the limiting: a floor of 85 usually leaves single figures waiting, so the cap rarely comes into it at all. If you want more applications going out, lower the score before you raise the cap — that changes which jobs qualify, which is the decision that actually matters.":
+        "Nu pentru că cincizeci de candidaturi durează prea mult — durează cam douăzeci de minute, iar sarcina are voie două ore. Ci pentru că o rulare fără supraveghere care trimite cincizeci de candidaturi cu un profil neactualizat pe site înseamnă cincizeci de angajatori care l-au văzut, iar tu afli după. Numărul este un zid împotriva tastării lui 500 din greșeală. În practică punctajul este cel care limitează: un prag de 85 lasă de obicei sub zece joburi în așteptare, așa că limita rareori intră în discuție. Dacă vrei să plece mai multe candidaturi, coboară punctajul înainte să ridici limita — asta schimbă ce joburi se califică, ceea ce este decizia care contează cu adevărat.",
     "Anything from 1 to 50.":
         "Orice valoare între 1 și 50.",
     "The score above usually decides this, not the number here":
@@ -781,7 +781,7 @@ RO = {
         "Caută și punctează singur, în zilele pe care le alegi",
     "Each run spends AI quota on the scoring, whether or not you look at the result — so seven days a week costs seven times one, for mostly the same jobs, since a posting appears once rather than daily. Daily suits a hard hunt in a fast market; it is not automatically better.":
         "Fiecare rulare consumă din cota AI pentru punctare, indiferent dacă te uiți sau nu la rezultat — așa că șapte zile pe săptămână costă de șapte ori cât una, pentru cam aceleași joburi, fiindcă un anunț apare o dată, nu zilnic. Zilnic se potrivește unei căutări intense pe o piață rapidă; nu este automat mai bine.",
-    "— Windows starts it at the day and time you pick, with the app closed; the black run.bat window does not need to be open. It searches the same terms you saved, across the same boards, and scores everything new against your profile. It sends nothing. Each run spends AI quota on the scoring, whether or not you look at the result — so seven days a week costs seven times one, for mostly the same jobs, since a posting appears once rather than daily. Daily suits a hard hunt in a fast market; it is not automatically better.":
+    "— Windows starts it on the days and at the time you pick, with the app closed; the black run.bat window does not need to be open. It searches the same terms you saved, across the same boards, and scores everything new against your profile. It sends nothing. Each run spends AI quota on the scoring, whether or not you look at the result — so seven days a week costs seven times one, for mostly the same jobs, since a posting appears once rather than daily. Daily suits a hard hunt in a fast market; it is not automatically better.":
         "— Windows o pornește în ziua și la ora pe care le alegi, cu aplicația închisă; fereastra neagră run.bat nu trebuie să fie deschisă. Caută aceiași termeni pe care i-ai salvat, pe aceleași site-uri, și punctează tot ce este nou față de profilul tău. Nu trimite nimic. Fiecare rulare consumă din cota AI pentru punctare, indiferent dacă te uiți sau nu la rezultat — așa că șapte zile pe săptămână costă de șapte ori cât una, pentru cam aceleași joburi, fiindcă un anunț apare o dată, nu zilnic. Zilnic se potrivește unei căutări intense pe o piață rapidă; nu este automat mai bine.",
     "Forget":
         "Uită",
@@ -789,9 +789,9 @@ RO = {
         "Uit datele de autentificare salvate pentru acest site?",
     "Forgotten.":
         "Am uitat-o.",
-    "Nothing saved. Sessions that lapse while you are away will simply mean no applications that week.":
+    "Nothing saved. Sessions that lapse while you are away will simply mean no applications go out.":
         "Nimic salvat. Sesiunile care expiră cât ești plecat vor însemna pur și simplu nicio candidatură în acea perioadă.",
-    "Saved for {which}. Used only by the weekly run, and only when the board says you are signed out.":
+    "Saved for {which}. Used only by the scheduled run, and only when the board says you are signed out.":
         "Salvat pentru {which}. Folosit doar de rularea programată și doar când site-ul spune că ești deconectat.",
     "Saved, encrypted to this Windows account.":
         "Salvat, criptat pentru acest cont Windows.",

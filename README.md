@@ -242,7 +242,7 @@ The salary figure you wrote goes to every employer that asks, so set one you wou
 
 ## The scheduled run
 
-Under *Settings → Weekly run*, Windows can run your search on its own, so the list is already
+Under *Settings → Scheduled run*, Windows can run your search on its own, so the list is already
 searched and scored when you next open the app. It works with the app closed — the black window
 does not need to be open — and a run missed because the PC was off happens the next time it is on.
 

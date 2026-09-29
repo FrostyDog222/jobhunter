@@ -167,7 +167,7 @@
 <div class="card" style="border-color:color-mix(in srgb,var(--bad) 45%,var(--line))">
   <p class="muted" style="margin:0 0 10px">Deletes everything this app holds about you — your
     profile and photo, every job it found and scored, your applied history, the CVs it wrote,
-    the board sign-ins, your settings and the weekly schedule. It cannot be undone, and it does
+    the board sign-ins, your settings and the schedule. It cannot be undone, and it does
     not touch anything on eJobs, BestJobs or Hipo: applications you have already sent stay sent.</p>
   <button id="purge" style="background:var(--bad)">Erase all my data</button>
   <p id="purgefailed" class="warn" style="display:none;margin:10px 0 0"></p>
@@ -586,7 +586,7 @@ $('#purge').onclick = e => busy(e.target, async () => {
   // the app that destroys something no backup here can bring back.
   if(!confirm('Erase everything?\n\n'
     + 'Your profile and photo, every job found and scored, your applied history, the CVs '
-    + 'written for you, the board sign-ins, your settings and the weekly schedule.\n\n'
+    + 'written for you, the board sign-ins, your settings and the schedule.\n\n'
     + 'Applications already sent to employers stay sent — this cannot reach them.\n\n'
     + 'There is no undo.')) return;
   const typed = prompt('Type ERASE to confirm.');

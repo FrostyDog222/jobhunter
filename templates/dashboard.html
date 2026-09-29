@@ -112,7 +112,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
 .warn{color:var(--mid)}
 
-/* ---- weekly run ---- */
+/* ---- scheduled run ---- */
 #auto .row{margin-top:8px}
 #autostate{font-size:13px;margin-top:10px}
 .warn-box{margin-top:12px;padding:11px 13px;border-radius:9px;font-size:13px;line-height:1.5;
@@ -256,7 +256,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     background:color-mix(in srgb,var(--bad) 8%,transparent)">
     <b style="color:var(--bad)">⚠ <span id="signedoutwho"></span></b>
     <p class="muted" style="margin:6px 0 0">Board sign-ins expire on their own after a while.
-      Until you sign in again, applying to those jobs fails and the weekly run sends nothing —
+      Until you sign in again, applying to those jobs fails and the scheduled run sends nothing —
       it re-checks before it applies, rather than trusting this panel. Use the button below.</p>
   </div>
   <div class="boardrow" id="signinrow"></div>
@@ -271,8 +271,8 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   <details style="margin-top:12px">
     <summary style="cursor:pointer;font-weight:600;font-size:13.5px">Sign in again by itself, if
       a session lapses while you are away</summary>
-    <p class="muted" style="margin:8px 0">The weekly run happens with nobody at the keyboard. If
-      a board has signed you out by then, it sends nothing that week. Save the sign-in here and
+    <p class="muted" style="margin:8px 0">The scheduled run happens with nobody at the keyboard. If
+      a board has signed you out by then, it sends nothing at all. Save the sign-in here and
       it can log in again by itself — <b>once</b>, only when the board has just said you are
       signed out, and never twice in a row.</p>
     <p class="muted" style="margin:0 0 8px;font-size:13px">
@@ -345,13 +345,13 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   <div class="autobox">
   <b style="display:block">⚙ Automation — what runs without you</b>
   <p class="muted" style="margin:6px 0 0">Two separate things, both off unless you switch them
-    on. The <b>weekly run</b> does your search and scores the results once a week, so the list is
+    on. The <b>scheduled run</b> does your search and scores the results on its own, so the list is
     ready when you next open the app. <b>Applying for you</b> is a second switch inside it, and
     it is the one that sends real applications in your name.</p>
   <details class="autodetail">
     <summary>Show more — exactly what each one does</summary>
     <div class="muted">
-      <p><b>Weekly run</b> — Windows starts it at the day and time you pick, with the app closed;
+      <p><b>Scheduled run</b> — Windows starts it on the days and at the time you pick, with the app closed;
         the black run.bat window does not need to be open. It searches the same terms you saved,
         across the same boards, and scores everything new against your profile. It sends nothing.
         Each run spends AI quota on the scoring, whether or not you look at the result — so seven
@@ -365,7 +365,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
         writes, so an out-of-date board profile is what the employer sees. Read the warning
         below before turning it on.</p>
       <p><b>Why the cap stops at 50.</b> Not because fifty applications take too long — they are
-        about twenty minutes, and the weekly task is allowed two hours. Because an unattended run
+        about twenty minutes, and the task is allowed two hours. Because an unattended run
         that sends fifty applications with an out-of-date board profile is fifty employers who
         saw it, and you find out afterwards. The number is a wall against typing 500 by mistake.
         In practice the score does the limiting: a floor of 85 usually leaves single figures
@@ -378,7 +378,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
         pages: nothing is searched, sent, or spent.</p>
       <p><b>Switching any of them off</b> removes the Windows task straight away. Nothing keeps
         running in the background afterwards, and you can check for yourself in Task Scheduler —
-        they are named <i>jobhunter weekly search</i> and <i>jobhunter keep signed in</i>.</p>
+        they are named <i>jobhunter scheduled search</i> and <i>jobhunter keep signed in</i>.</p>
     </div>
   </details>
   <div id="auto">
@@ -437,7 +437,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <div class="row" id="applyrow">
       <div><label for="auto_apply_min_fit">Only jobs scoring</label><input id="auto_apply_min_fit" type="number"
         min="0" max="100" step="5" value="85"></div>
-      <div><label for="auto_apply_cap">At most, per week</label><input id="auto_apply_cap" type="number"
+      <div><label for="auto_apply_cap">At most, per run</label><input id="auto_apply_cap" type="number"
         min="1" max="50" step="1" value="5"></div>
       <div style="flex:2;display:flex;align-items:flex-end">
         <span class="muted" style="font-size:12.5px">Anything from 1 to 50. <b>The score above
@@ -468,7 +468,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
           employers you might have wanted to approach properly.</li>
         <li><b>Check your board CV before you switch this on.</b> A board application sends the
           CV stored on your eJobs and BestJobs profile, not a tailored one. If it is out of
-          date, every application that week is out of date. Both profile links are above.</li>
+          date, every application it sends is out of date. Both profile links are above.</li>
         <li><b>The score is the only thing holding it back.</b> A few points either way changes
           how much goes out, so start high with a cap of one or two and watch what it picks for
           a few weeks before loosening it.</li>
@@ -801,7 +801,7 @@ $('#importhist').onclick = e => busy(e.target, async () => {
       + `(${r.not_in_your_list.length} were sent before this app knew about them).`, 9000);
 }, 'reading Hipo...');
 
-/* ---------- the weekly run ---------- */
+/* ---------- the scheduled run ---------- */
 const AUTO_FIELDS = ['auto_enabled', 'auto_days', 'auto_time', 'auto_query', 'auto_location',
                      'auto_county', 'auto_country', 'keep_signed_in',
                      'auto_min_fit', 'auto_apply', 'auto_apply_min_fit',
@@ -821,7 +821,7 @@ $('#auto_apply').onchange = async e => {
 
   const lines = ['Switch on automatic applying?', ''];
   if(p && p.picks.length){
-    lines.push(`With your settings (score ${floor}+, at most ${cap} a week), THESE would have`,
+    lines.push(`With your settings (score ${floor}+, at most ${cap} a run), THESE would have`,
                'been sent this week, with nobody reading them first:', '');
     p.picks.forEach(j => lines.push(`   ${j.fit}  ${j.title}  -  ${j.company || j.source}`));
   } else if(p){
@@ -839,7 +839,7 @@ $('#auto_apply').onchange = async e => {
   if(off && off.length)
     lines.push('', `You are not signed in to ${off.join(' or ')}, so nothing would be sent`,
                'until you are.');
-  lines.push('', 'Applications cannot be taken back, and you see what went out a week later.');
+  lines.push('', 'Applications cannot be taken back, and you see what went out afterwards.');
 
   if(confirm(lines.join('\n'))){ e.target.checked = true; applyRow(); }
 };
@@ -910,7 +910,7 @@ $('#autocopy').onclick = () => {
   toast('Copied. Press "Save the schedule" to keep it.');
 };
 
-// Windows takes a list of days, so one a week and every day are the same call with a different
+// Windows takes a list of days, so once a week and every day are the same call with a different
 // list. Tick boxes rather than a dropdown, because "which days" is genuinely several answers -
 // and three shortcuts, because the three anybody actually wants are daily, weekdays and Sunday.
 const DAY_NAMES = {MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu',
@@ -957,7 +957,7 @@ function drawTimePicker(){
     const v = twelve ? ((h % 12) + (hh >= 12 ? 12 : 0)) : h;
     return `<option value="${v}" ${v === hh ? 'selected' : ''}>${show(h)}</option>`;
   }).join('');
-  // quarter hours: this starts a background task once a week, and the minute is not a decision
+  // quarter hours: this starts a background task on a schedule, and the minute is not a decision
   // worth offering sixty answers to
   $('#auto_mm').innerHTML = [0, 15, 30, 45].map(m =>
     `<option value="${m}" ${m === mm ? 'selected' : ''}>${String(m).padStart(2, '0')}</option>`).join('');
@@ -989,7 +989,7 @@ $('#autosave').onclick = e => busy(e.target, async () => {
   }
   await api('/api/auto', body);
   await loadAuto();
-  toast(body.auto_enabled ? 'Weekly run scheduled with Windows.' : 'Weekly run switched off.');
+  toast(body.auto_enabled ? 'Scheduled run set up with Windows.' : 'Scheduled run switched off.');
 }, 'saving...');
 
 // This one lives up by the sign-in buttons, nowhere near "Save the schedule", so it has to
@@ -1269,7 +1269,7 @@ function drawPresets(){
 }
 drawPresets();
 
-// The weekly run searches the same boards with the same rules, so it gets the same controls -
+// The scheduled run searches the same boards with the same rules, so it gets the same controls -
 // cloned from the ones above rather than a second copy of 42 counties to keep in step.
 function mirrorControls(){
   for(const [from, to] of [['loc','auto_location'], ['county','auto_county'],
@@ -1396,9 +1396,9 @@ async function loadCreds(){
   }).join('');
   const saved = Object.keys(d.boards || {});
   $('#credsnote').textContent = saved.length
-    ? fill('Saved for {which}. Used only by the weekly run, and only when the board says you are signed out.',
+    ? fill('Saved for {which}. Used only by the scheduled run, and only when the board says you are signed out.',
            {which: saved.map(b => SBOARDS[b] || b).join(', ')})
-    : t('Nothing saved. Sessions that lapse while you are away will simply mean no applications that week.');
+    : t('Nothing saved. Sessions that lapse while you are away will simply mean no applications go out.');
   localiseDOM($('#credsrow'));
 }
 
@@ -1471,7 +1471,7 @@ async function loadSignins(){
   }).join('');
 
   // An expired sign-in is silent otherwise: nothing fails until you try to apply, and the
-  // weekly run just sends nothing that week.
+  // scheduled run just sends nothing that day.
   BOARDS_IN = st.boards || null;
   drawAlerts();
   const out = Object.entries(SBOARDS).filter(([k]) => st.boards && !st.boards[k]).map(([,n]) => n);
@@ -1779,7 +1779,7 @@ async function load(){
 
 /* ---------- first run: the three things to do, ticked off as they are done ---------- */
 // Everything here is silent otherwise: nothing breaks until an application is attempted, and
-// by then the weekly run has already skipped a week. Each line says what is wrong and where to
+// by then the scheduled run has already skipped one. Each line says what is wrong and where to
 // fix it, and disappears when it is.
 function drawAlerts(){
   const box = $('#alerts');
@@ -1793,8 +1793,8 @@ function drawAlerts(){
     ? Object.entries(SBOARDS).filter(([k]) => !BOARDS_IN[k]).map(([, n]) => n) : [];
 
   if(missing.length) out.push(['bad', t('Signed out of') + ' ' + missing.join(', '),
-    t('Applying to those boards fails until you sign in again, and the weekly run sends nothing '
-    + 'that week. It re-checks before it applies, so this is the only warning you get.'),
+    t('Applying to those boards fails until you sign in again, and the scheduled run sends '
+    + 'nothing. It re-checks before it applies, so this is the only warning you get.'),
     t('Sign in'), () => { $('#setup').classList.add('open');
                           $('#signinrow').scrollIntoView({block: 'center'}); }]);
 

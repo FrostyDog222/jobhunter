@@ -264,7 +264,12 @@ def get_settings():
 # ---------- the weekly run ----------
 # One scheduled task, owned by this folder. Windows keeps it after the app is closed, which is
 # the whole point: the search happens whether or not anyone opens the dashboard.
-TASK = "jobhunter weekly search"
+# It was "jobhunter weekly search" until the run stopped being weekly. A scheduled task cannot
+# be renamed in place - the rename is a new task plus a deletion - so OLD_TASKS exists to make
+# sure the deletion actually happens. Two tasks running the same search at the same minute would
+# otherwise be held apart only by the lock in auto.py, and one of them would report a skipped run.
+TASK = "jobhunter scheduled search"
+OLD_TASKS = ("jobhunter weekly search",)
 KEEP_TASK = "jobhunter keep signed in"
 # Hipo's session cookie is the shortest at about six hours, and it is renewed to a full
 # six every time the site is visited. Four hours leaves room for a laptop that was asleep
@@ -333,6 +338,30 @@ def _task_state(which=None):
     return {"exists": bool(state.get("exists")), **state}
 
 
+def _drop_old_tasks():
+    for name in OLD_TASKS:
+        _ps(f"Unregister-ScheduledTask -TaskName '{name}' -Confirm:$false "
+            f"-ErrorAction SilentlyContinue")
+
+
+def retire_old_tasks():
+    """Move anyone still on the old task name across, once, without a gap in between.
+
+    Registering the new one first and deleting second is the whole point: the reverse order, or a
+    crash between the two, leaves the automation off with nothing on screen to say so. If Windows
+    refuses the new registration, the old task is left alone and keeps doing the job.
+    """
+    try:
+        if not any(_task_state(n)["exists"] for n in OLD_TASKS):
+            return
+        s = settings()
+        if s.get("auto_enabled") and schedule(True, s["auto_days"], s["auto_time"]):
+            return                       # Windows refused - the old task stays, still working
+        _drop_old_tasks()
+    except Exception:
+        pass                             # a migration that failed must never stop the app booting
+
+
 def schedule(on, days, at):
     """Create or remove the search task. Returns "" or a message explaining why it failed.
 
@@ -343,6 +372,7 @@ def schedule(on, days, at):
     if not on:
         _ps(f"Unregister-ScheduledTask -TaskName '{TASK}' -Confirm:$false "
             f"-ErrorAction SilentlyContinue")
+        _drop_old_tasks()                # switching it off has to switch off the old name too
         return ""
     pyw = HERE / ".venv" / "Scripts" / "pythonw.exe"      # windowless: no console pops up
     if not pyw.exists():
@@ -359,7 +389,10 @@ def schedule(on, days, at):
         f"-ExecutionTimeLimit (New-TimeSpan -Hours 2);"
         f"Register-ScheduledTask -TaskName '{TASK}' -Action $a -Trigger $t -Settings $s "
         f"-Description 'jobhunter: job search and scoring' -Force | Out-Null")
-    return "" if code == 0 else f"Windows refused to create the scheduled task: {err[:200]}"
+    if code == 0:
+        _drop_old_tasks()                # ...and only once the new one is actually there
+        return ""
+    return f"Windows refused to create the scheduled task: {err[:200]}"
 
 
 def keep_signed_in(on):
@@ -2560,4 +2593,7 @@ if __name__ == "__main__":
     # the browser first, so the very first thing a new user saw was "connection refused"
     if os.environ.get("JOB_OPEN"):        # set by run.bat; a developer restart should not
         threading.Timer(1.5, lambda: webbrowser.open("http://127.0.0.1:8777")).start()
+    # On a thread: it is two PowerShell calls and it matters once, so it must not sit between
+    # the user double-clicking run.bat and the page loading.
+    threading.Thread(target=retire_old_tasks, daemon=True).start()
     uvicorn.run(app, host="127.0.0.1", port=8777, log_level="warning")
