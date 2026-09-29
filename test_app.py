@@ -1359,4 +1359,52 @@ assert _pf3.count("touched()") >= 8, \
 # and a double-click deleted two, because the list re-renders under the cursor
 assert _pf3.count("e.detail") >= 3, "a double-click on a remove button still deletes two items"
 
+
+# 4f. The new-to-the-workforce tick changed the search and nothing else: the CV still printed
+# Experience, then Projects, then Education, so a beginner's CV opened on an empty heading and
+# buried the degree - the one section worth reading - in third place.
+_ntw = {**app.llm.EMPTY, "name": "Ion Marin", "new_to_work": True, "summary": "s",
+        "projects": [{"name": "Volunteer site", "desc": "built it"}],
+        "education": [{"degree": "BSc, Informatics", "school": "UAIC",
+                       "start": "2021", "end": "2024"}],
+        "skills": ["Python"], "hobbies": ["Chess"],
+        "languages": [{"name": "English", "level": "B2"}]}
+_h = app._cv_html(app._tidy(dict(_ntw)), "en", "european")
+assert _h.index("BSc, Informatics") < _h.index("Volunteer site"), \
+    "a beginner's CV still buries the degree"
+assert _h.count("BSc, Informatics") == 1, "the macro rendered education twice"
+# ...and someone with a career is unchanged
+_grown = {**_ntw, "new_to_work": False,
+          "experience": [{"role": "Dev", "company": "ACME", "start": "2020", "end": "2024",
+                          "bullets": ["b"]}]}
+_h2 = app._cv_html(app._tidy(dict(_grown)), "en", "european")
+assert _h2.index("ACME") < _h2.index("BSc, Informatics")
+assert _h2.count("BSc, Informatics") == 1
+
+# the tick has to survive the two things that dropped it, or the reorder above never fires on
+# the CV that is actually sent
+_keep2 = app.llm.ask
+try:
+    app.llm.ask = lambda *a, **k: {"summary": "pitch", "languages": ["English (Advanced)"],
+                                   "hobbies": [{"name": "Chess"}, "Skydiving"],
+                                   "education": _ntw["education"], "skills": ["Python"]}
+    _tcv = app.llm.tailor(_ntw, {"title": "t", "description": "d" * 80}, "en")
+finally:
+    app.llm.ask = _keep2
+assert _tcv["new_to_work"] is True, "tailoring dropped the tick"
+# a language written back as a string rendered as an EMPTY chip, because the template reads
+# l.name; a hobby written as a dict printed its braces on the PDF
+assert _tcv["languages"] == [{"name": "English", "level": "B2"}]
+assert _tcv["hobbies"] == ["Chess"], "an invented hobby reached the CV"
+assert "{'" not in app._cv_html(app._tidy(dict(_tcv)), "en", "european")
+# and parse_cv never returns the key, so every upload untied the search from entry-level work
+_realp = app.profile
+try:
+    app.profile = lambda: {**app.llm.EMPTY, "new_to_work": True, "salary_expectation": "5000"}
+    _kept = app._keep_answers({**app.llm.EMPTY, "name": "Ion"})
+finally:
+    app.profile = _realp
+assert _kept["new_to_work"] is True, "uploading a CV unticked new-to-the-workforce"
+assert _kept["salary_expectation"] == "5000"
+
 print("ok")

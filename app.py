@@ -1044,6 +1044,10 @@ def _keep_answers(parsed):
     for k in KEEP:
         if not (parsed.get(k) or "").strip() and (old.get(k) or "").strip():
             parsed[k] = old[k]
+    # Same reasoning, different type: "I am new to the workforce" is something the person ticked
+    # about themselves, and no CV says it. parse_cv never returns the key, so EMPTY's False won
+    # and every upload quietly untied the search from entry-level work.
+    parsed["new_to_work"] = bool(old.get("new_to_work"))
     return parsed
 
 

@@ -19,7 +19,20 @@
        and cv.links is not string else []) %}{% if x %}<span>{{ x }}</span>{% endif %}{% endfor %}
 </div>
 
+{# Starting out, the degree IS the strongest thing on the page, so it goes above the two
+   sections that are empty or thin. One macro, called from whichever position applies - a
+   recruiter reads the top third, and Experience/Projects/Education left a beginner's CV
+   opening on a heading with nothing under it. #}
+{% macro education() %}{% if cv.education %}<h2>{{ L.education }}</h2>
+  {% for e in cv.education %}<div class="item">
+    <div class="line"><b>{{ e.degree }}</b><span class="when">{{ when(e.start, e.end) }}</span></div>
+    <div class="where">{{ e.school }}</div>
+  </div>{% endfor %}
+{% endif %}{% endmacro %}
+
 {% if cv.summary %}<h2>{{ L.profile }}</h2><p>{{ cv.summary }}</p>{% endif %}
+
+{% if cv.new_to_work %}{{ education() }}{% endif %}
 
 {% if cv.experience %}<h2>{{ L.experience }}</h2>
   {% for e in cv.experience %}<div class="item">
@@ -38,12 +51,7 @@
   </div>{% endfor %}
 {% endif %}
 
-{% if cv.education %}<h2>{{ L.education }}</h2>
-  {% for e in cv.education %}<div class="item">
-    <div class="line"><b>{{ e.degree }}</b><span class="when">{{ when(e.start, e.end) }}</span></div>
-    <div class="where">{{ e.school }}</div>
-  </div>{% endfor %}
-{% endif %}
+{% if not cv.new_to_work %}{{ education() }}{% endif %}
 
 {% if cv.skills %}<h2>{{ L.skills }}</h2><p class="tags">
   {%- for s in cv.skills -%}<span class="tag">{{ s }}<i>,</i></span> {% endfor -%}</p>{% endif %}

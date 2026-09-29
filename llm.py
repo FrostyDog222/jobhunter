@@ -1075,6 +1075,12 @@ def tailor(profile, job, lang="auto"):
     # (adding diacritics to a name, translating the town). They are facts, not text to rewrite,
     # so they come from the profile.
     out.update({k: profile.get(k, "") for k in ("name", "email", "phone", "location")})
+    # Languages are a fact with a level attached, and the model kept rewriting them as the
+    # string "English (Advanced)" - which the template renders as an empty chip, because it
+    # reads l.name. There is nothing to tailor in a language list, so it comes over whole.
+    out["languages"] = profile.get("languages") or []
+    # ...and the tick that decides whether this CV leads with education
+    out["new_to_work"] = bool(profile.get("new_to_work"))
     # ...and every other FACT, taken back from the profile rather than trusted. The prompt asks
     # for all of this; asking is not enforcing, and what reaches the employer is this dict.
     out["experience"] = _pin(out.get("experience"), profile.get("experience"),
@@ -1084,6 +1090,9 @@ def tailor(profile, job, lang="auto"):
     # a skill or a certification the profile does not have is not a rewrite, it is an invention
     out["skills"] = _only_from(out.get("skills"), profile.get("skills"))
     out["certifications"] = _only_from(out.get("certifications"), profile.get("certifications"))
+    # dropping an irrelevant hobby is fair tailoring; inventing "volunteering" is not, and a
+    # hobby written back as a dict printed its braces on the PDF
+    out["hobbies"] = _only_from(out.get("hobbies"), profile.get("hobbies"))
     # the template concatenates links onto the contact line, so a None or a bare string there
     # is a TypeError mid-render and a dict prints as {'label': ...}. Normalise to a list of str.
     links = out.get("links")
