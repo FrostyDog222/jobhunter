@@ -411,7 +411,12 @@ RO = {
     "Which language the downloaded PDF is written in. The language of this page is the switch at the top.":
         "În ce limbă este scris PDF-ul descărcat. Limba acestei pagini este comutatorul de sus.",
     "The language of this page and the dashboard. The CV has its own setting further up.":
-        "Limba acestei pagini și a panoului. CV-ul are propria setare mai sus.",}
+        "Limba acestei pagini și a panoului. CV-ul are propria setare mai sus.",
+    # ---- the Ollama walkthrough
+    "Running the model on your own PC with Ollama — step by step":
+        "Rulează modelul pe propriul PC cu Ollama — pas cu pas",
+    "Free, and nothing leaves this PC — not even the job ads. It is slower per ad than a hosted provider, so it suits a small search or a machine with a good graphics card. You can leave a hosted provider first and keep Ollama behind it as a backstop for when a free tier runs dry.":
+        "Gratuit, și nimic nu pleacă de pe acest PC — nici măcar anunțurile. Este mai lent pe anunț decât un furnizor online, așa că se potrivește unei căutări mici sau unui PC cu placă video bună. Poți lăsa un furnizor online primul și să ții Ollama în spate, ca rezervă pentru când un plan gratuit se golește.",}
 
 # Longest first, so replacing a short string can never eat part of a longer one that contains it.
 PAIRS = sorted(RO.items(), key=lambda kv: -len(kv[0]))

@@ -202,6 +202,20 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <button id="savellm">Save &amp; test</button></div>
   </div>
   <p class="muted" id="llmnote"></p>
+
+  <!-- Opens by itself the moment Ollama is picked, because that is when it is wanted. -->
+  <details id="ollamahelp" style="margin-top:10px">
+    <summary style="cursor:pointer;font-size:13.5px;color:var(--accent)">
+      Running the model on your own PC with Ollama — step by step</summary>
+    <div class="muted" style="font-size:13px;margin-top:8px;line-height:1.65">
+      <p style="margin:0 0 8px">Free, and nothing leaves this PC — not even the job ads. It is
+        slower per ad than a hosted provider, so it suits a small search or a machine with a
+        good graphics card. You can leave a hosted provider first and keep Ollama behind it as
+        a backstop for when a free tier runs dry.</p>
+      <ol id="ollamasteps" style="margin:0;padding-left:20px"></ol>
+    </div>
+  </details>
+
   <div id="chain"></div>
 
   <b style="display:block;margin-top:18px">Job board accounts</b>
@@ -578,6 +592,68 @@ const KEY_URLS = {
   openrouter: ['https://openrouter.ai/settings/keys', 'Free models only without credit: about 50 requests a day.'],
   ollama:     ['https://ollama.com/download', 'No key. Install it and run a model locally.'],
 };
+// Which of the installed models to suggest. A -r1 model narrates its reasoning in <think>
+// tags, which is not the JSON this app asks for, and a coder model is the wrong tool for
+// reading a CV. Among what is left, prefer the family the guide tells you to pull, so step 2
+// and step 3 cannot contradict each other, and prefer the smaller build of it.
+const OLLAMA_PREFER = ['llama3.2', 'llama3', 'qwen3', 'mistral', 'gemma', 'phi'];
+
+// Asking Ollama what it has takes about two seconds, and both the walkthrough and the model box
+// want the same answer at the same moment - so they shared four seconds of looking broken.
+// One request, remembered for a few seconds, and they settle together.
+let _ollamaModels = null, _ollamaAt = 0;
+function ollamaModels(){
+  if(_ollamaModels && Date.now() - _ollamaAt < 15000) return _ollamaModels;
+  _ollamaAt = Date.now();
+  _ollamaModels = api('/api/llm/models?provider=ollama', undefined, 'GET')
+    .catch(e => { _ollamaModels = null; throw e; });
+  return _ollamaModels;
+}
+function bestOllamaModel(models){
+  const general = (models || []).filter(m => !/(^|[-:_])(r1|coder|embed|vision|guard)/i.test(m));
+  for(const want of OLLAMA_PREFER){
+    const hit = general.find(m => m.toLowerCase().startsWith(want));
+    if(hit) return hit;
+  }
+  return general[0] || (models || [])[0];
+}
+
+// Ticks the steps that are already done. A guide that cannot see your machine is a leaflet;
+// this one knows whether Ollama is answering and which models are pulled, so someone stuck on
+// step 2 can see that they are stuck on step 2.
+async function drawOllamaHelp(){
+  const box = $('#ollamasteps');
+  if(!box) return;
+  const up = !!(LLM.providers && LLM.providers.ollama && LLM.providers.ollama.keyed);
+  let models = [];
+  if(up){ try { models = await ollamaModels(); } catch(e){} }
+  const done = v => v ? '<span style="color:var(--good)">&#10003;</span> '
+                      : '<span style="color:var(--dim)">&#9675;</span> ';
+  const pick = bestOllamaModel(models);
+  box.innerHTML = [
+    done(up) + 'Install Ollama from <a href="https://ollama.com/download" target="_blank" '
+      + 'rel="noopener">ollama.com/download</a> and let it finish. It then runs quietly in the '
+      + 'background whenever your PC is on.'
+      + (up ? ' <b style="color:var(--good)">It is running on this PC.</b>'
+            : ' <b style="color:var(--mid)">Not answering on this PC yet.</b>'),
+    done(models.length) + 'Download a model. Open Terminal or PowerShell and type '
+      + '<code>ollama pull llama3.2</code>, then wait — it is a couple of gigabytes, once.'
+      + (models.length
+          ? ` <b style="color:var(--good)">${models.length} already here:</b> `
+            + esc(models.slice(0, 6).join(', ')) + (models.length > 6 ? '…' : '')
+          : ''),
+    done(false) + 'Back here: set <b>Provider</b> to <b>ollama</b>. The Model box fills itself '
+      + 'from what you downloaded' + (pick ? ` — <code>${esc(pick)}</code> is a good first choice`
+                                           : '') + '.',
+    done(false) + 'Leave <b>API key</b> empty. There is no key and none is needed — that is the '
+      + 'point of running it here.',
+    done(false) + 'Press <b>Save &amp; test</b>. It asks the model one small question and tells '
+      + 'you what came back. The first answer is slow while the model loads into memory; after '
+      + 'that it settles.',
+  ].map(t => `<li style="margin-bottom:7px">${t}</li>`).join('');
+  localiseDOM(box);
+}
+
 function drawKeyLink(){
   const [url, note] = KEY_URLS[$('#prov').value] || ['#', ''];
   $('#keylink').href = url;
@@ -1000,6 +1076,7 @@ async function loadLlm(){
   drawKeyLink();
   steps();                 // step one of the checklist depends on the model being set
   localiseDOM();   // this panel is innerHTML, so the server pass never saw it
+  drawOllamaHelp();   // ticks the steps that are already done on this PC
 }
 
 const SBOARDS = {ejobs:'eJobs', bestjobs:'BestJobs', hipo:'Hipo (test)'};
@@ -1072,19 +1149,18 @@ $('#prov').onchange = async () => {
   // Ollama runs here, so what it can answer with is a fact we can just look up - and its
   // built-in default is a model this machine may never have pulled, which would 404 on the
   // first call and read as "Ollama does not work".
+  $('#ollamahelp').open = (p === 'ollama');
+  drawOllamaHelp();
   if(p !== 'ollama') return;
   try {
-    const have = await api('/api/llm/models?provider=ollama', undefined, 'GET');
+    const have = await ollamaModels();
     if(!have.length){
       toast('Ollama is running but has no models yet. In a terminal: ollama pull llama3.2', 12000);
       return;
     }
     $('#modellist').innerHTML = have.map(m => `<option value="${esc(m)}">`).join('');
-    // Not simply the first one alphabetically. A -r1 model narrates its reasoning in <think>
-    // tags, which is not the JSON this app asks for, and a coder model is the wrong tool for
-    // reading a CV. Prefer a plain instruct model when one is installed.
-    const general = have.filter(m => !/(^|[-:_])(r1|coder|embed|vision|guard)/i.test(m));
-    if(!have.includes($('#model').value)) $('#model').value = (general[0] || have[0]);
+    // the same rule the guide uses, so the box and the walkthrough never disagree
+    if(!have.includes($('#model').value)) $('#model').value = bestOllamaModel(have);
   } catch(e){
     toast('Ollama is not answering on this PC. Start it, then pick it again.', 10000);
   }
