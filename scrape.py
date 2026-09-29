@@ -343,8 +343,19 @@ def _fix(s):
 
 
 def _clean(s):
-    """Entities and mojibake both reach us through titles and companies, not just descriptions."""
-    return _fix(html.unescape(s or "")).strip()
+    """Entities and mojibake both reach us through titles and companies, not just descriptions.
+
+    Unescaped until it stops changing, because some ads are encoded twice: "T&amp;amp;D Manager"
+    needs two passes and one pass leaves "T&amp;D" on the card. Bounded at three so a literal
+    "&amp;amp;" that someone genuinely typed cannot loop.
+    """
+    out = s or ""
+    for _ in range(3):
+        once = html.unescape(out)
+        if once == out:
+            break
+        out = once
+    return _fix(out).strip()
 
 
 def _text(h):

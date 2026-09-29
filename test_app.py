@@ -2082,4 +2082,11 @@ assert not _pfm.LEAVES_BOARD.search("https://www.hipo.ro/locuri-de-munca/candida
 # that is very much open
 assert "redirectanuntextern" in _iK.getsource(_pfm.external_apply).lower()
 
+
+# 5o. Some ads are entity-encoded twice, so one unescape leaves the entity visible on the card -
+# "T&amp;D Manager" reached the list that way, and scrape.health flagged it as a broken parser.
+assert scrape._clean("T&amp;amp;D Manager &amp;ndash; Protection") == "T&D Manager – Protection"
+assert scrape._clean("Sales &amp; Marketing") == "Sales & Marketing"
+assert scrape._clean("plain title") == "plain title"
+
 print("ok")
