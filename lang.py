@@ -309,8 +309,6 @@ RO = {
         "Șterge rezultatele pe care nu le-ai atins, ca o căutare nouă să pornească de la o listă curată. Joburile aplicate, deschise, adaptate și refuzate rămân.",
     "Read each job ad first — these go straight to the employer with the salary from your profile. Up to 20 per run.":
         "Citește mai întâi fiecare anunț — acestea ajung direct la angajator, cu salariul din profilul tău. Cel mult 20 pe rulare.",
-    "On eJobs and BestJobs only — the boards that take an application without a form. Hipo and employer forms are never sent for you.":
-        "Doar pe eJobs și BestJobs — site-urile care acceptă o aplicare fără formular. Hipo și formularele angajatorilor nu se trimit niciodată în locul tău.",
     "Boards notice patterns. Searches are ordinary traffic; a burst of applications at 09:00 every Sunday is not.":
         "Site-urile observă tiparele. Căutările sunt trafic obișnuit; un val de aplicări la 09:00 în fiecare duminică nu este.",
     "Every tailored CV is rendered in one of these. All four are plain text underneath — no tables, no columns — so applicant tracking systems read them correctly.":
@@ -376,8 +374,6 @@ RO = {
         "— Windows o pornește în ziua și la ora pe care le alegi, cu aplicația închisă; fereastra neagră run.bat nu trebuie să fie deschisă. Caută aceiași termeni pe care i-ai salvat, pe aceleași site-uri, și punctează tot ce este nou față de profilul tău. Nu trimite nimic. Fiecare rulare consumă din cota AI pentru punctare, fie că te uiți la rezultat, fie că nu.",
     "Boards renew a sign-in whenever the site is opened, so Windows visits them every few hours in the background and the session never lapses. Hipo's lasts about six hours on its own, so without this it is signed out most of the time. It sends nothing and applies to nothing — it only loads each board. Turn it off and sign-ins expire on their own again.":
         "Site-urile reînnoiesc autentificarea de fiecare dată când sunt deschise, așa că Windows le vizitează la câteva ore în fundal și sesiunea nu expiră niciodată. A celor de la Hipo ține cam șase ore de la sine, deci fără asta ești deconectat mai tot timpul. Nu trimite nimic și nu aplică nicăieri — doar încarcă fiecare site. Oprește-o și autentificările expiră din nou singure.",
-    "— after that search, it applies to the highest-scoring jobs on eJobs and BestJobs only, up to the cap you set. Hipo and employer forms are never sent for you. A board apply attaches the CV stored on that board's profile, not the tailored PDF this app writes, so an out-of-date board profile is what the employer sees. Read the warning below before turning it on.":
-        "— după acea căutare, aplică la joburile cu cel mai mare scor, doar pe eJobs și BestJobs, până la limita pe care o stabilești. Hipo și formularele angajatorilor nu sunt trimise niciodată în locul tău. O aplicare de pe site atașează CV-ul salvat în profilul de pe acel site, nu PDF-ul adaptat pe care îl scrie aplicația, așa că un profil vechi este ce vede angajatorul. Citește avertismentul de mai jos înainte să o pornești.",
     "Back to top": "Înapoi sus",
     # ---- saving as you go
     "saved":
@@ -760,6 +756,10 @@ RO = {
         "Aplicația nu poate trimite această candidatură - adaptează un CV și aplică pe site-ul lor",
     "or batch apply, so nothing here goes out by accident.":
         "sau de aplicarea în lot, așa că nimic de aici nu pleacă din greșeală.",
+    "— after that search, it applies to the highest-scoring jobs on the boards that take an application directly: eJobs, BestJobs and Hipo. Employer forms, and ads that hand you to the employer's own site, are never sent for you. A board apply attaches the CV stored on that board's profile, not the tailored PDF this app writes, so an out-of-date board profile is what the employer sees. Read the warning below before turning it on.":
+        "— după acea căutare, aplică la joburile cu cel mai mare punctaj de pe site-urile care primesc o candidatură direct: eJobs, BestJobs și Hipo. Formularele angajatorilor și anunțurile care te trimit pe site-ul angajatorului nu sunt trimise niciodată în locul tău. O aplicare pe un site atașează CV-ul salvat în profilul de pe acel site, nu PDF-ul adaptat pe care îl scrie aplicația, așa că un profil neactualizat este ceea ce vede angajatorul. Citește avertismentul de mai jos înainte să o pornești.",
+    "The score is usually the real limit, not this: at 85 there are rarely more than a handful waiting. Employer forms and ads that redirect to the employer's own site are never sent for you.":
+        "Punctajul este de obicei limita reală, nu acesta: la 85 rareori așteaptă mai mult de câteva. Formularele angajatorilor și anunțurile care trimit către site-ul angajatorului nu sunt trimise niciodată în locul tău.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

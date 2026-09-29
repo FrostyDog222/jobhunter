@@ -355,11 +355,12 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
         the black run.bat window does not need to be open. It searches the same terms you saved,
         across the same boards, and scores everything new against your profile. It sends nothing.
         Each run spends AI quota on the scoring, whether or not you look at the result.</p>
-      <p><b>Also apply for me</b> — after that search, it applies to the highest-scoring jobs on
-        eJobs and BestJobs only, up to the cap you set. Hipo and employer forms are never sent
-        for you. A board apply attaches the CV stored on that board's profile, not the tailored
-        PDF this app writes, so an out-of-date board profile is what the employer sees. Read the
-        warning below before turning it on.</p>
+      <p><b>Also apply for me</b> — after that search, it applies to the highest-scoring jobs
+        on the boards that take an application directly: eJobs, BestJobs and Hipo. Employer
+        forms, and ads that hand you to the employer's own site, are never sent for you. A board
+        apply attaches the CV stored on that board's profile, not the tailored PDF this app
+        writes, so an out-of-date board profile is what the employer sees. Read the warning
+        below before turning it on.</p>
       <p><b>Keep me signed in</b> — the checkbox further up, next to the sign-in buttons. Boards
         renew a sign-in whenever the site is opened, so Windows visits them every four hours and
         the session never lapses. Hipo's lasts about six hours on its own. It only loads the
@@ -419,10 +420,11 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <div><label for="auto_apply_min_fit">Only jobs scoring</label><input id="auto_apply_min_fit" type="number"
         min="0" max="100" step="5" value="85"></div>
       <div><label for="auto_apply_cap">At most, per week</label><input id="auto_apply_cap" type="number"
-        min="1" max="20" step="1" value="5"></div>
+        min="1" max="50" step="1" value="5"></div>
       <div style="flex:2;display:flex;align-items:flex-end">
-        <span class="muted" style="font-size:12.5px">On eJobs and BestJobs only — the boards that
-          take an application without a form. Hipo and employer forms are never sent for you.</span></div>
+        <span class="muted" style="font-size:12.5px">The score is usually the real limit, not
+          this: at 85 there are rarely more than a handful waiting. Employer forms and ads that
+          redirect to the employer's own site are never sent for you.</span></div>
     </div>
 
     <div class="row" style="align-items:center">

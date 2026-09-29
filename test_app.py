@@ -2149,4 +2149,37 @@ for _f in ("auto.py", "share.py", "update.py"):
     if "reconfigure" in _t:
         assert "if _s is not None:" in _t, f"{_f} reconfigures without checking for a console"
 
+
+# 5s. The ceiling is a guard against a typo, not a policy - the score floor is what actually
+# decides how many applications go out. Measured on a real list: floor 85 leaves 7 applyable
+# jobs waiting, 75 leaves 17, 70 leaves 19. All below even the OLD ceiling of 20.
+assert app.BATCH_CAP == 50
+# asking for more than there are is not an error, it just sends what there is
+_pool = [{"url": f"u{i}", "title": "t", "company": "c", "source": "ejobs", "fit": 90, "note": ""}
+         for i in range(3)]
+assert len(_aa.candidates(_FakeApp(_pool), _FakeBoards({}, {}), 70, 50)) == 3
+assert len(_aa.candidates(_FakeApp(_pool), _FakeBoards({}, {}), 70, 2)) == 2
+# (the floor itself is applied in SQL - "WHERE fit >= ?" - which the stub does not run, so it
+# is checked against the real database in 5t below rather than here)
+# the number box must not offer more than the server will keep, or it silently clamps behind you
+_dash5s = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert f'max="{app.BATCH_CAP}" step="1" value="5"' in _dash5s, \
+    "the cap box and the server's ceiling disagree, so the box clamps silently behind you"
+
+
+# 5t. The floor against the real database, since that half lives in SQL. A floor nothing reaches
+# sends nothing - it must never reach further down to fill the cap.
+_sand5t = pathlib.Path(_tf.mkdtemp()) / "t.sqlite"
+_keepdb5t, app.DB, app._SCHEMA_DONE = app.DB, _sand5t, False
+try:
+    with app.db() as c:
+        for _i, _fit in enumerate((90, 80, 70)):
+            c.execute("INSERT INTO jobs(url,source,title,status,fit) VALUES(?,?,?,?,?)",
+                      (f"u{_i}", "ejobs", "t", "new", _fit))
+    _n = lambda floor: len(_aa.candidates(app, _pfm, floor, 50, ["ejobs"]))
+    assert _n(95) == 0, "a floor nothing reaches still sent something"
+    assert _n(85) == 1 and _n(75) == 2 and _n(0) == 3
+finally:
+    app.DB, app._SCHEMA_DONE = _keepdb5t, False
+
 print("ok")

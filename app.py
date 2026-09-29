@@ -2032,7 +2032,16 @@ SCORE_TRIES = 3
 # been discovered, and read by the weekly run so the discovery is not repeated every week.
 EXTERNAL_NOTE = "apply on the employer site"
 
-BATCH_CAP = 20
+# The hard ceiling on one run, whatever you type in the box. A guard against a typo, not a
+# policy: the score floor is what actually decides how many go out. Measured on a real list -
+# at floor 85 there are 7 applyable jobs waiting, at 75 there are 17, at 70 there are 19 - so
+# the floor bites long before this does.
+#
+# Fifty rather than more: the weekly task is allowed two hours, a search takes about six minutes
+# and an application 15-21 seconds, so fifty is twenty minutes of applying and nowhere near the
+# limit. What makes a big number dangerous is not the time it takes - it is that an unattended
+# run sending fifty applications with an out-of-date board CV is fifty employers who saw it.
+BATCH_CAP = 50
 
 
 def _mark_closed(c, url):

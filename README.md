@@ -235,9 +235,9 @@ more before it takes. When it is on the weekly run also applies to the best of w
 
 | limit | default |
 |---|---|
-| boards | eJobs and BestJobs only — never Hipo, never an employer form |
+| boards | eJobs, BestJobs and Hipo — never an employer form, never an ad that redirects to the employer's own site |
 | score | 85 or above, your choice |
-| how many | 5 per week, your choice, never more than 20 |
+| how many | 5 per week, your choice, never more than 50. The score is usually the real limit: at 85 there are rarely more than a handful waiting |
 | which rows | only ones nobody has touched; applied, opened, skipped and vetoed are left alone |
 | screening questions | marked and left for you — no browser window opens on an empty desk |
 
