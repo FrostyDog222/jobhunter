@@ -354,7 +354,10 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <p><b>Weekly run</b> — Windows starts it at the day and time you pick, with the app closed;
         the black run.bat window does not need to be open. It searches the same terms you saved,
         across the same boards, and scores everything new against your profile. It sends nothing.
-        Each run spends AI quota on the scoring, whether or not you look at the result.</p>
+        Each run spends AI quota on the scoring, whether or not you look at the result — so seven
+        days a week costs seven times one, for mostly the same jobs, since a posting appears once
+        rather than daily. Daily suits a hard hunt in a fast market; it is not automatically
+        better.</p>
       <p><b>Also apply for me</b> — after that search, it applies to the highest-scoring jobs
         on the boards that take an application directly: eJobs, BestJobs and Hipo. Employer
         forms, and ads that hand you to the employer's own site, are never sent for you. A board
@@ -381,13 +384,20 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   <div id="auto">
     <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
       font-size:13.5px;cursor:pointer"><input type="checkbox" id="auto_enabled" style="width:auto">
-      Search and score every week, on its own</label>
+      Search and score on its own, on the days you pick</label>
     <div class="row">
-      <div><label for="auto_day">Day</label><select id="auto_day">
-        <option value="MON">Monday</option><option value="TUE">Tuesday</option>
-        <option value="WED">Wednesday</option><option value="THU">Thursday</option>
-        <option value="FRI">Friday</option><option value="SAT">Saturday</option>
-        <option value="SUN" selected>Sunday</option></select></div>
+      <div style="flex:1 1 320px">
+        <!-- a group of toggles, not one field: labelled by id rather than with <label for>,
+             which can only point at a single control -->
+        <span id="auto_dayslbl" class="fieldlabel">Days</span>
+        <div id="auto_dayrow" role="group" aria-labelledby="auto_dayslbl"
+          style="display:flex;gap:4px;flex-wrap:wrap"></div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button type="button" class="ghost tiny" data-days="MON,TUE,WED,THU,FRI,SAT,SUN">Every day</button>
+          <button type="button" class="ghost tiny" data-days="MON,TUE,WED,THU,FRI">Weekdays</button>
+          <button type="button" class="ghost tiny" data-days="SUN">Once a week</button>
+        </div>
+        <input id="auto_days" type="hidden" value="SUN"></div>
       <div><label for="auto_hh">Time</label>
         <div style="display:flex;gap:6px;align-items:center">
           <select id="auto_hh" style="flex:1"></select>
@@ -792,7 +802,7 @@ $('#importhist').onclick = e => busy(e.target, async () => {
 }, 'reading Hipo...');
 
 /* ---------- the weekly run ---------- */
-const AUTO_FIELDS = ['auto_enabled', 'auto_day', 'auto_time', 'auto_query', 'auto_location',
+const AUTO_FIELDS = ['auto_enabled', 'auto_days', 'auto_time', 'auto_query', 'auto_location',
                      'auto_county', 'auto_country', 'keep_signed_in',
                      'auto_min_fit', 'auto_apply', 'auto_apply_min_fit',
                      'auto_apply_cap'];
@@ -849,9 +859,12 @@ async function loadAuto(){
   try { a = await api('/api/auto', undefined, 'GET'); } catch(e){ return; }
   for(const k of AUTO_FIELDS){
     const el = $('#' + k); if(!el) continue;
-    if(el.type === 'checkbox') el.checked = !!a.settings[k]; else el.value = a.settings[k] ?? '';
+    const v = a.settings[k];
+    if(el.type === 'checkbox') el.checked = !!v;
+    else el.value = Array.isArray(v) ? v.join(',') : (v ?? '');
   }
   drawTimePicker();          // #auto_time is hidden now; the two selects are what you see
+  drawDayPicker();
   applyRow();
   // Windows and this page can disagree - a task can vanish without the setting changing - and
   // a switch that says ON over nothing is worse than one that says OFF.
@@ -897,6 +910,40 @@ $('#autocopy').onclick = () => {
   toast('Copied. Press "Save the schedule" to keep it.');
 };
 
+// Windows takes a list of days, so one a week and every day are the same call with a different
+// list. Tick boxes rather than a dropdown, because "which days" is genuinely several answers -
+// and three shortcuts, because the three anybody actually wants are daily, weekdays and Sunday.
+const DAY_NAMES = {MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu',
+                   FRI: 'Fri', SAT: 'Sat', SUN: 'Sun'};
+
+function drawDayPicker(){
+  const on = new Set(($('#auto_days').value || 'SUN').split(',').filter(Boolean));
+  $('#auto_dayrow').innerHTML = Object.entries(DAY_NAMES).map(([k, label]) =>
+    `<button type="button" class="ghost tiny${on.has(k) ? ' on' : ''}" data-day="${k}"
+       aria-pressed="${on.has(k)}" style="${on.has(k)
+         ? 'border-color:var(--accent);color:var(--accent);font-weight:600' : ''}"
+       >${esc(t(label))}</button>`).join('');
+  localiseDOM($('#auto_dayrow'));
+}
+
+document.addEventListener('click', e => {
+  const one = e.target.dataset && e.target.dataset.day;
+  const many = e.target.dataset && e.target.dataset.days;
+  if(!one && !many) return;
+  const field = $('#auto_days');
+  if(many){
+    field.value = many;
+  } else {
+    const on = new Set((field.value || '').split(',').filter(Boolean));
+    on.has(one) ? on.delete(one) : on.add(one);
+    // never all-off: a schedule with no days is a switch that says ON over nothing running,
+    // which is the exact confusion the drift warning exists to catch
+    if(!on.size) return toast(t('It has to run on at least one day.'));
+    field.value = Object.keys(DAY_NAMES).filter(k => on.has(k)).join(',');
+  }
+  drawDayPicker();
+});
+
 // <input type="time"> draws itself in the BROWSER's locale - en-US here, so "09:00 AM" no
 // matter what the clock switch says. No attribute changes that. So the app draws its own, which
 // means it can honour the setting; the stored value stays 24-hour "HH:MM" either way.
@@ -936,7 +983,9 @@ $('#autosave').onclick = e => busy(e.target, async () => {
   for(const k of AUTO_FIELDS){
     const el = $('#' + k);
     body[k] = el.type === 'checkbox' ? el.checked
-            : el.type === 'number' ? +el.value : el.value;
+            : el.type === 'number' ? +el.value
+            : k === 'auto_days' ? el.value.split(',').filter(Boolean)
+            : el.value;
   }
   await api('/api/auto', body);
   await loadAuto();

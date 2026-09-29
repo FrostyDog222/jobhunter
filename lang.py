@@ -238,7 +238,6 @@ RO = {
     "⚙ Automation — what runs without you": "⚙ Automatizare — ce rulează fără tine",
     "⚠ Read this before you switch it on": "⚠ Citește asta înainte să o pornești",
     "Show more — exactly what each one does": "Arată mai mult — exact ce face fiecare",
-    "Search and score every week, on its own": "Caută și punctează în fiecare săptămână, singur",
     "Switching any of them off": "Oprirea oricăreia dintre ele",
     "It runs with nobody watching.": "Rulează fără să se uite nimeni.",
     "It is your account doing it.": "O face contul tău.",
@@ -754,6 +753,36 @@ RO = {
         "răspunde",
     "The board says this employer answers applications. No other signal here is about the employer rather than about you.":
         "Site-ul spune că acest angajator răspunde la candidaturi. Niciun alt indiciu de aici nu este despre angajator, ci despre tine.",
+    "Days":
+        "Zile",
+    "Every day":
+        "În fiecare zi",
+    "Weekdays":
+        "Zile lucrătoare",
+    "Once a week":
+        "O dată pe săptămână",
+    "Mon":
+        "Lun",
+    "Tue":
+        "Mar",
+    "Wed":
+        "Mie",
+    "Thu":
+        "Joi",
+    "Fri":
+        "Vin",
+    "Sat":
+        "Sâm",
+    "Sun":
+        "Dum",
+    "It has to run on at least one day.":
+        "Trebuie să ruleze în cel puțin o zi.",
+    "Search and score on its own, on the days you pick":
+        "Caută și punctează singur, în zilele pe care le alegi",
+    "Each run spends AI quota on the scoring, whether or not you look at the result — so seven days a week costs seven times one, for mostly the same jobs, since a posting appears once rather than daily. Daily suits a hard hunt in a fast market; it is not automatically better.":
+        "Fiecare rulare consumă din cota AI pentru punctare, indiferent dacă te uiți sau nu la rezultat — așa că șapte zile pe săptămână costă de șapte ori cât una, pentru cam aceleași joburi, fiindcă un anunț apare o dată, nu zilnic. Zilnic se potrivește unei căutări intense pe o piață rapidă; nu este automat mai bine.",
+    "— Windows starts it at the day and time you pick, with the app closed; the black run.bat window does not need to be open. It searches the same terms you saved, across the same boards, and scores everything new against your profile. It sends nothing. Each run spends AI quota on the scoring, whether or not you look at the result — so seven days a week costs seven times one, for mostly the same jobs, since a posting appears once rather than daily. Daily suits a hard hunt in a fast market; it is not automatically better.":
+        "— Windows o pornește în ziua și la ora pe care le alegi, cu aplicația închisă; fereastra neagră run.bat nu trebuie să fie deschisă. Caută aceiași termeni pe care i-ai salvat, pe aceleași site-uri, și punctează tot ce este nou față de profilul tău. Nu trimite nimic. Fiecare rulare consumă din cota AI pentru punctare, indiferent dacă te uiți sau nu la rezultat — așa că șapte zile pe săptămână costă de șapte ori cât una, pentru cam aceleași joburi, fiindcă un anunț apare o dată, nu zilnic. Zilnic se potrivește unei căutări intense pe o piață rapidă; nu este automat mai bine.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

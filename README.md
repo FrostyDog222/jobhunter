@@ -221,7 +221,7 @@ date are answered from your *Application answers*; if every question is answered
 application is sent, and if even one is left blank the app stops and opens it for you to finish.
 The salary figure you wrote goes to every employer that asks, so set one you would stand behind.
 
-## The weekly run
+## The scheduled run
 
 Under *Settings → Weekly run*, Windows can run your search once a week on its own, so the list
 is already searched and scored when you next open the app. It works with the app closed — the

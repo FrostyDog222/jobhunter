@@ -2150,4 +2150,32 @@ try:
 finally:
     app.DB, app._SCHEMA_DONE = _keepdb5t, False
 
+
+# 5u. The run happens on any set of days, not one. Windows always took a list here - the only
+# thing that made it weekly was the app sending exactly one day.
+assert isinstance(app.DEFAULTS["auto_days"], list) and "auto_day" not in app.DEFAULTS
+# an old settings file that predates the change is carried over rather than reset
+assert app._migrate_days({"auto_day": "WED"})["auto_days"] == ["WED"]
+assert "auto_day" not in app._migrate_days({"auto_day": "WED"})
+# rubbish in it falls back rather than registering a task that never fires
+assert app._migrate_days({"auto_days": ["NOPE"]})["auto_days"] == ["SUN"]
+assert app._migrate_days({})["auto_days"] == ["SUN"]
+# ...and the endpoint refuses the empty case outright, because a schedule with no days is a
+# switch that says ON over nothing running
+_keep_set5u, app.SETTINGS = app.SETTINGS, pathlib.Path(_tf.mkdtemp()) / "s.json"
+try:
+    _base = {**app.DEFAULTS, "auto_enabled": False, "auto_query": "x", "auto_time": "09:00"}
+    for _bad in ([], ["NOPE"]):
+        try:
+            app._set_auto({**_base, "auto_days": _bad})
+            raise AssertionError(f"accepted {_bad}")
+        except _HE as _e:
+            assert "at least one day" in str(_e.detail), _e.detail
+finally:
+    app.SETTINGS = _keep_set5u
+# the page sends a list, not the comma string its hidden field holds
+_dash5u = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "k === 'auto_days' ? el.value.split(',').filter(Boolean)" in _dash5u,     "the day picker posts a string where the server wants a list"
+assert "'auto_days'" in _dash5u.split("const AUTO_FIELDS")[1][:260]
+
 print("ok")

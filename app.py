@@ -194,7 +194,11 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             "search_fresh": "fresh", "search_work_mode": "", "search_seniority": "",
             "search_ats": "",
             # the weekly run (auto.py, started by Windows Task Scheduler)
-            "auto_enabled": False, "auto_day": "SUN", "auto_time": "09:00",
+            "auto_enabled": False,
+            # Which days it runs. A list, because Windows takes a list - the only thing that
+            # ever made this weekly was the app sending exactly one day. ["SUN"] is the old
+            # behaviour; all seven is daily.
+            "auto_days": ["SUN"], "auto_time": "09:00",
             "auto_query": "", "auto_location": "", "auto_county": "", "auto_country": "ro",
             "keep_signed_in": False,
             "auto_min_fit": 75,
@@ -203,10 +207,21 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             "auto_apply": False, "auto_apply_min_fit": 85, "auto_apply_cap": 5}
 
 
+def _migrate_days(s):
+    """auto_day (one string) -> auto_days (a list). Read once, so nobody who already had a
+    weekly run set up has to set it up again."""
+    if not s.get("auto_days") and s.get("auto_day") in DAYS:
+        s["auto_days"] = [s["auto_day"]]
+    s.pop("auto_day", None)
+    days = [d for d in (s.get("auto_days") or []) if d in DAYS]
+    s["auto_days"] = days or ["SUN"]
+    return s
+
+
 def settings():
     with _FILES:
       try:
-        return {**DEFAULTS, **json.loads(SETTINGS.read_text(encoding="utf-8"))}
+        return _migrate_days({**DEFAULTS, **json.loads(SETTINGS.read_text(encoding="utf-8"))})
       except FileNotFoundError:
         return dict(DEFAULTS)                 # first run: defaults are the answer, not a fault
       except (OSError, json.JSONDecodeError) as e:
@@ -308,8 +323,12 @@ def _task_state(which=None):
     return {"exists": bool(state.get("exists")), **state}
 
 
-def schedule(on, day, at):
-    """Create or remove the weekly task. Returns "" or a message explaining why it failed."""
+def schedule(on, days, at):
+    """Create or remove the search task. Returns "" or a message explaining why it failed.
+
+    `days` is a list of DAYS keys. Windows accepts several, so one day a week and every day are
+    the same call with a different list.
+    """
     _TASK[1] = None                  # we are about to change it, so do not serve the old answer
     if not on:
         _ps(f"Unregister-ScheduledTask -TaskName '{TASK}' -Confirm:$false "
@@ -321,14 +340,15 @@ def schedule(on, day, at):
     code, _, err = _ps(
         f"$a = New-ScheduledTaskAction -Execute '{pyw}' -Argument 'auto.py' "
         f"-WorkingDirectory '{HERE}';"
-        f"$t = New-ScheduledTaskTrigger -Weekly -DaysOfWeek {DAYS[day]} -At '{at}';"
+        f"$t = New-ScheduledTaskTrigger -Weekly "
+        f"-DaysOfWeek {','.join(DAYS[d] for d in days)} -At '{at}';"
         # StartWhenAvailable is what makes this work on a laptop: a run missed because the PC
         # was off happens the next time it is on, instead of being skipped for the week.
         f"$s = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries "
         f"-DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew "
         f"-ExecutionTimeLimit (New-TimeSpan -Hours 2);"
         f"Register-ScheduledTask -TaskName '{TASK}' -Action $a -Trigger $t -Settings $s "
-        f"-Description 'jobhunter: weekly job search and scoring' -Force | Out-Null")
+        f"-Description 'jobhunter: job search and scoring' -Force | Out-Null")
     return "" if code == 0 else f"Windows refused to create the scheduled task: {err[:200]}"
 
 
@@ -403,7 +423,7 @@ def set_auto(body: dict = Body(...)):
 
 def _set_auto(body):
     cur = settings()
-    for k in ("auto_enabled", "auto_day", "auto_time", "auto_query", "auto_location",
+    for k in ("auto_enabled", "auto_days", "auto_time", "auto_query", "auto_location",
               "auto_county", "auto_country", "keep_signed_in",
               "auto_min_fit", "auto_apply", "auto_apply_min_fit",
               "auto_apply_cap"):
@@ -423,8 +443,9 @@ def _set_auto(body):
         if isinstance(body[k], str) and len(body[k]) > 2000:
             raise HTTPException(400, f"{k} is too long")
         cur[k] = body[k]
-    if cur["auto_day"] not in DAYS:
-        raise HTTPException(400, f"not a day: {cur['auto_day']}")
+    cur["auto_days"] = [d for d in (cur.get("auto_days") or []) if d in DAYS]
+    if not cur["auto_days"]:
+        raise HTTPException(400, "Pick at least one day for it to run on.")
     if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", str(cur["auto_time"])):
         raise HTTPException(400, "time must be HH:MM, e.g. 09:00")
     try:
@@ -438,7 +459,7 @@ def _set_auto(body):
     if cur["auto_enabled"] and not (cur["auto_query"] or "").strip():
         raise HTTPException(400, "Type what the weekly run should search for.")
     save_settings_file(cur)
-    problem = schedule(cur["auto_enabled"], cur["auto_day"], cur["auto_time"])
+    problem = schedule(cur["auto_enabled"], cur["auto_days"], cur["auto_time"])
     if problem:
         raise HTTPException(400, problem)
     # independent of the weekly run on purpose: staying signed in is useful even to someone who
