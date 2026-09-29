@@ -4,6 +4,7 @@ profile.json
 profile.previous.json
 photo.jpg
 photo.png
+*.tmp
 db.sqlite
 db.sqlite-wal
 db.sqlite-shm

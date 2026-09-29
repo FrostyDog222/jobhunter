@@ -715,4 +715,23 @@ for _p in ("photo.jpg", "photo.png", "profile.json", "profile.previous.json", "d
 # and the app still has to be in there, or the guard above is passing by shipping nothing
 assert _sh.wanted(_sh.HERE / "app.py") and _sh.wanted(_sh.HERE / "llm.py")
 
+
+# 2v. Whatever is tracked in git is published, because this repo is public. A list of private
+# files is only as good as whoever remembers to extend it - photo.jpg proved that - so the rule
+# runs the other way round: this repo holds source and nothing else, and anything tracked that
+# is not source fails here before it can be pushed.
+import subprocess as _sp
+_tracked = _sp.run(["git", "ls-files"], cwd=app.HERE, capture_output=True, text=True)
+if _tracked.returncode == 0:                 # not a clone: nothing to check, not a failure
+    SOURCE = {".py", ".html", ".css", ".bat", ".ps1", ".md", ".txt"}
+    BARE = {".gitignore", ".gitattributes"}
+    for _f in _tracked.stdout.split():
+        _ext = pathlib.PurePosixPath(_f).suffix
+        assert _ext in SOURCE or _f in BARE, (
+            f"{_f} is tracked in git and is not source. This repo is public: if it holds "
+            f"anything of yours - a photo, a CV, a database, a log - untrack it and add it "
+            f"to .gitignore before pushing.")
+        # and a source file named like one of the private ones is still private
+        assert _sh.wanted(app.HERE / _f), f"{_f} is tracked but share.py calls it private"
+
 print("ok")
