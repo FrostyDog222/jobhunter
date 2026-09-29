@@ -1490,6 +1490,17 @@ async def _search(body, p):
                     s = s[0]
                 if not isinstance(s, dict):
                     raise TypeError(f"score returned {type(s).__name__}, not an object")
+                # ...and it has to be an ANSWER. A model too small to follow the schema returns
+                # a valid object full of the wrong keys; writing that stored fit=NULL, which is
+                # the same thing the next search reads as "never scored" - so the job stayed
+                # invisible, nothing said why, and every later search paid to score it again.
+                try:
+                    fit = int(s["fit"])
+                except (KeyError, TypeError, ValueError):
+                    raise TypeError("score came back without a usable 'fit' "
+                                    f"(keys: {sorted(s)[:6]}) - the model is probably too small "
+                                    f"to follow the format")
+                s["fit"] = max(0, min(100, fit))
                 c.execute("UPDATE jobs SET fit=?,why=?,gaps=?,untapped=? WHERE url=?",
                           (s.get("fit"), _tidy(s.get("why") or ""),
                            json.dumps(_tidy(s.get("gaps", [])), ensure_ascii=False),

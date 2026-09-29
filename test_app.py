@@ -1140,4 +1140,16 @@ for _k in _keys:
         assert "{" + _ph + "}" in _lang.RO[_k], \
             f"the Romanian for {_k[:40]!r} dropped the {{{_ph}}} placeholder"
 
+
+# 3u. A reply shaped like JSON is not an answer. Measured with llama3.2:3b against the real
+# scoring prompt: it returns a valid object whose keys are the gaps it found and no "fit" at
+# all. The writeback only checked isinstance(dict), so it stored fit=NULL - which is the very
+# thing the next search reads as "never scored", so the job stayed invisible, nothing said why,
+# and every later search paid to score it again.
+_wb = _i6.getsource(app._search)
+assert 'int(s["fit"])' in _wb, "a reply with no usable fit is still written as NULL"
+assert "too small" in _wb, "the failure does not say what actually went wrong"
+# a score out of range is clamped rather than stored as-is
+assert 'max(0, min(100, fit))' in _wb
+
 print("ok")
