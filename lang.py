@@ -471,7 +471,16 @@ RO = {
     "are safe choices. Anything that thinks before it answers — names with":
         "sunt alegeri sigure. Orice model care gândește înainte să răspundă — nume cu",
     ", and several of the newest gemma and qwen builds — writes its reasoning instead of the answer and this app gets nothing back. Models under about 7B tend to return JSON of the wrong shape, which shows up as jobs that never get a score.":
-        ", și câteva dintre cele mai noi versiuni gemma și qwen — își scrie raționamentul în loc de răspuns, iar aplicația nu primește nimic. Modelele sub circa 7B tind să returneze JSON de forma greșită, ceea ce se vede ca joburi care nu primesc niciodată un scor.",}
+        ", și câteva dintre cele mai noi versiuni gemma și qwen — își scrie raționamentul în loc de răspuns, iar aplicația nu primește nimic. Modelele sub circa 7B tind să returneze JSON de forma greșită, ceea ce se vede ca joburi care nu primesc niciodată un scor.",
+    # ---- what a local model actually costs you in accuracy
+    "are the ones that answer in the right format. Anything that thinks before it answers — names with":
+        "sunt cele care răspund în formatul corect. Orice model care gândește înainte să răspundă — nume cu",
+    ", and several of the newest gemma and qwen builds — writes its reasoning instead of the answer and this app gets nothing back. Models under about 7B return JSON of the wrong shape, which shows up as jobs that never get a score.":
+        ", și câteva dintre cele mai noi versiuni gemma și qwen — își scrie raționamentul în loc de răspuns, iar aplicația nu primește nimic. Modelele sub circa 7B returnează JSON de forma greșită, ceea ce se vede ca joburi care nu primesc niciodată un scor.",
+    "The scores will be rougher.":
+        "Scorurile vor fi mai aproximative.",
+    "Measured here on twelve real ads: llama3.1:8b answered 11 of them in about 30 seconds each, but its score differed from the hosted model by around 30 points and it scored higher five times out of six — it parks near 60 for almost everything, including jobs a hosted model rates 10. A list full of 60s looks like a good week and is not. Worth it for privacy, or as the backstop when a free tier runs dry; not the one to judge which jobs deserve an application.":
+        "Măsurat aici pe douăsprezece anunțuri reale: llama3.1:8b a răspuns la 11 dintre ele în circa 30 de secunde fiecare, dar scorul lui a diferit de cel al modelului online cu aproximativ 30 de puncte și a punctat mai sus de cinci ori din șase — se oprește pe la 60 aproape pentru orice, inclusiv pentru joburi pe care un model online le dă 10. O listă plină de 60 pare o săptămână bună, dar nu este. Merită pentru intimitate sau ca rezervă când un plan gratuit se golește; nu pentru a judeca ce joburi merită o aplicare.",}
 
 # Longest first, so replacing a short string can never eat part of a longer one that contains it.
 PAIRS = sorted(RO.items(), key=lambda kv: -len(kv[0]))
