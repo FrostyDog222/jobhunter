@@ -1509,7 +1509,11 @@ try:
     # the check the old one could not do at all: a key is far likelier to be INSIDE a file we
     # ship - pasted into a script while testing - than to be a file we forgot to name
     _was = _zip.stat().st_size
-    (_sand / "llm.py").write_bytes(b'KEY = "gsk_0123456789abcdefghijklmnopqrstuvwxyz"\n')
+    # Assembled at runtime, never written out as one literal: this file is shipped too, so a
+    # key-shaped string sitting here would make share.py refuse to build the zip at all - which
+    # is exactly the check working, aimed at the wrong file.
+    _fake_key = "gsk_" + "0123456789abcdefghijklmnopqrstuvwxyz"
+    (_sand / "llm.py").write_text(f'KEY = "{_fake_key}"\n', encoding="utf-8")
     try:
         with _quiet():
             _sh2.main()
@@ -1720,5 +1724,16 @@ assert "not accepted once you leave that window" in _rm
 assert "## Erasing everything" in _rm, "the one button that cannot be undone is undocumented"
 for _fact in ("asks twice", "scheduled tasks", "stay sent"):
     assert _fact in _rm.split("## Erasing everything")[1].split("## ")[0], _fact
+
+
+# 4y. ...and the guard has to be aimed at the right file. The test above needs a key-shaped
+# string, and writing one as a literal put it in THIS file - which share.py ships - so share.bat
+# refused to build the zip at all. Caught by scanning what the repository actually tracks, which
+# is the check nobody thinks to run on the checker itself.
+_tracked = [app.HERE / _t for _t in subprocess.run(
+    ["git", "ls-files"], cwd=str(app.HERE), capture_output=True, text=True).stdout.split()]
+if _tracked:                                  # a copy unzipped outside git has nothing to check
+    _hits = _sh2.secrets_in(_tracked)
+    assert not _hits, f"share.bat would refuse to build: key-shaped text in {_hits}"
 
 print("ok")
