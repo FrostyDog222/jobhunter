@@ -367,15 +367,23 @@ def health(source, jobs, seen_before):
 
 
 # hipo lists career-fair events alongside real vacancies - "Workshop by BAT Romania @ Top
-# Talents" and friends. They are not jobs, they never score, and they crowd out the rest. Matched
-# on the event phrasing, not the bare word, so a Workshop Manager or Workshop Technician survives.
+# Talents", "Conferinta gratuita de dezvoltare personala" and friends. They are not jobs, they
+# never score, and they crowd out the rest.
+#
+# An event ANNOUNCES itself: the title OPENS with the word. A job only mentions it in passing,
+# and matching the bare word dropped every one of those - "Specialist Webinar Marketing",
+# "Tehnician Workshop De Reparatii" and "Organizator Conferinta Medicala" are real vacancies
+# that nobody would ever have seen. The roles that genuinely open with the word are named,
+# because "Workshop Manager" starts exactly the way "Workshop inspirational - ..." does.
+ROLE = (r"manager|technician|tehnician|supervisor|coordinator|lead|specialist|operator|sef"
+        r"|\u0219ef|responsabil|assistant|asistent|engineer|inginer|administrator|director"
+        r"|consultant|analyst|analist|planner|organizator|designer|developer")
 NOISE = re.compile(r"@\s*top\s+talents"
-                   r"|\b(workshop|webinar|masterclass)\s+(by|with|de|cu)\b"
-                   # these three are never part of a job title; "workshop" is (a Workshop
-                   # Manager is a real job), so it still needs the "by X" shape above
-                   r"|\b(conferint[aţț]|webinar|masterclass|inspiration(al)?)\b"
+                   r"|\b(workshop|webinar|masterclass)\s+(by|with|cu)\b"
+                   rf"|^\s*(workshop|webinar|masterclass|conferint\w*|seminar)\b(?!\s+({ROLE}))"
                    r"|^\s*training\s+(by|with|de|cu)\b"
-                   r"|\b(career fair|job fair|zilele carierei|t[aâ]rg de (joburi|cariere))\b", re.I)
+                   rf"|\b(career fair|job fair|zilele carierei|t[a\u00e2]rg de (joburi|cariere))\b"
+                   rf"(?!\s+({ROLE}))", re.I)
 
 
 def _slug_title(path):

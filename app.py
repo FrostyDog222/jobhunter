@@ -5,6 +5,8 @@ import datetime
 import base64
 import collections, hashlib, io, json, os, pathlib, re, sqlite3, subprocess, sys, time, webbrowser
 import shutil
+import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, UploadFile, File, Body, HTTPException
@@ -101,6 +103,16 @@ def _mark_applied(c, url):
               "applied_at=COALESCE(applied_at, datetime('now','localtime')) WHERE url=?", (url,))
 
 
+# Every read and every write of the two small JSON files this app keeps. FastAPI runs sync
+# endpoints in a thread pool, so "only one user" never meant "only one writer": the profile page
+# autosaves while /api/suggest/apply is mid-flight, and the weekly run writes settings while a
+# click does. Readers are in here as well, because on Windows os.replace fails while anyone has
+# the destination open - a reader alone was enough to break a save, and a save was enough to
+# hand a reader an empty profile, which is the very read the anti-wipe guard trusts.
+# Re-entrant, so a path that reads and then writes under one lock cannot deadlock on itself.
+_FILES = threading.RLock()
+
+
 # ---------- settings ----------
 SETTINGS = HERE / "settings.json"
 # what the dashboard remembers between visits. Secrets stay in .env; these are preferences,
@@ -142,11 +154,12 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
 
 
 def settings():
-    try:
+    with _FILES:
+      try:
         return {**DEFAULTS, **json.loads(SETTINGS.read_text(encoding="utf-8"))}
-    except FileNotFoundError:
+      except FileNotFoundError:
         return dict(DEFAULTS)                 # first run: defaults are the answer, not a fault
-    except (OSError, json.JSONDecodeError) as e:
+      except (OSError, json.JSONDecodeError) as e:
         # Falling back silently would switch keep-signed-in off, blank the county and disable the
         # weekly run - while the Windows tasks carry on existing - and nothing would say so.
         print(f"[settings] {SETTINGS.name} is unreadable ({e}); using defaults until it is saved "
@@ -161,9 +174,8 @@ def save_settings_file(cur):
     the loader then reads as "no settings at all". Same write-then-replace as save_profile, so a
     half-finished save can never replace a good file.
     """
-    tmp = SETTINGS.with_suffix(".tmp")
-    tmp.write_text(json.dumps(cur, indent=1), encoding="utf-8")
-    os.replace(tmp, SETTINGS)
+    with _FILES:
+        _atomic_write(SETTINGS, json.dumps(cur, indent=1))
 
 
 @app.get("/api/settings")
@@ -396,12 +408,32 @@ def run_auto():
     return {"ok": True}
 
 
+def _same_shape(value, default):
+    """Is this value the kind of thing that default is? bools are not ints here."""
+    if isinstance(default, bool):
+        return isinstance(value, bool)
+    if isinstance(default, int):
+        return isinstance(value, int) and not isinstance(value, bool)
+    return isinstance(value, type(default))
+
+
 @app.post("/api/settings")
 def save_settings(body: dict = Body(...)):
     cur = settings()
     for k in DEFAULTS:
-        if k in body:
-            cur[k] = body[k]
+        if k not in body:
+            continue
+        # Every setting is written to disk and read back on every request, so a value of the
+        # wrong type is not a bad request that fails once - it is a file that breaks the app
+        # until someone edits it by hand. {"home_county": 123} made GET /api/jobs 500 on every
+        # load, through a restart, while the rest of the page carried on looking fine.
+        if not _same_shape(body[k], DEFAULTS[k]):
+            raise HTTPException(400, f"{k} must be "
+                                     f"{type(DEFAULTS[k]).__name__}, not "
+                                     f"{type(body[k]).__name__}")
+        if isinstance(body[k], str) and len(body[k]) > 2000:
+            raise HTTPException(400, f"{k} is too long")
+        cur[k] = body[k]
     if cur["cv_template"] and cur["cv_template"] not in cv_templates():
         raise HTTPException(400, f"no such CV template: {cur['cv_template']}")
     save_settings_file(cur)
@@ -450,11 +482,12 @@ def _langs(v):
 
 
 def profile():
-    try:
+    with _FILES:
+      try:
         p = json.loads(PROFILE.read_text(encoding="utf-8")) if PROFILE.exists() else {}
         if not isinstance(p, dict):
             raise ValueError("profile.json is not an object")
-    except (OSError, ValueError) as e:
+      except (OSError, ValueError) as e:
         # never 500 the whole app over a damaged file - the profile page must stay reachable
         print(f"[profile] unreadable ({e}); starting from an empty profile")
         p = {}
@@ -475,7 +508,28 @@ def _has_substance(p):
                 or ((p or {}).get("name") or "").strip())
 
 
+
+
+def _atomic_write(path, text):
+    """Write, then replace, with a temp name nobody else can be holding.
+
+    One fixed "profile.tmp" meant overlapping saves raced each other: on Windows os.replace then
+    fails with WinError 32, and a reader landing in the gap got an EMPTY profile - which is the
+    same read the wipe guard asks for permission from, so the guard could be walked straight
+    past. Measured: 178 of 200 concurrent saves raised, and an empty profile reached disk.
+    """
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.stem + "-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        pathlib.Path(tmp).unlink(missing_ok=True)
+        raise
+
+
 def save_profile(p):
+  with _FILES:
     p["languages"] = _langs(p.get("languages"))
     for k in STR_LIST_KEYS:
         p[k] = _strs(p.get(k))
@@ -488,9 +542,7 @@ def save_profile(p):
     except OSError as e:
         print(f"[profile] could not keep the previous copy: {e}")
     # write-then-replace: a crash or an overlapping save must not leave a half-written profile
-    tmp = PROFILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, PROFILE)
+    _atomic_write(PROFILE, json.dumps(p, ensure_ascii=False, indent=2))
 
 
 async def off(fn, *a):
@@ -713,7 +765,8 @@ def purge(body: dict = Body(...)):
     print(f"[purge] removed {len(removed)} item(s): {', '.join(removed)}")
     if failed:
         print(f"[purge] could not remove: {failed}")
-    return {"ok": True, "removed": removed, "failed": failed}
+    OUT.mkdir(exist_ok=True)      # tailoring writes straight into it and 500s when it is gone
+    return {"ok": True, "removed": removed}
 
 
 @app.get("/api/profile/cv")
@@ -1315,6 +1368,14 @@ async def search(body: dict = Body(...)):
             "warnings": warnings}
 
 
+def _url_of(body):
+    """The url a request is about. Missing, null or not a string is a 400, not a KeyError 500."""
+    url = (body or {}).get("url")
+    if not isinstance(url, str) or not url.strip():
+        raise HTTPException(400, "url is required")
+    return url
+
+
 def _job(url):
     with db() as c:
         r = c.execute("SELECT * FROM jobs WHERE url=?", (url,)).fetchone()
@@ -1521,7 +1582,7 @@ def _pdf(cv, path, lang="en", template="classic", photo=None):
 
 @app.post("/api/tailor")
 async def tailor(body: dict = Body(...)):
-    j = _job(body["url"])
+    j = _job(_url_of(body))
     lang = body.get("lang", "auto")
     if lang not in ("auto", "en", "ro"):
         raise HTTPException(400, "lang must be auto, en or ro")
@@ -1623,7 +1684,9 @@ async def apply_batch(body: dict = Body(...)):
 @app.get("/api/cv/{name}")
 def get_cv(name: str):
     f = OUT / pathlib.Path(name).name
-    if not f.exists():
+    # is_file, not exists: "...." and "%2e" resolve to a directory and handing that to
+    # FileResponse is a 500 rather than an honest 404
+    if not f.is_file():
         raise HTTPException(404, "no such CV")
     # Re-tailoring the same job writes the same file name, so a cached copy would keep being
     # handed back after the CV had been rewritten.
@@ -1686,7 +1749,7 @@ async def apply(body: dict = Body(...)):
     Either way it stops before the submit button. You read what was filled, answer the questions
     only you can answer, and send it yourself - an unattended submitter that quietly gets a field
     wrong does it to every employer at once, and none of it can be taken back."""
-    j = _job(body["url"])
+    j = _job(_url_of(body))
     host = prefill.ats_host(j["url"])
     cv = (OUT / j["cv"]) if j["cv"] else None
 
@@ -1754,28 +1817,29 @@ def one_job(c, url):
 
 @app.post("/api/status")
 def set_status(body: dict = Body(...)):
+    url = _url_of(body)
     status = body.get("status")
     if status not in ("new", "ready", "opened", "applied", "skipped"):
         raise HTTPException(400, f"not a status: {status}")
     with db() as c:
         if status == "applied":
-            _mark_applied(c, body["url"])
+            _mark_applied(c, url)
         elif body.get("undo"):
             # Mark applied sits one click from Skip, so a slip needs a way back - but only for
             # a couple of minutes. After that the row is history and stays as it is.
             n = c.execute("UPDATE jobs SET status=?, applied_at=NULL WHERE url=? AND status='applied' "
                           "AND applied_at >= datetime('now','localtime','-2 minutes')",
-                          (status, body["url"])).rowcount
+                          (status, url)).rowcount
             if not n:
                 raise HTTPException(400, "Too late to undo - applied jobs stay in the history.")
         else:
             # applied rows are the record of what you sent, and that record is not editable
             n = c.execute("UPDATE jobs SET status=? WHERE url=? AND status != 'applied'",
-                          (status, body["url"])).rowcount
+                          (status, url)).rowcount
             if not n and c.execute("SELECT 1 FROM jobs WHERE url=? AND status='applied'",
-                                   (body["url"],)).fetchone():
+                                   (url,)).fetchone():
                 raise HTTPException(400, "Applied jobs stay in the history and cannot be changed.")
-        job = one_job(c, body["url"])
+        job = one_job(c, url)
     return {"ok": True, "job": job}
 
 
@@ -1790,8 +1854,18 @@ def clear(body: dict = Body(...)):
     back on the next search), so it stays.
     """
     keep = ("applied", "opened", "ready", "skipped")
-    drop = tuple(body.get("status") or ("new", "vetoed"))
-    assert not set(drop) & set(keep), "refusing to delete rows you have acted on"
+    asked = body.get("status") or ("new", "vetoed")
+    # A string here used to be iterated letter by letter - tuple("applied") is ('a','p',...) -
+    # so the request looked like it worked and deleted nothing.
+    if isinstance(asked, str) or not isinstance(asked, (list, tuple)):
+        raise HTTPException(400, "status must be a list of statuses")
+    drop = tuple(asked)
+    # An assert, not an exception, is stripped by python -O: in that configuration this guard
+    # simply was not there, and the rows a person had acted on were deletable.
+    if set(drop) & set(keep):
+        raise HTTPException(400, "Refusing to delete rows you have acted on.")
+    if not set(drop) <= {"new", "vetoed"}:
+        raise HTTPException(400, "Only new or vetoed rows can be cleared.")
     q = ",".join("?" * len(drop))
     with db() as c:
         # A tailored CV is work you paid for, and a vetoed row can hold one - you can tailor a
@@ -1812,6 +1886,13 @@ def rescore(body: dict = Body(...)):
     next search just re-inserts and re-vetoes them.
     """
     where = body.get("status") or "vetoed"
+    # Only the two verdicts this app makes on its own behalf can be taken back. Anything else -
+    # and 'applied' above all - is the record of what a person actually did: resetting it to
+    # 'new' erased that record AND offered the job up to be applied to a second time, at an
+    # employer who had already had one.
+    if where not in ("vetoed", "skipped"):
+        raise HTTPException(400, "Only vetoed or skipped jobs can be queued again. "
+                                 "Applied jobs are the record of what you sent.")
     with db() as c:
         n = c.execute("UPDATE jobs SET fit=NULL, why=NULL, gaps=NULL, status='new' "
                       "WHERE status=?", (where,)).rowcount
@@ -1820,11 +1901,12 @@ def rescore(body: dict = Body(...)):
 
 @app.post("/api/delete")
 def delete(body: dict = Body(...)):
+    url = _url_of(body)
     with db() as c:
-        row = c.execute("SELECT cv, status FROM jobs WHERE url=?", (body["url"],)).fetchone()
+        row = c.execute("SELECT cv, status FROM jobs WHERE url=?", (url,)).fetchone()
         if row and row["status"] == "applied":
             raise HTTPException(400, "Applied jobs stay in the history and cannot be deleted.")
-        c.execute("DELETE FROM jobs WHERE url=?", (body["url"],))
+        c.execute("DELETE FROM jobs WHERE url=?", (url,))
     # the PDF outlives the row otherwise: out/ collects files nothing references any more
     name = (row["cv"] if row else "") or ""
     if name:

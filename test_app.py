@@ -773,4 +773,86 @@ assert app.DEFAULT_CV in app.cv_templates()
 assert _i6.getsource(app.tailor).count("DEFAULT_CV") == 1
 assert _i6.getsource(app.profile_cv).count("DEFAULT_CV") == 1
 
+
+# 2y. The language gate hides jobs, and a hidden job is invisible - nobody ever sees the veto to
+# doubt it. Every line here was a real job being thrown away: a bonus language written with a
+# comma instead of a bracket, a language word in a company name, and a list of alternatives read
+# as a list of requirements.
+_ROEN = {"languages": [{"name": "Romanian"}, {"name": "English"}]}
+_DE = {"languages": [{"name": "German"}, {"name": "Romanian"}]}
+for _who, _title, _body in (
+        (_ROEN, "Operator", "Cunostinte de germana, avantaj"),
+        (_ROEN, "Operator", "Cunostinte de germana; avantaj"),
+        (_ROEN, "Operator", "Limba germana - nivel mediu, optional."),
+        (_ROEN, "Operator", "Limba germana, nivel avansat, nu este obligatorie."),
+        (_ROEN, "Analyst at Deutsche Bank", "Fluent English required."),
+        (_ROEN, "Operator Polish Line", "Fluent English required."),
+        (_ROEN, "French Fries Production Operator", "Fluent English required."),
+        (_ROEN, "Greek Yogurt Line Operator", "Fluent English required."),
+        (_DE, "Agent", "Fluent German, Dutch or Swedish."),
+        (_DE, "Agent", "German/Dutch fluent."),
+        (_DE, "Agent", "Fluent in German, French or Italian.")):
+    _ok, _why = app.llm.language_gate(_who, {"title": _title, "description": _body})
+    assert _ok, f"false veto on {_title!r} / {_body!r}: {_why}"
+# and it still has to stop the ones that really are out of reach
+for _who, _title, _body in (
+        (_ROEN, "Swedish Support Agent", "We need you."),
+        (_ROEN, "German Language Support Agent", "Join us."),
+        (_ROEN, "Customer Support with German", "Join us."),
+        (_ROEN, "Agent", "Fluent German is required."),
+        (_ROEN, "Agent", "Obligatoriu: limba germana nivel C1."),
+        (_DE, "Agent", "Fluent Dutch or Swedish required.")):
+    _ok, _ = app.llm.language_gate(_who, {"title": _title, "description": _body})
+    assert not _ok, f"a real language demand got through: {_title!r} / {_body!r}"
+
+# 2z. An event announces itself in the first word; a job mentions it in passing. Matching the
+# bare word dropped real vacancies before anyone could see them.
+for _t in ("Workshop inspirational - Cum sa iti pui in valoare adevaratul potential",
+           "Conferinta gratuita de dezvoltare personala si profesionala - Inspiration 4U",
+           "Workshop by BAT Romania @ Top Talents", "Webinar: how to get hired",
+           "Seminar de cariera", "Zilele Carierei Bucuresti"):
+    assert scrape.NOISE.search(_t), f"event got through as a job: {_t}"
+for _t in ("Specialist Webinar Marketing", "Organizator Conferinta Medicala",
+           "Tehnician Workshop De Reparatii", "Copywriter Inspirational Content",
+           "Workshop Manager", "Sef Atelier Workshop De Vopsitorie", "Job Fair Coordinator",
+           "Workshop Supervisor"):
+    assert not scrape.NOISE.search(_t), f"real job dropped as an event: {_t}"
+
+# 3a. Applied is a record of what was sent to an employer. /api/rescore reset it to 'new',
+# which erased the record AND offered the job up to be applied to a second time.
+_rsrc = _i6.getsource(app.rescore)
+assert '("vetoed", "skipped")' in _rsrc, "rescore will take back an applied job"
+
+# 3b. A setting is written to disk and read back on every request, so a wrong type is not a
+# request that fails once - it is a file that breaks the app until someone edits it by hand.
+assert app._same_shape("x", "") and not app._same_shape(1, "")
+assert app._same_shape(True, False) and not app._same_shape(1, False), "a bool is not an int here"
+assert app._same_shape(5, 0) and not app._same_shape(True, 0)
+assert app._same_shape({}, {}) and not app._same_shape([], {})
+assert "_same_shape" in _i6.getsource(app.save_settings), "settings are not type-checked"
+
+# 3c. Both small JSON files are read and written from several threads at once. Unique temp names
+# were not enough on Windows: os.replace fails while anyone has the destination open, so a
+# reader alone broke a save, and a save handed a reader an EMPTY profile - the same read the
+# anti-wipe guard asks permission from.
+assert "mkstemp" in _i6.getsource(app._atomic_write), "a fixed temp name races other writers"
+for _fn in (app.profile, app.settings, app.save_profile, app.save_settings_file):
+    assert "_FILES" in _i6.getsource(_fn), f"{_fn.__name__} touches the file outside the lock"
+
+# 3d. A guard on data loss cannot be an assert: python -O removes it and the guard is simply
+# not there. Same for the string that iterated letter by letter and silently deleted nothing.
+_csrc = _i6.getsource(app.clear)
+assert not any(_l.strip().startswith("assert ")
+               for _l in _csrc.splitlines()), \
+    "the guard on acted-on rows is an assert, and python -O strips those out"
+assert "HTTPException" in _csrc
+
+# 3e. A missing url is a bad request, not a crash.
+assert "_url_of" in _i6.getsource(app.set_status) and "_url_of" in _i6.getsource(app.delete)
+assert "_url_of" in _i6.getsource(app.tailor) and "_url_of" in _i6.getsource(app.apply)
+# purge takes out/ away and tailoring writes straight into it
+assert "OUT.mkdir" in _i6.getsource(app.purge), "tailoring 500s after a purge"
+# "...." and "%2e" resolve to a directory, which FileResponse turns into a 500
+assert "is_file()" in _i6.getsource(app.get_cv)
+
 print("ok")

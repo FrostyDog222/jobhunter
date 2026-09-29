@@ -636,6 +636,17 @@ DEMAND = (r"fluen\w*", r"nativ\w*", r"proficien\w*", r"advanced", r"avansat\w*",
           r"c1", r"c2", r"b2", r"cunostinte", r"cunoaste\w*", r"nivel\w*")
 NEAR = r"\b(?:" + "|".join(DEMAND) + r")\b"
 
+# A language name in a title is only a demand when the title is TALKING about the language.
+# Without this, "Deutsche Bank", "French Fries Production Operator", "Operator Polish Line" and
+# "Greek Yogurt Line Operator" were all hard vetoes - and the last two come from nothing but a
+# URL slug. A veto is invisible: the job simply is not there, so the bar has to be this side of
+# the doubt.
+TITLE_CUE = (r"limb[aăi]|language|speaking|speaker|vorbitor|nativ|native|fluent|with|cu\b|"
+             r"knowledge|support|agent|consultant|advisor|adviser|representative|specialist|"
+             r"desk|market|customer|client|sales|translator|traduc|interpret|teacher|profesor|"
+             r"trainer|tutor")
+_TITLE_DEMAND = re.compile(rf"(?:{TITLE_CUE})\W{{0,12}}$|^\W{{0,12}}(?:{TITLE_CUE})")
+
 
 # Which language names appear at all, in one pass. Without this the gate scanned the whole ad
 # once per name pattern - about a hundred passes per ad, 69ms each - and because `re` holds the
@@ -659,21 +670,48 @@ def required_languages(job):
     for canon, names in SPOKEN.items():
         if canon not in here:
             continue
-        if any(re.search(rf"\b{n}\b", title) for n in names):
-            spans[canon] = None
+        hit = next((m for m in (re.search(rf"\b{n}\b", title) for n in names) if m), None)
+        if hit:
+            # "German Language Support Agent" demands German; "German Bakery Assistant" does not
+            around = title[max(0, hit.start() - 24):hit.start()] + "\n" \
+                + title[hit.end():hit.end() + 24]
+            if _TITLE_DEMAND.search(title[max(0, hit.start() - 24):hit.start()]) \
+                    or _TITLE_DEMAND.search(title[hit.end():hit.end() + 24]) \
+                    or re.search(rf"(?:{TITLE_CUE})", around):
+                spans[canon] = None
             continue
         for n in names:
             m = (re.search(rf"\b{n}\b[^.\n]{{0,40}}?{NEAR}", body)
                  or re.search(rf"{NEAR}[^.\n]{{0,40}}?\b{n}\b", body))
             if not m:
                 continue
-            start = max(body.rfind(ch, 0, m.start()) for ch in ".,;\n") + 1
-            ends = [x for x in (body.find(ch, m.end()) for ch in ".,;\n") if x != -1]
+            # The whole sentence, not the fragment between two commas. "Cunostinte de germana,
+            # avantaj" is the commonest Romanian way of saying a language is a bonus, and the
+            # old span stopped at that comma - so whether the job was hidden came down to
+            # whether the ad used a comma or a bracket.
+            start = max(body.rfind(ch, 0, m.start()) for ch in ".\n") + 1
+            ends = [x for x in (body.find(ch, m.end()) for ch in ".\n") if x != -1]
             end = min(ends) if ends else len(body)
             if not OPTIONAL.search(body[start:end]):
                 spans[canon] = (start, end)
             break
     need = set(spans)
+    # A run of languages joined only by commas, slashes and "or"/"sau" is a list of
+    # alternatives. Speaking any ONE of them answers the ad; the gate used to read the list as
+    # a set of requirements and veto on the ones the person happened not to have.
+    name_of = {n: canon for canon, names in SPOKEN.items() for n in names}
+    run = re.compile(r"\b[a-z]+\b(?:\s*(?:,|/|\bsau\b|\bor\b)\s*\b[a-z]+\b)+")
+    for text in (body, title):
+        for m in run.finditer(text):
+            group = set()
+            for word in re.findall(r"[a-z]+", m.group(0)):
+                canon = next((c for n, c in name_of.items() if re.fullmatch(n, word)), None)
+                if canon:
+                    group.add(canon)
+            group &= need
+            if len(group) > 1:
+                need -= group
+                need.add(("either",) + tuple(sorted(group)))
     either = re.compile(r"\b(\w+)\b\s*(?:/|,)?\s*(?:sau|or)\s+\b(\w+)\b")
     for text, in_title in ((body, False), (title, True)):
         for m in either.finditer(text):
