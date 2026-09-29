@@ -1357,8 +1357,11 @@ def _next_width(width, quota_hits, cap):
 @app.post("/api/search")
 async def search(body: dict = Body(...)):
     p = profile()
-    if not p.get("experience") and not p.get("skills"):
-        raise HTTPException(400, "Fill in your profile first - there is nothing to match jobs against.")
+    # Education or personal projects count. Someone who has never been paid for work still has
+    # something to match against, and refusing them here was the app's only outright block.
+    if not any(p.get(k) for k in ("experience", "skills", "education", "projects")):
+        raise HTTPException(400, "Fill in your profile first - there is nothing to match jobs "
+                                 "against. Your studies or a project counts, not only paid work.")
     try:
         return await _search(body, p)
     finally:

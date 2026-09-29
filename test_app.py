@@ -1178,4 +1178,45 @@ assert "_BLOWN.pop" in _iA.getsource(app.set_llm),     "a rejected key still par
 assert "No key is saved for" in _iA.getsource(app.set_llm),     "choosing a keyless provider can still be answered by a different one"
 assert "await off(" in _iA.getsource(app.set_llm), "the test call still blocks the event loop"
 
+
+# 3x. Someone with no work history. The app never refused them outright - it ran and returned a
+# hundred rows scored 5 to 20 with an empty gaps panel, because the prompt says "be strict, most
+# jobs are not a great fit" and every requirement on every ad lands in gaps. Ranking by a number
+# that is uniformly low ranks nothing.
+assert "new_to_work" in app.llm.EMPTY, "the tick has no home in the profile"
+assert app.llm.EMPTY["new_to_work"] is False
+# profile() and post_profile both spread EMPTY first, so an old profile gains it on the next
+# read - that is the whole migration
+assert "**llm.EMPTY" in _i6.getsource(app.profile)
+
+# the prompt only changes for someone who ticked it
+_seen = []
+_real_ask = app.llm.ask
+try:
+    app.llm.ask = lambda system, user, **kw: _seen.append(system) or {"fit": 50}
+    _j = {"title": "t", "company": "c", "location": "l", "description": "d" * 100}
+    app.llm.score({"skills": ["a"], "new_to_work": False}, _j)
+    app.llm.score({"skills": ["a"], "new_to_work": True}, _j)
+finally:
+    app.llm.ask = _real_ask
+assert "STARTING OUT" not in _seen[0], "the prompt changed for everyone, not just beginners"
+assert "STARTING OUT" in _seen[1], "ticking it changes nothing"
+assert "new_to_work" not in _seen[1], "the flag itself is sent to the model as data"
+# strict stays: told no experience is fine, a model returns 85 for everything, and a uniform 85
+# ranks no better than a uniform 12
+assert "strict and realistic" in _seen[1]
+# and the one gap this person already knows must never be reported back to them
+assert "Never put 'experience'" in app.llm.NEW_TO_WORK
+
+# studies or a project count as a profile worth searching with
+_g = _i6.getsource(app.search)
+for _k in ("education", "projects"):
+    assert _k in _g, f"{_k} alone still cannot start a search"
+_dash5 = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "'education', 'projects'" in _dash5, "the checklist and the search guard disagree"
+# a checkbox has no meaningful .value - it reads "on" either way
+_pf2 = (app.HERE / "templates" / "profile.html").read_text(encoding="utf-8")
+assert "el.type === 'checkbox' ? el.checked" in _pf2, "the tick would save as the string 'on'"
+assert "function fillFlags" in _pf2, "the tick would come back unticked after a reload"
+
 print("ok")

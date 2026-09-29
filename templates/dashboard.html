@@ -1005,6 +1005,15 @@ const HAND = j => MANUAL.includes(j.source);
    role families this profile actually matches - including the last two job titles, which were
    never being searched at all. Picking one fills the box; it stays editable. */
 const PRESETS = {
+  // First, because someone starting out has no job titles of their own for the "From your
+  // profile" group to offer. Both spellings of the Romanian: the boards search the literal
+  // string, so fara/fără are two different queries and both find ads the other misses.
+  'First job / no experience (RO boards)':
+    'fara experienta, fără experiență, debutant, incepator, începător, practicant, ucenic, '
+    + 'internship, trainee, junior, se ofera training',
+  'First job / no experience (English)':
+    'entry level, no experience required, junior, trainee, intern, graduate, apprentice, '
+    + 'will train',
   'Customer support (RO boards)':
     'suport clienti, relatii clienti, servicii clienti, consilier clienti, agent call center, operator call center',
   'Customer support (English)':
@@ -1493,7 +1502,9 @@ function drawAlerts(){
 }
 
 function steps(){
-  const hasProfile = (PROFILE.experience || []).length || (PROFILE.skills || []).length;
+  // the same rule as the search guard: studies and projects count, not only paid work
+  const hasProfile = ['experience', 'skills', 'education', 'projects']
+    .some(k => (PROFILE[k] || []).length);
   const s = [
     [LLM.provider && !LLM.error, 'Choose an AI model and paste its key',
       () => { $('#setup').classList.add('open'); $('#prov').focus(); }],

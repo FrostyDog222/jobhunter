@@ -64,6 +64,14 @@
   <label>Summary</label><textarea data-f="summary"></textarea>
 </div>
 
+<label class="muted" style="display:flex;gap:8px;align-items:flex-start;margin:18px 0 0;
+       font-size:13.5px;cursor:pointer;max-width:70ch">
+  <input type="checkbox" data-f="new_to_work" style="width:auto;margin-top:3px">
+  <span><b>I am new to the workforce — no paid job yet.</b> Scoring stops treating "no
+    experience" as a fault on every ad and looks at what an employer hiring a beginner actually
+    checks: your studies, a licence, languages, and whether the job trains you. Fill in
+    Education and Projects below — a summer job or volunteering goes under Experience.</span>
+</label>
 <h2>Experience</h2><div id="experience"></div>
 <button class="ghost" data-add="experience">+ Add role</button>
 
@@ -282,11 +290,21 @@ function render(){
   Object.keys(FIELDS).forEach(renderList);
   CHIPS.forEach(renderChips);
   renderLangs();
+  fillFlags();
+}
+
+// and back the other way, or a reload always shows it unticked
+function fillFlags(){
+  document.querySelectorAll('[data-f]').forEach(el => {
+    if(el.type === 'checkbox') el.checked = !!P[el.dataset.f];
+  });
 }
 
 function collect(){
   document.querySelectorAll('[data-f]').forEach(el => {
-    P[el.dataset.f] = el.hasAttribute('data-list')
+    // a checkbox has no meaningful .value - it reads "on" whether or not it is ticked
+    P[el.dataset.f] = el.type === 'checkbox' ? el.checked
+      : el.hasAttribute('data-list')
       ? el.value.split('\n').map(s=>s.trim()).filter(Boolean) : el.value.trim();
   });
   document.querySelectorAll('[data-e]').forEach(el => {

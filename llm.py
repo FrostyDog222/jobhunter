@@ -481,6 +481,11 @@ EMPTY = {
     "name": "", "title": "", "email": "", "phone": "", "location": "", "links": [],
     "summary": "", "experience": [], "education": [], "skills": [], "languages": [],
     "certifications": [], "projects": [], "hobbies": [],
+    # Starting out: no paid job yet. Changes what the score is asked to judge and what the CV
+    # leads with - never what the profile claims. It is one boolean because everything else
+    # this person has is already modelled: school in education, volunteering and a summer job
+    # in experience, a driving licence in certifications, personal work in projects.
+    "new_to_work": False,
     # your answers to the questions an employer asks that no CV contains. Filled in by you on
     # the profile page; the app never invents these.
     "salary_expectation": "", "notice_period": "", "earliest_start": "",
@@ -896,14 +901,37 @@ def language_gate(profile, job):
 # the candidate is, so it cannot tell a commute from a relocation. It was scoring on-site roles
 # 400km away at 85. The rest stay out - a phone number does not change whether you fit a job.
 SCORE_KEYS = ("title", "location", "summary", "experience", "education", "skills", "languages",
-              "certifications", "projects")
+              "certifications", "projects", "new_to_work")
+
+
+# Only added when the person has said they are starting out, so the prompt every existing user
+# gets is byte-identical to before. "Strict" is deliberately left in the base prompt: told that
+# no experience is fine, a model will return 85 for everything, and a uniform 85 ranks no better
+# than a uniform 12. What changes is the CRITERIA, not the strictness.
+NEW_TO_WORK = (
+    "THIS CANDIDATE IS STARTING OUT and has no paid work history. That is expected, not a "
+    "shortfall. Never put 'experience', 'work experience', 'prior experience' or 'X years' in "
+    "'gaps' - it is the same gap on every posting, the candidate already knows it, and it "
+    "crowds out the things they could actually act on. "
+    "Judge what an employer hiring a beginner screens for instead: does the posting say it "
+    "trains; does it demand a diploma, a licence or a certificate this candidate does not hold; "
+    "does it need a language or a shift pattern they cannot meet; is it reachable from where "
+    "they live. Weigh school, coursework, volunteering, part-time or seasonal work, personal "
+    "projects and languages as the evidence they are - that is what this person has. "
+    "Score the posting's own openness to a beginner: one that says entry level, junior, "
+    "trainee, intern, debutant, fara experienta, practicant or ucenic scores high. One that "
+    "demands several years scores LOW, and 'requires 3+ years' IS a legitimate gap - name the "
+    "number. 'gaps' must be concrete and obtainable: a certificate, a licence, a specific tool "
+    "- never the absence of experience itself. "
+)
 
 
 def score(profile, job):
     """Fit 0-100 for one job, plus what the CV is missing that the profile could actually back."""
-    profile = {k: v for k, v in profile.items() if k in SCORE_KEYS}
+    starting_out = bool(profile.get("new_to_work"))
+    profile = {k: v for k, v in profile.items() if k in SCORE_KEYS and k != "new_to_work"}
     return ask(
-        TRUST +
+        TRUST + (NEW_TO_WORK if starting_out else "") +
         "You match candidates to jobs. Be strict and realistic - most jobs are not a great fit. "
         "Where the work happens counts. Compare the posting's location with the candidate's: a "
         "daily commute they could not make is a real shortfall, and belongs in 'gaps' and in the "

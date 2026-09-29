@@ -515,7 +515,18 @@ RO = {
     "Delete the saved key for":
         "Ștergi cheia salvată pentru",
     "This cannot be undone - you will have to paste the key again to use this provider. Pause it instead if you only want to stop using it for a while.":
-        "Asta nu se poate anula - va trebui să lipești cheia din nou ca să folosești acest furnizor. Pune-l pe pauză dacă vrei doar să nu-l mai folosești o vreme.",}
+        "Asta nu se poate anula - va trebui să lipești cheia din nou ca să folosești acest furnizor. Pune-l pe pauză dacă vrei doar să nu-l mai folosești o vreme.",
+    # ---- starting out, with no paid job yet
+    "I am new to the workforce — no paid job yet.":
+        "Sunt la început de drum — încă niciun job plătit.",
+    "Scoring stops treating \"no experience\" as a fault on every ad and looks at what an employer hiring a beginner actually checks: your studies, a licence, languages, and whether the job trains you. Fill in Education and Projects below — a summer job or volunteering goes under Experience.":
+        "Punctarea nu mai tratează \"lipsa experienței\" ca pe un defect la fiecare anunț și se uită la ce verifică de fapt un angajator care ia un începător: studiile tale, un permis, limbile și dacă jobul te instruiește. Completează Studii și Proiecte mai jos — un job de vară sau voluntariatul intră la Experiență.",
+    "First job / no experience (RO boards)":
+        "Primul job / fără experiență (site-uri RO)",
+    "First job / no experience (English)":
+        "Primul job / fără experiență (engleză)",
+    "Fill in your profile first - there is nothing to match jobs against. Your studies or a project counts, not only paid work.":
+        "Completează-ți mai întâi profilul - nu există nimic cu care să potrivim joburi. Studiile sau un proiect contează, nu doar munca plătită.",}
 
 # Longest first, so replacing a short string can never eat part of a longer one that contains it.
 PAIRS = sorted(RO.items(), key=lambda kv: -len(kv[0]))
