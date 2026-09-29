@@ -545,6 +545,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <option value="@soon">Closing within a week</option>
     <option value="skipped">Skipped</option>
     <option value="vetoed">Vetoed on language</option>
+    <option value="@quiet">Few applicants so far</option>
     <option value="@manual">Manual apply only</option>
   </select>
   <select id="minfit" title="The list is sorted best-first anyway, so this hides the tail rather than finding the head.">
@@ -578,6 +579,13 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <button id="clearpicked" class="ghost" style="flex:0 0 auto">Clear</button>
   </div>
   <div id="pickedlist" class="muted" style="margin-top:8px;font-size:13px"></div>
+</div>
+
+<div class="card muted" id="quietnote" style="display:none;font-size:13px">
+  <b style="color:var(--fg)">Few applicants — these are the ones worth your time.</b>
+  Applying is not free: a tailored CV is a model call and twenty minutes of your attention, and
+  an ad with two thousand people in the queue will not repay either. Only BestJobs publishes how
+  many have applied, so this list is BestJobs ads only — the other boards do not say.
 </div>
 
 <div class="card muted" id="manualnote" style="display:none;font-size:13px">
@@ -1018,6 +1026,26 @@ document.addEventListener('toggle', e => {
     showDescription(e.target.querySelector('pre[data-desc]'));
 }, true);   // capture: toggle does not bubble
 // "2026-09-26 21:14:03" -> "26 Sep 2026, 21:14"
+// Under this many people have applied and you are early. On a live query of 100 ads the
+// median is 85 and only 16 sit under 25, so this is a real shortlist rather than a soft filter.
+const QUIET = 25;
+// null <= 25 is TRUE in JavaScript, so every job on every other board - which is most of them -
+// counted as having few applicants. One predicate, used by both the filter and the tile.
+const quiet = j => typeof j.applicants === 'number' && j.applicants <= QUIET;
+// How many people have already applied, when the board says. This is the number that decides
+// whether an application is worth the half hour it takes to tailor a CV: an ad with 4908 of them
+// is a lottery ticket, one with 12 is a conversation. Only BestJobs publishes it, so a card
+// without one says nothing rather than pretending the queue is short.
+function crowd(j){
+  const n = j.applicants;
+  if(n === null || n === undefined) return '';
+  const colour = n <= 25 ? 'good' : n <= 150 ? 'mid' : 'bad';
+  const why = n <= 25 ? t('Hardly anyone has applied yet. Apply today.')
+            : n <= 150 ? t('A normal queue for this board.')
+            : t('A long queue. Your CV has to survive a pile this big before a person reads it.');
+  return `<span class="pill" style="border-color:var(--${colour});color:var(--${colour})"
+    title="${esc(why)}">${fill('{n} applied', {n})}</span>`;
+}
 const fmtWhen = s => { const d = new Date(String(s).replace(' ', 'T'));
   return isNaN(d) ? s : d.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'})
     + ', ' + hhmm(d); };
@@ -1330,6 +1358,7 @@ function draw(){
   // no need to harvest the DOM any more - SELECTED already holds it, across pages and filters
   const needle = fold($('#find').value.trim());
   let rows = JOBS.filter(j => (!f || (f === '@manual' ? HAND(j)
+                              : f === '@quiet' ? (quiet(j) && j.status !== 'applied')
                                     : f === '@near' ? j.far === false
                               : f === '@soon' ? (daysLeft(j) !== null && daysLeft(j) <= 7
                                                  && daysLeft(j) >= 0 && j.status !== 'applied')
@@ -1372,6 +1401,10 @@ function draw(){
           return d !== null && d >= 0 && d <= 7 && j.status !== 'applied'; }).length, '@soon', '0'],
       ['CV ready', n('ready'), 'ready', '0'],
       ['Applied', n('applied'), 'applied', '0'],
+      // Only BestJobs publishes the count, so this tile is about a subset of the list and
+      // says so on hover rather than looking like a count of everything.
+      ['Few applicants', shown.filter(j => quiet(j) && j.status !== 'applied').length,
+       '@quiet', '0'],
       ['Manual apply', shown.filter(j => HAND(j) && j.status!=='applied').length, '@manual', '0'],
     ].map(([k,v,st,m]) => `<div class="stat ${f===st && $('#minfit').value===m ? 'active':''}"
         data-st="${st}" data-mf="${m}" title="Show only these" tabindex="0" role="button">
@@ -1380,6 +1413,7 @@ function draw(){
   $('#count').textContent = pages > 1
     ? `${total} found · page ${PAGE} of ${pages}` : `${total} shown`;
   $('#manualnote').style.display = f === '@manual' ? '' : 'none';
+  $('#quietnote').style.display = f === '@quiet' ? '' : 'none';
   $('#rescore').style.display = $('#filter').value === 'vetoed' && rows.length ? '' : 'none';
 
   $('#list').innerHTML = rows.map(j => {
@@ -1433,6 +1467,8 @@ function draw(){
           ${applied ? `<span class="applied-when">· ${j.applied_at ? 'applied ' + esc(fmtWhen(j.applied_at)) : 'applied (date not recorded)'}</span>` : ''}
           ${j.salary ? `<span class="pill" style="border-color:var(--good);color:var(--good);
               font-weight:600" title="What the ad itself states. It does not affect the score.">${esc(j.salary)}</span>` : ''}
+          ${!j.salary && j.pay_est ? `<span class="pill" title="${esc(t('The board\'s own estimate for an ad that states no pay. The employer never said this - do not quote it back to them.'))}">~ ${esc(j.pay_est)} ${esc(t('(est.)'))}</span>` : ''}
+          ${crowd(j)}
           ${j.terms ? `<span class="pill" style="border-color:var(--mid);color:var(--mid)"
               title="What the ad itself states about the job. It does not affect the score.">${esc(j.terms)}</span>` : ''}
           ${closes}

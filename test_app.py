@@ -1775,4 +1775,80 @@ assert "clearTimeout(_timer)" in _prof5c.split("#restore")[1][:600], \
 _bsrc = _iK.getsource(_pfm.board_apply)
 assert "hipo" not in _bsrc.lower(), "board_apply is handling a board that never arrives"
 
+
+# 5e. BestJobs answers `applications` for every ad in the response this app already makes, and
+# it was thrown away. Measured on one live query: median 85 applicants, worst 4908, 16 of 100
+# under 25 - while the top-scoring job waiting in the stored list had 1207, and two of the three
+# applications already sent went to ads with 2699 and 3162.
+_bj_items = [
+    {"slug": "a", "title": "Quiet one", "companyName": "A", "state": "active",
+     "applications": 9, "salary": "900 - 1000", "estimatedSalary": "", "hasOwnApplyUrl": False},
+    {"slug": "b", "title": "Busy one", "companyName": "B", "state": "active",
+     "applications": 4908, "salary": "", "estimatedSalary": "800 - 900", "hasOwnApplyUrl": True},
+    {"slug": "c", "title": "Closed one", "companyName": "C", "state": "closed",
+     "applications": 1, "salary": "", "estimatedSalary": ""},
+]
+
+
+class _FakeResp:
+    def __init__(self, payload): self._p = payload
+    def raise_for_status(self): pass
+    def json(self): return self._p
+
+
+_keep_get = scrape._get
+try:
+    scrape._get = lambda c, u, **k: _FakeResp({"items": _bj_items})
+    _bj = scrape.bestjobs("x", limit=10)
+finally:
+    scrape._get = _keep_get
+assert [j["title"] for j in _bj] == ["Quiet one", "Busy one"], "a closed ad was kept"
+_q, _b = _bj
+assert _q["applicants"] == 9 and _b["applicants"] == 4908, "the queue length was dropped again"
+# the employer's own figure and the board's guess are NOT the same fact. Merging them printed a
+# guess on the card as if the employer had stated it - which is the number someone then repeats
+# in a screening answer. All 14 stored figures that overlapped a live query were the guess.
+assert _q["salary"] == "900 - 1000 EUR/month" and _q["pay_est"] == ""
+assert _b["salary"] == "" and _b["pay_est"] == "800 - 900 EUR/month"
+# ...and a bare number is given the currency and period it means, or "960" sits next to eJobs'
+# "4000 - 5000 RON/month" looking like the smaller offer
+assert scrape._bj_pay("960 - 1060") == "960 - 1060 EUR/month"
+assert scrape._bj_pay("negociabil") == "negociabil", "prose must not be given a currency"
+assert scrape._bj_pay("") == ""
+# note goes back to being a warning, which is what it is on every other board
+assert _b["note"] == "applies on the employer site" and _q["note"] == ""
+
+# 5f. One request brings back 100 and the app kept whichever 20 came first. Half the budget
+# still goes to the board's own relevance order; the rest goes to the least crowded of what is
+# left. Measured live: the first 20 have a median of 128 applicants, the picked 20 a median of
+# 21, and the two sets share only 4 ads.
+_many = [{"url": f"u{i}", "applicants": (100 - i) * 10} for i in range(20)]
+_picked = scrape._bj_pick(list(_many), 6)
+assert len(_picked) == 6
+assert [j["url"] for j in _picked[:3]] == ["u0", "u1", "u2"], "the board's own order was lost"
+assert [j["url"] for j in _picked[3:]] == ["u19", "u18", "u17"], "the quietest were not picked"
+# an ad the board gave no count for sorts last rather than first
+_mixed = scrape._bj_pick([{"url": "x", "applicants": None}, {"url": "y", "applicants": 5},
+                          {"url": "z", "applicants": 900}], 2)
+assert [j["url"] for j in _mixed] == ["x", "y"], [j["url"] for j in _mixed]
+
+# 5g. A job already stored kept whatever it was worth the day it was first seen, because the
+# insert was INSERT OR IGNORE. How many people have applied is the one fact here that changes by
+# the hour - 12 on Monday is 300 by Friday - and for the 162 BestJobs ads already stored it
+# never arrived at all.
+_ins = _src4p if "ON CONFLICT(url) DO UPDATE" in _src4p else (app.HERE / "app.py").read_text(encoding="utf-8")
+assert "ON CONFLICT(url) DO UPDATE" in _ins, "a job seen again still learns nothing"
+_arm = _ins.split("ON CONFLICT(url) DO UPDATE SET")[1][:600]
+for _fresh in ("applicants", "salary", "pay_est", "expires"):
+    assert _fresh in _arm, f"{_fresh} is not refreshed"
+for _owned in ("status", "fit =", "cv =", "applied_at"):
+    assert _owned not in _arm, f"{_owned} is overwritten - that belongs to the person"
+
+# 5h. null <= 25 is TRUE in JavaScript, so "few applicants" counted every job on every board
+# that does not publish a count - which is most of them. The tile read 789 of 789.
+_dash5h = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "typeof j.applicants === 'number'" in _dash5h, \
+    "the few-applicants test is back to comparing null against a number"
+assert _dash5h.count("quiet(j)") >= 2, "the tile and the filter are not using the same test"
+
 print("ok")

@@ -121,6 +121,22 @@ Four sources are searched at once:
 Every job gets a score from 0 to 100 with a short reason, what you **bring** that the ad asks
 for, and the **gaps**. *Best for you* is everything scoring 75 or more.
 
+**How many people you are up against.** BestJobs publishes, for every ad, how many have already
+applied — and no other board here does. Where it is known the card says so, and the colour is the
+point: under 25 is green and worth today, over 150 is red and your CV has a pile to survive
+first. It also breaks ties. Almost every score lands on a multiple of five, so the whole *Best
+for you* band is two or three values wide; within a band, the ad with 46 applicants now comes
+before the one with 1437. The **Few applicants** tile shows just those.
+
+It also decides which ads get read in full. One request to BestJobs returns 100 and only 20 are
+worth a detail fetch and a model call: half of those go to the board's own relevance order, and
+half to the least crowded of the rest. Measured on one search, that moves the median from 128
+applicants to 21.
+
+**A salary is only a salary if the employer said it.** BestJobs publishes its own estimate for
+ads that state no pay, and that estimate used to be shown as fact. It now appears as `~ 900 - 1000
+EUR/month (est.)` — dimmer, and marked. Do not quote an estimate back to an employer.
+
 Lists show 20 jobs to a page. The filter box narrows what is already found by title, company or
 city as you type, and ignores diacritics — `iasi` finds `Iași`.
 

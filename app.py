@@ -89,15 +89,39 @@ def _connect():
                 # how many times scoring this ad has failed for a reason that is the AD's fault.
                 # Without it, fit IS NULL means both "never tried" and "cannot be done", and
                 # every search paid for the second kind again.
-                "tries INTEGER DEFAULT 0"):                                                 # added later
+                "tries INTEGER DEFAULT 0",
+                # How many people have already applied. BestJobs publishes it for every ad in
+                # the response this app already makes; no other source here offers it.
+                "applicants INTEGER",
+                # the board's ESTIMATE of the pay, kept apart from `salary`, which is only ever
+                # what the employer themselves stated
+                "pay_est TEXT"):                                                 # added later
         try:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
+            fresh_col = True
         except sqlite3.OperationalError as e:
             # "duplicate column name" is the expected one. "database is locked" is not, and
             # swallowing it left the column permanently missing for this process while the
             # schema was marked done anyway.
             if "duplicate column" not in str(e).lower():
                 raise
+            fresh_col = False
+        # Once, on the database that predates the column: every BestJobs figure stored so far is
+        # the board's estimate wearing the employer's clothes. It arrived either in `note` (the
+        # API value, drawn on the card as an amber warning) or in `salary` (scraped off the page,
+        # which prints the estimate when the employer states nothing). Neither can be told apart
+        # now, so both become an estimate, which is the weaker and safer claim - and the next
+        # search puts the employer's real figure back, from the only source that knows.
+        if fresh_col and col.startswith("pay_est"):
+            c.execute("UPDATE jobs SET pay_est = salary, salary = '' "
+                      "WHERE source='bestjobs' AND COALESCE(salary,'') <> ''")
+            c.execute("UPDATE jobs SET pay_est = note "
+                      "WHERE source='bestjobs' AND COALESCE(pay_est,'') = '' "
+                      "AND note GLOB '[0-9]*'")
+            # ...and `note` goes back to being what it is everywhere else - a warning. A bare
+            # number there was drawn as an amber pill beside genuine ones like "mass posting".
+            c.execute("UPDATE jobs SET note = '' "
+                      "WHERE source='bestjobs' AND note GLOB '[0-9]*'")
     _SCHEMA_DONE = True
     return c
 
@@ -1275,6 +1299,7 @@ def apply_suggestion(s: dict = Body(...)):
 # instead, from /api/job/description.
 LIST_COLS = ("url, source, title, company, location, posted, fit, why, gaps, untapped, "
              "status, cv, found, note, salary, expires, terms, lang, applied_at, "
+             "applicants, pay_est, "
              "LENGTH(description) AS desc_len")
 
 
@@ -1343,7 +1368,14 @@ def list_jobs():
     home = (settings().get("home_county") or "").strip().lower()
     with db() as c:
         rows = [dict(r) for r in c.execute(
-            f"SELECT {LIST_COLS} FROM jobs ORDER BY (fit IS NULL), fit DESC, found DESC")]
+            f"SELECT {LIST_COLS} FROM jobs "
+            # Inside a score band the order used to be the date found, which is noise: 98% of
+            # scores land on a multiple of 5, so the whole "best for you" band is two values
+            # wide and everything in it tied. How many people already applied breaks that tie
+            # the way the person would: same score, fewer competitors, higher up. Rows with no
+            # count (every board but BestJobs) sit between - they are unknown, not crowded.
+            f"ORDER BY (fit IS NULL), fit DESC, "
+            f"CASE WHEN applicants IS NULL THEN 1 ELSE 0 END, applicants ASC, found DESC")]
     if home:
         for r in rows:
             loc = (r.get("location") or "").strip()
@@ -1553,11 +1585,24 @@ async def _search(body, p):
         for j in fresh:
             if j.get("lang") in ("", None, "en", "ro"):     # keep freehire's 'de', 'nl', ...
                 j["lang"] = llm.ad_language(j)
-            c.execute("INSERT OR IGNORE INTO jobs(url,source,title,company,location,posted,"
-                      "description,note,salary,expires,terms,lang) VALUES(:url,:source,:title,"
+            c.execute("INSERT INTO jobs(url,source,title,company,location,posted,"
+                      "description,note,salary,expires,terms,lang,applicants,pay_est) "
+                      "VALUES(:url,:source,:title,"
                       ":company,:location,:posted,:description,:note,:salary,:expires,:terms,"
-                      ":lang)",
+                      ":lang,:applicants,:pay_est) "
+                      # A row already here keeps everything a person has touched - its status,
+                      # its score, the CV written for it, the date applied. What it does take
+                      # is the facts that go stale: how many people have applied (12 on Monday
+                      # is 300 by Friday, which is exactly when you want to be told), the pay if
+                      # the board has started stating one, and the closing date. COALESCE, so a
+                      # board that says nothing this time cannot erase what it said last time.
+                      "ON CONFLICT(url) DO UPDATE SET "
+                      "applicants = COALESCE(excluded.applicants, jobs.applicants), "
+                      "salary     = CASE WHEN excluded.salary   <> '' THEN excluded.salary   ELSE jobs.salary   END, "
+                      "pay_est    = CASE WHEN excluded.pay_est  <> '' THEN excluded.pay_est  ELSE jobs.pay_est  END, "
+                      "expires    = CASE WHEN excluded.expires  <> '' THEN excluded.expires  ELSE jobs.expires  END",
                       {"note": "", "lang": "", "salary": "", "expires": "", "terms": "",
+                       "applicants": None, "pay_est": "",
                        **{k: v for k, v in j.items() if not k.startswith("_")}})
         todo = [dict(r) for r in c.execute(
             "SELECT * FROM jobs WHERE fit IS NULL AND COALESCE(tries,0) < ? "

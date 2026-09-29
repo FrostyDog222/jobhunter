@@ -52,20 +52,39 @@ def _ld_body(jp):
     return "\n\n".join(dict.fromkeys(t for t in parts if t))
 
 
+def _bj_pay(text):
+    """BestJobs writes pay as a bare "960 - 1060". Give it the currency and period it means.
+
+    The API has no currency field; the site prints these ranges in EUR per month and has done
+    for as long as this has been checked. Saying so beats printing a naked number next to
+    eJobs' "4000 - 5000 RON/month", which is how a 960 looked like the smaller offer.
+    """
+    t = _clean(text)
+    return f"{t} EUR/month" if t and re.fullmatch(r"[\d][\d\s.,-]*", t) else t
+
+
 def bestjobs(query, limit=25, timeout=30):
     """The #2 Romanian board. Its site is a client-rendered SPA with no JSON-LD, but the API the
     SPA itself calls is public and unauthenticated. It answers 100 rows in one request and ignores
     `page`, so 100 per query is the ceiling - still more than eJobs' 40. No description and no
-    posting date in the response, so these go through phase 2 like any HTML board."""
+    posting date in the response, so these go through phase 2 like any HTML board.
+
+    It also answers three things no other source here gives, and all three were being dropped:
+    how many people have already applied, the employer's own salary as distinct from the board's
+    estimate of it, and whether Apply leaves the board for the employer's own site.
+    """
     with httpx.Client(headers={**UA, "Accept": "application/json"}, timeout=timeout) as c:
         r = _get(c, httpx.URL(BESTJOBS, params={"keyword": (query or "").translate(DIACRITICS)}))
         r.raise_for_status()
-        items = (r.json().get("items") or [])[:max(int(limit or 0), 0)]
+        items = r.json().get("items") or []
     jobs = []
     for j in items:
         slug = (j.get("slug") or "").strip()
         if not slug or j.get("state") not in (None, "active"):
             continue
+        flags = []
+        if j.get("hasOwnApplyUrl"):
+            flags.append("applies on the employer site")
         jobs.append({
             "source": "bestjobs",
             "url": BESTJOBS_AD.format(slug=slug),
@@ -74,11 +93,39 @@ def bestjobs(query, limit=25, timeout=30):
             "location": ", ".join(_clean(l.get("name")) for l in (j.get("locations") or [])),
             "posted": "",                       # the list carries no date; the ad page shows none either
             "description": "",
-            "note": _clean(j.get("salary") or j.get("estimatedSalary") or ""),
+            # the employer's own figure ONLY. estimatedSalary is BestJobs' guess for an ad that
+            # states no pay, and merging the two printed a guess on the card as if the employer
+            # had said it - which is the number someone then repeats in a screening answer.
+            "salary": _bj_pay(j.get("salary")),
+            "pay_est": _bj_pay(j.get("estimatedSalary")) if not _clean(j.get("salary")) else "",
+            # How many people you are up against. The one number here that decides whether an
+            # application is worth the half hour it takes to tailor a CV for it.
+            "applicants": int(j["applications"]) if isinstance(j.get("applications"), int) else None,
+            "note": " · ".join(flags),
             "lang": "",
             "_full": False,
         })
-    return jobs
+    # ...and only now the limit, so the choice below is made over everything the board returned
+    return _bj_pick(jobs, limit)
+
+
+def _bj_pick(jobs, limit):
+    """-> which of the 100 to spend phase 2 and a model call on.
+
+    One request brings back 100 and the app used to keep whichever 20 came first. Half the budget
+    still goes to the board's own order, which is its relevance ranking and must not be lost; the
+    other half goes to the least crowded of what is left. Measured on one live query: the first
+    20 have a median of 128 applicants, the least crowded 20 a median of 21, and the two sets
+    share only 4 ads - so the old slice was not seeing 16 of the least contested jobs at all.
+    """
+    limit = max(int(limit or 0), 0)
+    if len(jobs) <= limit:
+        return jobs
+    keep = jobs[:limit // 2]
+    seen = {j["url"] for j in keep}
+    rest = sorted((j for j in jobs if j["url"] not in seen),
+                  key=lambda j: (j["applicants"] is None, j["applicants"] or 0))
+    return keep + rest[:limit - len(keep)]
 
 
 # Both boards slug their URLs without diacritics, so transliterate rather than treating every

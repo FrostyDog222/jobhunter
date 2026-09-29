@@ -668,6 +668,26 @@ RO = {
         "Am șters {n} element(e). O luăm de la capăt.",
     "Erased {n} item(s), but {k} could NOT be removed and are still on this PC: {which}. Close the app (the black run.bat window) and press this again.":
         "Am șters {n} element(e), dar {k} NU au putut fi șterse și sunt încă pe acest PC: {which}. Închide aplicația (fereastra neagră run.bat) și apasă din nou aici.",
+    "{n} applied":
+        "{n} au aplicat",
+    "(est.)":
+        "(est.)",
+    "The board's own estimate for an ad that states no pay. The employer never said this - do not quote it back to them.":
+        "Estimarea site-ului pentru un anunț care nu menționează salariul. Angajatorul nu a spus asta - nu i-o cita înapoi.",
+    "Hardly anyone has applied yet. Apply today.":
+        "Aproape nimeni nu a aplicat încă. Aplică azi.",
+    "A normal queue for this board.":
+        "O coadă obișnuită pentru acest site.",
+    "A long queue. Your CV has to survive a pile this big before a person reads it.":
+        "O coadă lungă. CV-ul tău trebuie să supraviețuiască unui teanc atât de mare înainte să îl citească un om.",
+    "Few applicants":
+        "Puțini candidați",
+    "Few applicants so far":
+        "Puțini candidați deocamdată",
+    "Few applicants — these are the ones worth your time.":
+        "Puțini candidați — acestea sunt cele care merită timpul tău.",
+    "Applying is not free: a tailored CV is a model call and twenty minutes of your attention, and an ad with two thousand people in the queue will not repay either. Only BestJobs publishes how many have applied, so this list is BestJobs ads only — the other boards do not say.":
+        "Aplicarea nu este gratuită: un CV adaptat înseamnă un apel către model și douăzeci de minute din atenția ta, iar un anunț cu două mii de oameni la coadă nu îți va răsplăti niciuna dintre ele. Doar BestJobs publică numărul de candidați, așa că lista conține doar anunțuri BestJobs — celelalte site-uri nu spun.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":
