@@ -17,6 +17,11 @@ to employers whose ads nobody read. That is the deal; the dashboard says so befo
 it on.
 """
 import creds
+
+# The note a posting carries once its apply button has been found to leave the board.
+# Spelled here rather than read off app, so this module can be tested with a stub app -
+# and asserted equal to app.EXTERNAL_NOTE by the suite, so the two cannot drift.
+EXTERNAL_NOTE = "apply on the employer site"
 import datetime
 
 
@@ -29,7 +34,7 @@ def candidates(app, prefill, min_fit, cap, boards=None):
     """
     with app.db() as c:
         rows = [dict(r) for r in c.execute(
-            "SELECT url, title, company, source, fit FROM jobs "
+            "SELECT url, title, company, source, fit, note FROM jobs "
             "WHERE status IN ('new','ready') AND fit >= ? "
             # same tie-break as the dashboard: a job with fewer people already in the queue is
             # the better use of one of this week's five
@@ -38,7 +43,11 @@ def candidates(app, prefill, min_fit, cap, boards=None):
     ok = set(boards) if boards is not None else None
     return [r for r in rows
             if prefill.apply_mode(r["source"]) == "auto"
-            and (ok is None or r["source"] in ok)][:max(0, int(cap))]
+            and (ok is None or r["source"] in ok)
+            # A posting whose apply button hands you to the employer's own site cannot be sent
+            # from here, and that will not change - so it must not fill one of the week's five
+            # and be reported as a failure. Thirteen of fifteen Hipo ads are this kind.
+            and EXTERNAL_NOTE not in (r.get("note") or "")][:max(0, int(cap))]
 
 
 def run(app, prefill, settings, log):

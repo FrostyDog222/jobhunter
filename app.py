@@ -2028,6 +2028,10 @@ async def tailor(body: dict = Body(...)):
 # genuinely cannot be scored - and without it, every search paid for that ad again.
 SCORE_TRIES = 3
 
+# What the card says about a posting whose apply button leaves the board. Written once it has
+# been discovered, and read by the weekly run so the discovery is not repeated every week.
+EXTERNAL_NOTE = "apply on the employer site"
+
 BATCH_CAP = 20
 
 
@@ -2100,7 +2104,7 @@ async def apply_batch(body: dict = Body(...)):
         elif res.get("external"):
             # live, just not one-clickable from here - say so on the card instead of hiding it
             with db() as c:
-                c.execute("UPDATE jobs SET note='apply on the employer site' "
+                c.execute(f"UPDATE jobs SET note='{EXTERNAL_NOTE}' "
                           "WHERE url=? AND status != 'applied'", (url,))
         elif res.get("clicked"):
             # Pressed, not confirmed. Recorded as done-for-now rather than left untouched:

@@ -2105,4 +2105,15 @@ assert 'if not (f.input_value() or "").strip()' in _basrc
 _fmsrc = _iK.getsource(_pfm._fill_mini)
 assert "PERSONAL" in _fmsrc or "personal" in _fmsrc
 
+
+# 5q. A posting whose apply button hands you to the employer's own site cannot be sent from
+# here, and that is permanent - so it must not fill one of the week's five and be reported as a
+# failure. Thirteen of fifteen Hipo ads are exactly that.
+assert _aa.EXTERNAL_NOTE == app.EXTERNAL_NOTE, "the two spellings of the external note drifted"
+_ext = [{"url": "e1", "title": "t", "company": "c", "source": "ejobs", "fit": 90,
+         "note": app.EXTERNAL_NOTE},
+        {"url": "e2", "title": "t", "company": "c", "source": "ejobs", "fit": 80, "note": ""}]
+_got = _aa.candidates(_FakeApp(_ext), _FakeBoards({}, {}), 70, 5)
+assert [r["url"] for r in _got] == ["e2"], [r["url"] for r in _got]
+
 print("ok")
