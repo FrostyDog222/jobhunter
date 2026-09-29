@@ -1064,9 +1064,30 @@ document.addEventListener('click', async e => {
   });
 });
 $('#prov').addEventListener('change', drawKeyLink);
-$('#prov').onchange = () => {
-  $('#model').value = LLM.providers[$('#prov').value].default;
+$('#prov').onchange = async () => {
+  const p = $('#prov').value;
+  $('#model').value = LLM.providers[p].default;
   $('#modellist').innerHTML = '';
+  drawKeyLink();
+  // Ollama runs here, so what it can answer with is a fact we can just look up - and its
+  // built-in default is a model this machine may never have pulled, which would 404 on the
+  // first call and read as "Ollama does not work".
+  if(p !== 'ollama') return;
+  try {
+    const have = await api('/api/llm/models?provider=ollama', undefined, 'GET');
+    if(!have.length){
+      toast('Ollama is running but has no models yet. In a terminal: ollama pull llama3.2', 12000);
+      return;
+    }
+    $('#modellist').innerHTML = have.map(m => `<option value="${esc(m)}">`).join('');
+    // Not simply the first one alphabetically. A -r1 model narrates its reasoning in <think>
+    // tags, which is not the JSON this app asks for, and a coder model is the wrong tool for
+    // reading a CV. Prefer a plain instruct model when one is installed.
+    const general = have.filter(m => !/(^|[-:_])(r1|coder|embed|vision|guard)/i.test(m));
+    if(!have.includes($('#model').value)) $('#model').value = (general[0] || have[0]);
+  } catch(e){
+    toast('Ollama is not answering on this PC. Start it, then pick it again.', 10000);
+  }
 };
 $('#listmodels').onclick = e => busy(e.target, async () => {
   $('#modellist').innerHTML = (await api('/api/llm/models?provider=' + encodeURIComponent($('#prov').value), undefined, 'GET'))

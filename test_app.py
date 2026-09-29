@@ -1092,4 +1092,30 @@ assert "DIRTY = true;" in _pf and "mark('failed')" in _pf
 assert "beforeunload" in _pf, "closing the window loses a pending edit silently"
 assert "if(await saveNow()) location.href = href;" in _pf,     "an in-page link does not flush the pending edit first"
 
+
+# 3s. Choosing a provider in the panel has to mean something. LLM_CHAIN pins the ORDER of the
+# fallbacks; when it was set, chain() ignored LLM_PROVIDER completely - so LLM_PROVIDER read
+# "nvidia" while the chain ran mistral first, and picking Ollama wrote a setting nothing read.
+_real_cfg = app.llm.cfg
+try:
+    app.llm.cfg = lambda n, d=None: {"LLM_CHAIN": "mistral,groq", "LLM_PROVIDER": "ollama",
+                                     "LLM_MODEL": "llama3.2:latest"}.get(n, _real_cfg(n, d))
+    _c = [p for p, m, k in app.llm.chain()]
+    assert _c and _c[0] == "ollama", f"the chosen provider does not lead: {_c}"
+    assert "mistral" in _c, "the pinned chain is no longer the fallback order"
+finally:
+    app.llm.cfg = _real_cfg
+
+# a provider that takes no key must not send an empty Authorization header - "Bearer " is not a
+# legal header value and httpx refuses to send it, which surfaced as a protocol error
+_url, _hdr, _body = app.llm._request("ollama", "llama3.2:latest", "-", "s", "u", 100)
+assert "Authorization" not in _hdr, "ollama still gets an empty bearer token"
+_url, _hdr, _body = app.llm._request("groq", "m", "realkey", "s", "u", 100)
+assert _hdr.get("Authorization") == "Bearer realkey", "a real key stopped being sent"
+
+# and the panel offers the models this machine has actually pulled, because the built-in
+# default may never have been downloaded here
+_dash3 = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "provider=ollama" in _dash3, "picking Ollama does not look up the installed models"
+
 print("ok")

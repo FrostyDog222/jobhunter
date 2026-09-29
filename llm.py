@@ -204,6 +204,13 @@ def chain():
     raw = (cfg("LLM_CHAIN") or "").strip()
     out = []
     if raw:
+        # The chosen provider leads even here. LLM_CHAIN pins the ORDER of the fallbacks; it is
+        # not a veto on the dropdown, which is what it had quietly become - LLM_PROVIDER said
+        # nvidia while the chain ran mistral, so choosing a provider in the panel wrote a
+        # setting that nothing read, and picking Ollama appeared to do nothing at all.
+        want = cfg("LLM_PROVIDER")
+        if want in PROVIDERS:
+            out.append(_entry(want, cfg("LLM_MODEL")))
         for item in raw.split(","):
             name, _, model = item.strip().partition(":")
             if name.strip() in PROVIDERS:
@@ -245,8 +252,11 @@ def _request(provider, model, key, system, user, max_tokens):
                 {"x-api-key": key, "anthropic-version": "2023-06-01"},
                 {"model": model, "max_tokens": max_tokens, "system": system,
                  "messages": [{"role": "user", "content": user}]})
+    # A provider that takes no key gets no header. "Bearer " with nothing after it is not a
+    # legal header value and httpx refuses to send it at all, which surfaced as a protocol
+    # error rather than anything to do with the model.
     return (f"{base}/chat/completions",
-            {"Authorization": f"Bearer {key}"},
+            {"Authorization": f"Bearer {key}"} if key and key != "-" else {},
             {"model": model, "max_tokens": max_tokens, "temperature": 0.3,
              "messages": [{"role": "system", "content": system},
                           {"role": "user", "content": user}]})
