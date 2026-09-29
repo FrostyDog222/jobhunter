@@ -402,8 +402,13 @@ async def import_history(body: dict = Body(...)):
             row = c.execute("SELECT status FROM jobs WHERE url=?", (url,)).fetchone()
             if row and row["status"] == "applied":
                 continue
+            # ...and today when the board did not say. COALESCE(applied_at, NULL) is NULL, so
+            # an import without a date marked the row applied with no date at all - which the
+            # card can only render as "date not recorded", and which undo refuses to touch
+            # because it compares against a timestamp that is not there.
             c.execute("UPDATE jobs SET status='applied', "
-                      "applied_at=COALESCE(applied_at, ?) WHERE url=?",
+                      "applied_at=COALESCE(applied_at, ?, datetime('now','localtime')) "
+                      "WHERE url=?",
                       (f"{a['when']} 00:00:00" if a["when"] else None, url))
             marked.append(a["title"])
     return {"ok": True, "found": len(apps), "marked": marked, "not_in_your_list": unknown}
