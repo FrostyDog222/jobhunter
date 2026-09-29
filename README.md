@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="static/logo.webp" alt="jobhunter" width="320">
+</p>
+
 # jobhunter
 
 A local job-hunting assistant for the Romanian market. It finds jobs, scores each one against

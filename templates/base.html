@@ -2,6 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}jobhunter{% endblock %}</title>
+<link rel="icon" href="/static/logo.webp">
 <style>
 :root{
   --bg:#0f1115; --card:#181b22; --line:#272b35; --fg:#e7e9ee; --dim:#9aa1af;
@@ -17,6 +18,14 @@ header{display:flex;gap:18px;align-items:center;padding:13px 20px;border-bottom:
 header a{padding:4px 2px;font-size:14.5px}
 header b{font-size:16px} header a{color:var(--dim);text-decoration:none}
 header a.on,header a:hover{color:var(--fg)}
+header .mark{width:30px;height:30px;border-radius:7px;object-fit:cover;object-position:top;
+  flex:0 0 auto}
+.hero{display:flex;align-items:center;gap:18px;margin:4px 0 14px}
+.hero img{width:96px;height:96px;border-radius:14px;object-fit:cover;flex:0 0 auto;
+  border:1px solid var(--line)}
+.hero h1{font-size:20px;margin:0 0 3px;font-weight:650}
+.hero p{margin:0;max-width:52ch}
+@media(max-width:520px){.hero img{width:68px;height:68px}}
 main{max-width:1060px;margin:0 auto;padding:20px 16px 80px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px;margin:12px 0}
 button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 16px;
@@ -63,7 +72,8 @@ h2{font-size:15px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06e
 {% block css %}{% endblock %}
 </style></head><body>
 <div id="bar"><i></i></div>
-<header><b>jobhunter</b>
+<header><img class="mark" src="/static/logo.webp" alt="">
+  <b>jobhunter</b>
   <a href="/" class="{{ 'on' if page=='dash' }}">Dashboard</a>
   <a href="/profile" class="{{ 'on' if page=='profile' }}">Profile</a>
 </header>

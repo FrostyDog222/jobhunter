@@ -167,6 +167,14 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 {% endblock %}
 
 {% block body %}
+<div class="hero">
+  <img src="/static/logo.webp" alt="jobhunter">
+  <div>
+    <h1>Find jobs. Tailor your CV. Get hired.</h1>
+    <p class="muted">Four Romanian job boards, read and scored against your own profile. Nothing
+      leaves this PC except the calls to the AI model you picked.</p>
+  </div>
+</div>
 <div class="card" id="steps"></div>
 <!-- everything you set once, out of the way until you want it -->
 <div class="setup">
@@ -245,6 +253,11 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <select id="headless">
         <option value="">Open the browser to review</option>
         <option value="1">Dry run — just report</option>
+      </select></div>
+    <div><label>Interface language</label>
+      <select id="ui_lang" title="The language of this page. The language your CV is written in is the setting to the left.">
+        <option value="en">English</option>
+        <option value="ro">Română</option>
       </select></div>
     <div><label>Clock</label>
       <select id="clock" title="How times are shown on this page. It changes nothing that is stored.">
@@ -578,6 +591,7 @@ async function loadSettings(){
   $('#lang').value = S.lang || 'auto';
   $('#headless').value = S.headless || '';
   CLOCK = S.clock === '12' ? '12' : '24';
+  $('#ui_lang').value = S.ui_lang === 'ro' ? 'ro' : 'en';
   $('#clock').value = CLOCK;
   $('#cvask').checked = !!S.cv_ask;
   $('#home_county').value = S.home_county || '';
@@ -598,6 +612,9 @@ $('#home_county').onchange = async e => {
 };
 $('#headless').onchange = e => saveSettings({headless: e.target.value});
 // redraw, because "applied 28 Sep, 23:21" is already on the cards and has to change with it
+// The page is translated on the server, so this one needs the page again rather than a redraw.
+$('#ui_lang').onchange = async e => { await saveSettings({ui_lang: e.target.value});
+  location.reload(); };
 $('#clock').onchange = async e => { CLOCK = e.target.value === '12' ? '12' : '24';
   await saveSettings({clock: CLOCK}); draw(); loadAuto(); };
 $('#cvask').onchange = e => saveSettings({cv_ask: e.target.checked});

@@ -9,10 +9,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, UploadFile, File, Body, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-import llm, prefill, scrape
+import lang, llm, prefill, scrape
 
 # Windows consoles default to cp1252, so a single print of a Romanian job title raises
 # UnicodeEncodeError and takes the whole request down with it.
@@ -29,6 +30,9 @@ DB = HERE / "db.sqlite"
 
 app = FastAPI(title="job")
 tpl = Jinja2Templates(directory=HERE / "templates")
+# the logo, and anything else that is part of the app rather than part of a person
+(HERE / "static").mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 # Measured against the live chain, not guessed: 12 real ads scored in 26.1s three at a
 # time and 13.1s six at a time, with no 429 and the breaker untripped. Browser work is
 # dispatched one at a time by apply_batch, so this never means six Chromiums.
@@ -102,6 +106,10 @@ SETTINGS = HERE / "settings.json"
 # what the dashboard remembers between visits. Secrets stay in .env; these are preferences,
 # and they travel with a folder copy while .env deliberately does not.
 DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
+            # The language of the buttons and the help text, which is a separate question
+            # from the language a CV is written in - plenty of people want the app in
+            # Romanian and their CV in English. English until someone says otherwise.
+            "ui_lang": "en",
             # Romania writes the time as 14:30, so that is the default; "12" is for anyone who
             # reads a clock the other way. It only changes how a time is printed, never what is
             # stored - applied_at stays ISO in the database either way.
@@ -508,18 +516,73 @@ async def no_model(request: Request, exc: llm.NoModel):
 
 
 # ---------- pages ----------
+# ---------- the interface in two languages ----------
+# The templates stay written in English and the translation happens on the way out, keyed by the
+# English string. Wrapping 431 strings in t("...") by hand would be 431 chances to break the
+# page, and every string nobody has translated yet would have to be found again later; this way
+# an unknown string simply stays English, which is a worse interface but never a broken one.
+_SKIP = re.compile(r"(<script\b.*?</script>|<style\b.*?</style>)", re.S | re.I)
+_TEXT = re.compile(r">([^<>]+)<")
+_ATTR = re.compile(r'\b(placeholder|title|aria-label)="([^"<>]+)"')
+
+
+def ui_lang():
+    v = settings().get("ui_lang")
+    return v if v in ("en", "ro") else "en"
+
+
+def t(s, ui=None):
+    """One string, translated. Falls back to the English it was given."""
+    return lang.RO.get(" ".join(str(s).split()), s) if (ui or ui_lang()) == "ro" else s
+
+
+def _swap_text(m):
+    raw = m.group(1)
+    ro = lang.RO.get(" ".join(raw.split()))
+    if not ro:
+        return m.group(0)
+    # keep the indentation and line breaks around it, or the html reflows and diffs become noise
+    head = raw[:len(raw) - len(raw.lstrip())]
+    tail = raw[len(raw.rstrip()):]
+    return f">{head}{ro}{tail}<"
+
+
+def _swap_attr(m):
+    ro = lang.RO.get(" ".join(m.group(2).split()))
+    return f'{m.group(1)}="{ro}"' if ro else m.group(0)
+
+
+def localise(html_text, ui):
+    """The rendered page in `ui`. English is returned untouched, byte for byte."""
+    if ui != "ro":
+        return html_text
+    out = []
+    # never inside a script or a style block: the page's own JavaScript is not prose
+    for i, part in enumerate(_SKIP.split(html_text)):
+        out.append(part if i % 2 else _ATTR.sub(_swap_attr, _TEXT.sub(_swap_text, part)))
+    return "".join(out)
+
+
+def page(request, name, **ctx):
+    """Render a template and hand it over in the language this person chose."""
+    ui = ui_lang()
+    html = tpl.TemplateResponse(request, name, {"ui": ui, "T": lang.RO if ui == "ro" else {},
+                                                **ctx}).body.decode("utf-8")
+    return HTMLResponse(localise(html, ui))
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
     # the county list lives in scrape.py, where the matching also happens - rendering the
     # dropdown from it means the two can never drift apart
-    return tpl.TemplateResponse(request, "dashboard.html", {
-        "counties": [(slug, name) for slug, (name, _towns) in sorted(
-            scrape.COUNTIES.items(), key=lambda kv: kv[1][0])]})
+    return page(request, "dashboard.html",
+                counties=[(slug, name) for slug, (name, _towns) in sorted(
+                    scrape.COUNTIES.items(), key=lambda kv: kv[1][0])])
 
 
 @app.get("/profile", response_class=HTMLResponse)
 def profile_page(request: Request):
-    return tpl.TemplateResponse(request, "profile.html")
+    return page(request, "profile.html")
 
 
 # ---------- profile ----------

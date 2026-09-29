@@ -725,8 +725,13 @@ _tracked = _sp.run(["git", "ls-files"], cwd=app.HERE, capture_output=True, text=
 if _tracked.returncode == 0:                 # not a clone: nothing to check, not a failure
     SOURCE = {".py", ".html", ".css", ".bat", ".ps1", ".md", ".txt"}
     BARE = {".gitignore", ".gitattributes"}
+    # static/ is the one place an image belongs: the app's own artwork, reviewed once. Anything
+    # of a person's - a photo, a CV, a database - is not source and is not static either.
     for _f in _tracked.stdout.split():
         _ext = pathlib.PurePosixPath(_f).suffix
+        if _f.startswith("static/"):
+            assert _ext in {".webp", ".png", ".svg", ".ico", ".jpg"}, f"{_f} is not artwork"
+            continue
         assert _ext in SOURCE or _f in BARE, (
             f"{_f} is tracked in git and is not source. This repo is public: if it holds "
             f"anything of yours - a photo, a CV, a database, a log - untrack it and add it "
