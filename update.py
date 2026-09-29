@@ -87,10 +87,18 @@ def apply(files):
 
     for rel, data in sorted(files.items()):
         target = HERE / rel
+        if target.is_file() and digest(target) == hashlib.sha1(data).hexdigest():
+            same += 1
+            continue
+        # THIS script is being read line by line by cmd, from a byte offset, as it runs. Writing
+        # over it makes execution resume at that offset in different text - a fragment of a line,
+        # run as a command, in the middle of an update. The new copy waits beside it, and the
+        # batch swaps it in at the top of the next run, which is what it already looks for.
+        if rel.lower() == "update.bat":
+            (HERE / "Update.bat.new").write_bytes(data)
+            changed.append("Update.bat (arrives on the next run)")
+            continue
         if target.is_file():
-            if digest(target) == hashlib.sha1(data).hexdigest():
-                same += 1
-                continue
             backup.mkdir(parents=True, exist_ok=True)
             dest = backup / rel
             dest.parent.mkdir(parents=True, exist_ok=True)

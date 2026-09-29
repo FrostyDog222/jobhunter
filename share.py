@@ -5,6 +5,7 @@ unpacks it starts with their own keys, their own profile, their own board sign-i
 job list - and cannot end up applying to jobs as you.
 """
 import pathlib
+import re
 import sys
 import zipfile
 
@@ -25,7 +26,8 @@ PRIVATE_DIRS = {".venv", "__pycache__", ".browser", "out", ".claude", ".git", "g
 # rebuilt or irrelevant on the other machine
 SKIP_SUFFIX = {".pyc", ".tmp", ".bak", ".zip", ".log", ".db"}
 # working files that are not part of the app
-SKIP_NAMES = {"audit.json", "research_ux.json", ".profile.test.json"}
+SKIP_NAMES = {"audit.json", "research_ux.json", ".profile.test.json",
+              ".profile.test.prev.json", ".auto.lock"}
 NAME = "jobhunter"
 
 
@@ -38,18 +40,63 @@ def wanted(p):
     return p.is_file()
 
 
+# What a key looks like once it is out of .env: the provider prefixes, plus any NAME_KEY= with
+# something long after it. Names alone are everywhere in the source and must not trip this, so a
+# value is required.
+SECRET = re.compile(r"\b(sk-[A-Za-z0-9_-]{16,}|gsk_[A-Za-z0-9]{16,}|AIza[A-Za-z0-9_-]{20,}"
+                    r"|xai-[A-Za-z0-9]{16,}|hf_[A-Za-z0-9]{16,}|r8_[A-Za-z0-9]{16,})"
+                    r"|(?:API_)?KEY\s*[=:]\s*[\"\']?[A-Za-z0-9_\-]{24,}")
+READABLE = {".py", ".html", ".css", ".js", ".json", ".md", ".txt", ".bat", ".cfg", ".ini", ".yml"}
+
+
+def secrets_in(files):
+    """-> [(file, line)] for anything that looks like a real key inside a file we would ship.
+
+    The name list cannot catch this: the file is one of ours, it is meant to be in the zip, and
+    the key is a line in the middle of it.
+    """
+    hits = []
+    for f in files:
+        if f.suffix.lower() not in READABLE:
+            continue
+        try:
+            text = f.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for i, line in enumerate(text.splitlines(), 1):
+            if SECRET.search(line):
+                hits.append(f"{f.relative_to(HERE).as_posix()}:{i}")
+    return hits
+
+
 def main():
     out = HERE / f"{NAME}.zip"
     files = sorted(p for p in HERE.rglob("*") if wanted(p))
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        for p in files:
-            z.write(p, pathlib.Path(NAME) / p.relative_to(HERE))
     names = {p.relative_to(HERE).as_posix() for p in files}
-    leaked = sorted(n for n in names if pathlib.PurePosixPath(n).name in PRIVATE)
+
+    # Everything is checked BEFORE a byte is written. The zip used to be built first and
+    # inspected after, so a failure left the leaking zip in the folder - and sending the zip is
+    # the next thing you do.
+    leaked = sorted(n for n in names if pathlib.PurePosixPath(n).name in PRIVATE
+                    or any(part in PRIVATE_DIRS for part in pathlib.PurePosixPath(n).parts))
     assert not leaked, f"refusing to ship private files: {leaked}"
+    found = secrets_in(files)
+    assert not found, ("refusing to build: that looks like a real API key inside a file that "
+                       f"would be shipped: {found}. Move it to .env.")
     for must in ("app.py", "llm.py", "scrape.py", "prefill.py", "run.bat", "requirements.txt",
                  "templates/dashboard.html", "templates/cv/classic.css"):
         assert must in names, f"missing from the package: {must}"
+
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in files:
+            z.write(f, pathlib.Path(NAME) / f.relative_to(HERE))
+    # and once more against what the archive actually holds, not against the list we hoped it
+    # was built from
+    inside = [n for n in zipfile.ZipFile(out).namelist()
+              if pathlib.PurePosixPath(n).name in PRIVATE]
+    if inside:
+        out.unlink(missing_ok=True)
+        raise AssertionError(f"private files reached the zip, which has been deleted: {inside}")
     print(f"{out.name}: {len(files)} files, {out.stat().st_size / 1024:.0f} KB")
     print("Left out on purpose: your API keys, profile, job list, board sign-ins and CVs.")
     print("Send the zip. They unzip it anywhere and double-click run.bat.")

@@ -1464,4 +1464,76 @@ _vsrc = _iK.getsource(_pfm.verify_boards)
 assert "_save(ctx, visited=visited)" in _vsrc, "the keep-alive still writes back every host"
 assert "visited.append(BOARD_APEX" in _vsrc
 
+
+# 4l. cmd does not read a batch file into memory - it reads the next line from the file, at a
+# byte offset, each time round. Update.bat knows this: it looks for Update.bat.new at the top
+# and swaps it in first. Nothing ever wrote that file, so an update overwrote the script that
+# was running it and execution carried on at that offset in different text.
+import tempfile as _tf, shutil as _sh, zipfile as _zf
+import contextlib as _cl, io as _io
+_quiet = lambda: _cl.redirect_stdout(_io.StringIO())   # apply()/main() narrate
+import update as _up, share as _sh2
+_sand = pathlib.Path(_tf.mkdtemp())
+assert app.HERE != _sand and app.HERE not in _sand.parents, "the sandbox is not a sandbox"
+_realhere = (_up.HERE, _sh2.HERE)
+try:
+    _up.HERE = _sh2.HERE = _sand
+    (_sand / "Update.bat").write_bytes(b"@echo off\nrem OLD\n")
+    (_sand / "app.py").write_bytes(b"old\n")
+    with _quiet():
+        _touched = _up.apply({"Update.bat": b"@echo off\nrem NEW\n", "app.py": b"new\n"})
+    assert (_sand / "Update.bat").read_bytes() == b"@echo off\nrem OLD\n", \
+        "the update overwrote the batch file that is running it"
+    assert (_sand / "Update.bat.new").read_bytes() == b"@echo off\nrem NEW\n"
+    assert (_sand / "app.py").read_bytes() == b"new\n", "it stopped updating everything else"
+    assert len(list(_sand.rglob("backup/*/app.py"))) == 1, "no copy of what it replaced"
+    # an identical one is not queued for a swap that would change nothing
+    (_sand / "Update.bat.new").unlink()
+    with _quiet():
+        _up.apply({"Update.bat": b"@echo off\nrem OLD\n"})
+    assert not (_sand / "Update.bat.new").exists()
+
+    # 4m. share.py built the zip and inspected it afterwards. Had the check ever fired, the
+    # leaking zip was already in the folder - and sending the zip is what you do next.
+    for _n in ("llm.py", "scrape.py", "prefill.py", "run.bat", "requirements.txt"):
+        (_sand / _n).write_bytes(b"x\n")
+    for _n in ("templates/dashboard.html", "templates/cv/classic.css"):
+        (_sand / _n).parent.mkdir(parents=True, exist_ok=True)
+        (_sand / _n).write_bytes(b"x\n")
+    (_sand / ".env").write_bytes(b"GROQ_API_KEY=whatever\n")
+    with _quiet():
+        _sh2.main()
+    _zip = _sand / "jobhunter.zip"
+    _inside = {pathlib.PurePosixPath(n).name for n in _zf.ZipFile(_zip).namelist()}
+    assert not (_inside & _sh2.PRIVATE), f"private files shipped: {sorted(_inside & _sh2.PRIVATE)}"
+    # the check the old one could not do at all: a key is far likelier to be INSIDE a file we
+    # ship - pasted into a script while testing - than to be a file we forgot to name
+    _was = _zip.stat().st_size
+    (_sand / "llm.py").write_bytes(b'KEY = "gsk_0123456789abcdefghijklmnopqrstuvwxyz"\n')
+    try:
+        with _quiet():
+            _sh2.main()
+        raise AssertionError("it built a zip with a key in it")
+    except AssertionError as _e:
+        assert "llm.py" in str(_e), str(_e)
+        assert "gsk_" not in str(_e), "the refusal printed the key it found"
+    assert _zip.stat().st_size == _was, "the previous zip was replaced by a refused build"
+finally:
+    _up.HERE, _sh2.HERE = _realhere
+    _sh.rmtree(_sand, ignore_errors=True)
+
+# and the two lists cannot drift: anything private enough to keep out of git is private enough
+# to keep out of the zip
+for _line in (app.HERE / ".gitignore").read_text(encoding="utf-8").splitlines():
+    _line = _line.strip()
+    if not _line or _line.startswith("#"):
+        continue
+    if _line.endswith("/"):
+        assert _line.rstrip("/") in _sh2.PRIVATE_DIRS, \
+            f"{_line} is kept out of git but would be shipped by share.py"
+    elif not _line.startswith("*"):
+        assert (_line in _sh2.PRIVATE or _line in _sh2.SKIP_NAMES
+                or pathlib.PurePosixPath(_line).suffix.lower() in _sh2.SKIP_SUFFIX), \
+            f"{_line} is kept out of git but would be shipped by share.py"
+
 print("ok")
