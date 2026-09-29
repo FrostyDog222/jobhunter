@@ -141,12 +141,16 @@ assert app._month("2024-13", "en") == "2024"       # nonsense month degrades to 
 # through the function, not by grepping it, and on the shapes a model really sends: a string
 # used to slip past the list check and render one chip per character.
 import inspect as _i
+# the profile must HOLD them, or _only_from correctly drops every one as invented - what is
+# under test here is the 14 cap, not the membership filter
+_mine = dict(app.llm.EMPTY, skills=[f'S{i}' for i in range(40)])
 _fake = dict(app.llm.EMPTY, skills=[f'S{i}' for i in range(40)])
 _real_ask = app.llm.ask          # restored below: del would remove it from the module entirely
 app.llm.ask = lambda *a, **k: dict(_fake)
-assert len(app.llm.tailor({}, {'title': 't', 'description': 'd'}, 'en')['skills']) == 14
+assert len(app.llm.tailor(_mine, {'title': 't', 'description': 'd'}, 'en')['skills']) == 14
 app.llm.ask = lambda *a, **k: dict(app.llm.EMPTY, skills='Excel, Word', links={'GitHub': {'url': 'u'}})
-_t = app.llm.tailor({}, {'title': 't', 'description': 'd'}, 'en')
+_t = app.llm.tailor(dict(app.llm.EMPTY, skills=['Excel', 'Word']),
+                    {'title': 't', 'description': 'd'}, 'en')
 assert _t['skills'] == ['Excel', 'Word'], _t['skills']
 assert _t['links'] == ['u'], _t['links']   # a dict yields KEYS, so every url used to be dropped
 app.llm.ask = lambda *a, **k: dict(app.llm.EMPTY, experience=None)
@@ -1284,5 +1288,75 @@ assert "is not a" in _iB.getsource(app.apply_batch)
 # the mini-interview must not type into the site's own search form
 assert ', "form"' not in _iB.getsource(app.prefill.mini_interview), \
     "every board page has a search form; the model's answer would be typed into it"
+
+
+# 4c. A tailored CV may only rearrange what is true. The prompt says so in four separate rules
+# and nothing enforced any of them: proven with a stubbed reply, a Production Management
+# Technician became a Production Manager at Nordic Telecom GROUP from 2018 to present, with a
+# BA upgraded to an MSc and PMP and Six Sigma invented outright - and howlong() then printed a
+# duration computed from the invented dates, beside a comment saying a guess here is a lie.
+_real_profile = {
+    "name": "Ana Popescu", "email": "a@b.ro", "phone": "1", "location": "Cluj",
+    "experience": [{"role": "Production Management Technician", "company": "Nordic Telecom",
+                    "start": "2021-03", "end": "2023-02", "bullets": ["x"]}],
+    "education": [{"degree": "BA, Communication", "school": "UBB",
+                   "start": "2016", "end": "2019"}],
+    "skills": ["Excel", "PDCA"], "certifications": ["ITIL Foundation"]}
+_liar = {"name": "X", "title": "Production Director", "summary": "rewritten, which is allowed",
+         "experience": [{"role": "Production Manager", "company": "Nordic Telecom Group",
+                         "start": "2018-01", "end": "prezent", "bullets": ["reworded, fine"]},
+                        {"role": "Invented", "company": "Ghost Ltd", "start": "2010",
+                         "end": "2012", "bullets": ["never happened"]}],
+         "education": [{"degree": "MSc, Communication", "school": "UBB",
+                        "start": "2016", "end": "2021"}],
+         "skills": ["Kubernetes", "SAP", "excel", "pdca cycle"],
+         "certifications": ["PMP", "Six Sigma Black Belt", "ITIL Foundation"]}
+_keep_ask = app.llm.ask
+try:
+    app.llm.ask = lambda *a, **k: dict(_liar)
+    _cv = app.llm.tailor(_real_profile, {"title": "t", "description": "d" * 80}, "en")
+finally:
+    app.llm.ask = _keep_ask
+assert len(_cv["experience"]) == 1, "an invented job reached the CV"
+_e = _cv["experience"][0]
+assert _e["company"] == "Nordic Telecom", "the employer was changed"
+assert (_e["start"], _e["end"]) == ("2021-03", "2023-02"), "the dates were invented"
+assert _cv["education"][0]["degree"] == "BA, Communication", "the degree was upgraded"
+assert _cv["education"][0]["end"] == "2019"
+assert _cv["skills"] == ["Excel", "PDCA"], f"skills not from the profile: {_cv['skills']}"
+assert _cv["certifications"] == ["ITIL Foundation"], "a certification was invented"
+# ...and the parts tailoring exists for are still the model's
+assert _cv["summary"] == "rewritten, which is allowed"
+assert _e["bullets"] == ["reworded, fine"]
+# a reworded skill is recognised, an unrelated one is not, and the profile's spelling wins
+assert app.llm._only_from(["JavaScript ES6"], ["JavaScript"]) == ["JavaScript"]
+assert app.llm._only_from(["excel"], ["Excel"]) == ["Excel"]
+assert app.llm._only_from(["Kubernetes"], ["Excel"]) == []
+
+# 4d. Three ways to lose something with no way back.
+import inspect as _iC
+# the wipe guard belongs where every writer passes, not on the profile page's endpoint: upload
+# and paste went straight to save_profile, and a weak parse replaced a whole CV with a 200
+assert "_has_substance" in _iC.getsource(app.save_profile), \
+    "uploading a bad CV can still replace a good profile"
+# .env is the only file here with no backup anywhere
+assert "mkstemp" in _iC.getsource(app.llm.set_cfg) or "mkstemp" in _iC.getsource(app.llm._set_cfg)
+assert "_ENV_LOCK" in _iC.getsource(app.llm.set_cfg)
+# connect() CREATES the file, so asking afterwards always said yes and the guard never fired
+_csrc = _iC.getsource(app._connect)
+assert "ready = _SCHEMA_DONE and DB.exists()" in _csrc, \
+    "the deleted-database guard still cannot fire"
+assert _csrc.index("ready = ") < _csrc.index("sqlite3.connect"), \
+    "existence is still checked after connect() has recreated the file"
+# a locked ALTER is not a duplicate column
+assert "duplicate column" in _csrc
+
+# 4e. Half the profile page changed the profile without saying it had.
+_pf3 = (app.HERE / "templates" / "profile.html").read_text(encoding="utf-8")
+assert "function touched()" in _pf3
+assert _pf3.count("touched()") >= 8, \
+    f"only {_pf3.count('touched()')} mutation sites mark the page dirty"
+# and a double-click deleted two, because the list re-renders under the cursor
+assert _pf3.count("e.detail") >= 3, "a double-click on a remove button still deletes two items"
 
 print("ok")

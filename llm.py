@@ -9,7 +9,7 @@ chat-completions shape, so that is two request builders, not five:
 
 Ollama needs no key: set LLM_PROVIDER=ollama and have it running locally.
 """
-import json, os, pathlib, re, time
+import json, os, pathlib, re, tempfile, threading, time
 import httpx
 
 # name: (env var, base url, default model)  - order is the auto-pick order
@@ -50,8 +50,19 @@ def cfg(name, default=None):
 ENV = pathlib.Path(__file__).parent / ".env"
 
 
+# .env is read-modify-write from two endpoints and a separate scheduled process, and it is
+# the only state in this folder with no backup anywhere - gitignored, left out of the share zip
+# and out of the updater. It gets the same treatment app.py gives the profile and the settings.
+_ENV_LOCK = threading.Lock()
+
+
 def set_cfg(**kv):
     """Write settings into .env, keeping whatever else is there (including other providers')."""
+    with _ENV_LOCK:
+        return _set_cfg(**kv)
+
+
+def _set_cfg(**kv):
     _BLOWN.clear()          # the user just changed provider or key; give it a fresh chance
     if kv.get("LLM_PROVIDER"):
         kv.setdefault("LLM_CHAIN", None)   # an explicit pick beats a previously pinned chain
@@ -61,7 +72,17 @@ def set_cfg(**kv):
             cur.pop(k, None)
         else:
             cur[k] = str(v).strip()
-    ENV.write_text("\n".join(f"{k}={v}" for k, v in cur.items()) + "\n", encoding="utf-8")
+    text = "\n".join(f"{k}={v}" for k, v in cur.items()) + "\n"
+    # write-then-replace: interrupt a plain write and the keys are simply gone, and _dotenv
+    # skips malformed lines in silence, so the app comes back up reporting no key at all
+    fd, tmp = tempfile.mkstemp(dir=str(ENV.parent), prefix=".env-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, ENV)
+    except BaseException:
+        pathlib.Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 # Most providers stamp their keys with a recognisable prefix. Used only to catch the obvious
@@ -976,6 +997,57 @@ def score(profile, job):
     )
 
 
+def _pin(written, real, fields):
+    """Model-written entries with their facts taken back from the profile.
+
+    Entry i of the output is entry i of the profile - the prompt forbids adding, dropping or
+    reordering entries, and anything past the end of the real list is something the model
+    invented, so it goes. The role title and the bullets are left as written: rewording the
+    role is what the TITLE RULE is for, and a promoted title is caught by pinning the employer
+    and the dates around it.
+    """
+    real = real if isinstance(real, list) else []
+    out = []
+    for i, entry in enumerate(written if isinstance(written, list) else []):
+        if i >= len(real):
+            break                       # an entry with no counterpart is a job that never was
+        if not isinstance(entry, dict):
+            continue
+        src = real[i] if isinstance(real[i], dict) else {}
+        out.append({**entry, **{f: src.get(f, "") for f in fields}})
+    return out
+
+
+def _only_from(written, real):
+    """Keep what the profile actually contains, in the order the model chose.
+
+    Matching is case- and punctuation-insensitive, because normalising "pdca" to "PDCA" is a
+    rewrite the prompt asks for; adding "Six Sigma Black Belt" is not.
+    """
+    if isinstance(written, str):
+        written = [x.strip() for x in written.split(",") if x.strip()]
+    flat = lambda t: re.sub(r"[^a-z0-9]", "", str(t).lower())
+    real = [str(x).strip() for x in (real or []) if str(x).strip()]
+    seen, out = set(), []
+    for item in (written or []):
+        key = flat(item)
+        if not key:
+            continue
+        # The profile's own spelling wins, which is also why the model is allowed to renormalise
+        # casing: "excel" comes back as the "Excel" that was written. A containment match either
+        # way recognises the merge the prompt asks for - "pdca cycle" IS the profile's "PDCA" -
+        # without letting an unrelated skill in, since both sides must be four characters or
+        # more before a substring counts.
+        hit = next((r for r in real if flat(r) == key), None) or next(
+            (r for r in real
+             if len(flat(r)) >= 4 and len(key) >= 4
+             and (flat(r) in key or key in flat(r))), None)
+        if hit and hit not in seen:
+            seen.add(hit)
+            out.append(hit)
+    return out
+
+
 def tailor(profile, job, lang="auto"):
     """Reorder/reword the profile for one job. Returns the same schema, ready to render."""
     lang = ad_language(job) if lang == "auto" else lang
@@ -1003,6 +1075,15 @@ def tailor(profile, job, lang="auto"):
     # (adding diacritics to a name, translating the town). They are facts, not text to rewrite,
     # so they come from the profile.
     out.update({k: profile.get(k, "") for k in ("name", "email", "phone", "location")})
+    # ...and every other FACT, taken back from the profile rather than trusted. The prompt asks
+    # for all of this; asking is not enforcing, and what reaches the employer is this dict.
+    out["experience"] = _pin(out.get("experience"), profile.get("experience"),
+                             ("company", "start", "end"))
+    out["education"] = _pin(out.get("education"), profile.get("education"),
+                            ("degree", "school", "start", "end"))
+    # a skill or a certification the profile does not have is not a rewrite, it is an invention
+    out["skills"] = _only_from(out.get("skills"), profile.get("skills"))
+    out["certifications"] = _only_from(out.get("certifications"), profile.get("certifications"))
     # the template concatenates links onto the contact line, so a None or a bare string there
     # is a TypeError mid-render and a dict prints as {'label': ...}. Normalise to a list of str.
     links = out.get("links")

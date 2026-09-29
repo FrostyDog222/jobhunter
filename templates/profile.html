@@ -243,12 +243,14 @@ function renderLangs(){
 
 document.addEventListener('input', e => {
   const i = e.target.dataset.lang;
-  if(i !== undefined) P.languages[+i][e.target.dataset.k] = e.target.value;
+  if(i !== undefined){ P.languages[+i][e.target.dataset.k] = e.target.value; touched(); }
 });
 document.addEventListener('click', e => {
-  if(e.target.id === 'addlang'){ (P.languages ||= []).push({name:'', level:''}); renderLangs(); }
+  if(e.target.id === 'addlang'){ (P.languages ||= []).push({name:'', level:''}); renderLangs(); touched(); }
   const d = e.target.dataset.dellang;
-  if(d !== undefined){ P.languages.splice(+d,1); renderLangs(); }
+  // e.detail <= 1: the list re-renders under the cursor, so the second click of a double-click
+  // lands on the NEXT language's button and removed two
+  if(d !== undefined && e.detail <= 1){ P.languages.splice(+d,1); renderLangs(); touched(); }
 });
 
 function chipPaths(){
@@ -259,7 +261,7 @@ function commit(input, path){
   const v = input.value.trim();
   if(!v) return false;
   at(path).set(at(path).get().concat(v.replace(/,+$/,'').trim()));
-  input.value = ''; renderChips(path); return true;
+  input.value = ''; renderChips(path); touched(); return true;
 }
 
 // Enter or comma commits; Backspace in an empty box removes the last chip
@@ -268,7 +270,7 @@ document.addEventListener('keydown', e => {
   if(e.key === 'Enter' || e.key === ','){ e.preventDefault(); commit(e.target, path); }
   else if(e.key === 'Backspace' && !e.target.value){
     const cur = at(path).get();
-    if(cur.length){ at(path).set(cur.slice(0,-1)); renderChips(path); }
+    if(cur.length){ at(path).set(cur.slice(0,-1)); renderChips(path); touched(); }
   }
 });
 // clicking away keeps what was typed instead of silently dropping it
@@ -278,8 +280,9 @@ document.addEventListener('blur', e => {
 }, true);
 document.addEventListener('click', e => {
   const path = e.target.dataset && e.target.dataset.chip; if(!path) return;
+  if(e.detail > 1) return;             // the re-render moves the next chip's ✕ under the cursor
   at(path).set(at(path).get().filter((_,i) => i !== +e.target.dataset.i));
-  renderChips(path);
+  renderChips(path); touched();
 });
 
 function render(){
@@ -317,8 +320,10 @@ function collect(){
 
 document.addEventListener('click', async e => {
   const add = e.target.dataset.add, del = e.target.dataset.del;
-  if(add){ collect(); (P[add] ||= []).push(Object.fromEntries(FIELDS[add].map(f=>[f, f==='bullets'?[]:'']))); renderList(add); }
-  if(del){ collect(); P[del].splice(+e.target.dataset.idx,1); renderList(del); }
+  if(add){ collect(); (P[add] ||= []).push(Object.fromEntries(FIELDS[add].map(f=>[f, f==='bullets'?[]:'']))); renderList(add); touched(); }
+  // e.detail > 1 is the second click of a double-click. The list re-renders under the cursor,
+  // so the button now there carries the NEXT item's index and a double-click deleted two.
+  if(del && e.detail <= 1){ collect(); P[del].splice(+e.target.dataset.idx,1); renderList(del); touched(); }
 });
 
 /* ---------- saving ----------
@@ -334,6 +339,15 @@ function mark(state, when){
     : state === 'failed' ? t('could not save - press Save profile')
     : t('saved') + ' ' + hhmm(when || new Date());
   el.style.color = state === 'failed' ? 'var(--bad)' : '';
+}
+
+// Everything that changes P without touching a [data-f]/[data-e] field has to say so itself:
+// adding or removing a role, a study, a project, a chip or a language. Without this the page
+// looked saved, beforeunload stayed quiet, and the edit was lost on close.
+function touched(){
+  if(!LOADED) return;
+  DIRTY = true; mark('dirty');
+  clearTimeout(_timer); _timer = setTimeout(saveNow, 900);
 }
 
 async function saveNow(){

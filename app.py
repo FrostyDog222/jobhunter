@@ -62,13 +62,18 @@ def db():
 
 def _connect():
     global _SCHEMA_DONE
+    # Before connect(), because connect() CREATES the file - so asking afterwards always said
+    # yes and the guard below could never fire. Delete db.sqlite under a running server and
+    # every request 500'd with "no such table" until a restart, which is the exact thing that
+    # check was added to prevent.
+    ready = _SCHEMA_DONE and DB.exists()
     c = sqlite3.connect(DB)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA busy_timeout=15000")   # the weekly run may be writing at the same time
     # ...and the file it was set for still exists. Delete db.sqlite under a running server -
     # a purge, an antivirus quarantine, a second process - and every connection after that
     # opened a fresh empty file with no jobs table, so every request 500'd until a restart.
-    if _SCHEMA_DONE and DB.exists():
+    if ready:
         return c
     # Set the schema up once per process, not once per connection. ALTER TABLE needs a write
     # lock, so doing this on every connection made every read - opening the dashboard, polling
@@ -83,8 +88,12 @@ def _connect():
                 "salary TEXT", "expires TEXT", "terms TEXT"):                                                 # added later
         try:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
-        except sqlite3.OperationalError:
-            pass
+        except sqlite3.OperationalError as e:
+            # "duplicate column name" is the expected one. "database is locked" is not, and
+            # swallowing it left the column permanently missing for this process while the
+            # schema was marked done anyway.
+            if "duplicate column" not in str(e).lower():
+                raise
     _SCHEMA_DONE = True
     return c
 
@@ -599,6 +608,17 @@ def _atomic_write(path, text):
 
 def save_profile(p):
   with _FILES:
+    # The guard belongs HERE, not in post_profile: upload, paste and apply_suggestion all write
+    # through this function and none of them went past that check. A weak parse - a scanned PDF
+    # whose text layer is noise, a fallback provider making a mess of it - replaced a complete
+    # profile and answered 200. _FILES is an RLock, so the profile() call below is fine.
+    if not _has_substance(p):
+        had = _has_substance(profile())          # also sets _PROFILE_BROKEN
+        if had or _PROFILE_BROKEN[0]:
+            raise HTTPException(400, "That would have emptied your whole profile, so nothing "
+                                     "was saved. If a CV you uploaded came back almost empty, "
+                                     "the file probably has no readable text - try the PDF, or "
+                                     "paste the text in instead.")
     p["languages"] = _langs(p.get("languages"))
     for k in STR_LIST_KEYS:
         p[k] = _strs(p.get(k))
