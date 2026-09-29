@@ -37,7 +37,6 @@ RO = {
     "County": "Județ",
     "Country": "Țară",
     "Anywhere": "Oriunde",
-    "All counties": "Toate județele",
     "Romania": "România",
     "Worldwide": "Global",
 
@@ -415,7 +414,7 @@ RO = {
     # ---- the Ollama walkthrough
     "Running the model on your own PC with Ollama — step by step":
         "Rulează modelul pe propriul PC cu Ollama — pas cu pas",
-    "Free, and nothing leaves this PC — not even the job ads. It is slower per ad than a hosted provider, so it suits a small search or a machine with a good graphics card. You can leave a hosted provider first and keep Ollama behind it as a backstop for when a free tier runs dry.":
+    "Free, and nothing leaves this PC — not even the job ads. You can leave a hosted provider first and keep Ollama behind it as a backstop for when a free tier runs dry.":
         "Gratuit, și nimic nu pleacă de pe acest PC — nici măcar anunțurile. Este mai lent pe anunț decât un furnizor online, așa că se potrivește unei căutări mici sau unui PC cu placă video bună. Poți lăsa un furnizor online primul și să ții Ollama în spate, ca rezervă pentru când un plan gratuit se golește.",
     # ---- the Ollama walkthrough, step by step
     "Install Ollama from {link} and let it finish. It then runs quietly in the background whenever your PC is on.":
@@ -468,9 +467,9 @@ RO = {
         "Un model online punctează un anunț în una-două secunde; unul local ia zeci de secunde, iar o căutare punctează zeci de anunțuri. O rulare care durează două minute în cloud poate dura o jumătate de oră aici.",
     "Pick a 7B–14B instruct model, and avoid reasoning models.":
         "Alege un model instruct de 7B–14B și evită modelele care raționează.",
-    "are safe choices. Anything that thinks before it answers — names with":
+    "are the ones that answer in the right format. Anything that thinks before it answers — names with":
         "sunt alegeri sigure. Orice model care gândește înainte să răspundă — nume cu",
-    ", and several of the newest gemma and qwen builds — writes its reasoning instead of the answer and this app gets nothing back. Models under about 7B tend to return JSON of the wrong shape, which shows up as jobs that never get a score.":
+    ", and several of the newest gemma and qwen builds — writes its reasoning instead of the answer and this app gets nothing back. Models under about 7B return JSON of the wrong shape, which shows up as jobs that never get a score.":
         ", și câteva dintre cele mai noi versiuni gemma și qwen — își scrie raționamentul în loc de răspuns, iar aplicația nu primește nimic. Modelele sub circa 7B tind să returneze JSON de forma greșită, ceea ce se vede ca joburi care nu primesc niciodată un scor.",
     # ---- what a local model actually costs you in accuracy
     "are the ones that answer in the right format. Anything that thinks before it answers — names with":
@@ -479,7 +478,7 @@ RO = {
         ", și câteva dintre cele mai noi versiuni gemma și qwen — își scrie raționamentul în loc de răspuns, iar aplicația nu primește nimic. Modelele sub circa 7B returnează JSON de forma greșită, ceea ce se vede ca joburi care nu primesc niciodată un scor.",
     "The scores will be rougher.":
         "Scorurile vor fi mai aproximative.",
-    "Measured here on twelve real ads: llama3.1:8b answered 11 of them in about 30 seconds each, but its score differed from the hosted model by around 30 points and it scored higher five times out of six — it parks near 60 for almost everything, including jobs a hosted model rates 10. A list full of 60s looks like a good week and is not. Worth it for privacy, or as the backstop when a free tier runs dry; not the one to judge which jobs deserve an application.":
+    "Measured here on twelve real ads: llama3.1:8b answered 11 of them in about 30 seconds each, but its score differed from the hosted model by around 30 points and it scored higher five times out of six — it parks near 60 for almost everything, including jobs a hosted model rates 10. A list full of 60s looks like a good week and is not. Writing a tailored CV asks much more of it and succeeded once in three tries, taking a minute or two each. Worth it for privacy, or as the backstop when a free tier runs dry; not the one to judge which jobs deserve an application. With a hosted provider saved as well, a local failure costs only the wait, because the next provider in the chain picks it up.":
         "Măsurat aici pe douăsprezece anunțuri reale: llama3.1:8b a răspuns la 11 dintre ele în circa 30 de secunde fiecare, dar scorul lui a diferit de cel al modelului online cu aproximativ 30 de puncte și a punctat mai sus de cinci ori din șase — se oprește pe la 60 aproape pentru orice, inclusiv pentru joburi pe care un model online le dă 10. O listă plină de 60 pare o săptămână bună, dar nu este. Merită pentru intimitate sau ca rezervă când un plan gratuit se golește; nu pentru a judeca ce joburi merită o aplicare.",
     "Measured here on twelve real ads: llama3.1:8b answered 11 of them in about 30 seconds each, but its score differed from the hosted model by around 30 points and it scored higher five times out of six — it parks near 60 for almost everything, including jobs a hosted model rates 10. A list full of 60s looks like a good week and is not. Writing a tailored CV asks much more of it and succeeded once in three tries, taking a minute or two each. Worth it for privacy, or as the backstop when a free tier runs dry; not the one to judge which jobs deserve an application. With a hosted provider saved as well, a local failure costs only the wait, because the next provider in the chain picks it up.":
         "Măsurat aici pe douăsprezece anunțuri reale: llama3.1:8b a răspuns la 11 dintre ele în circa 30 de secunde fiecare, dar scorul lui a diferit de cel al modelului online cu aproximativ 30 de puncte și a punctat mai sus de cinci ori din șase — se oprește pe la 60 aproape pentru orice, inclusiv pentru joburi pe care un model online le dă 10. O listă plină de 60 pare o săptămână bună, dar nu este. Scrierea unui CV adaptat îi cere mult mai mult și a reușit o dată din trei încercări, cu un minut-două de fiecare dată. Merită pentru intimitate sau ca rezervă când un plan gratuit se golește; nu pentru a judeca ce joburi merită o aplicare. Dacă ai salvat și un furnizor online, un eșec local costă doar așteptarea, pentru că preia următorul furnizor din lanț.",
@@ -629,6 +628,46 @@ RO = {
         "Aplicația a întâmpinat o eroare internă. Închide fereastra neagră și dă dublu-clic pe run.bat din nou.",
     "Fill in your profile first: open the Profile tab and upload your CV.":
         "Completează-ți mai întâi profilul: deschide fila Profil și încarcă-ți CV-ul.",
+    "Go back one step":
+        "Înapoi cu un pas",
+    "Every save keeps the copy it replaced. If an upload read your CV badly, or you deleted something you wanted, this puts that copy back. One step only — it is the profile as it was immediately before the most recent save.":
+        "Fiecare salvare păstrează copia pe care a înlocuit-o. Dacă o încărcare ți-a citit greșit CV-ul sau ai șters ceva ce voiai să păstrezi, asta pune copia la loc. Doar un pas — este profilul așa cum era imediat înainte de ultima salvare.",
+    "Restore the previous copy":
+        "Restaurează copia anterioară",
+    "This replaces what is on the page now with the copy from before your last save. Anything typed since then is lost. Continue?":
+        "Asta înlocuiește ce este acum pe pagină cu copia dinainte de ultima salvare. Tot ce ai scris de atunci se pierde. Continui?",
+    "Put back the copy from before your last save.":
+        "Am pus la loc copia dinainte de ultima salvare.",
+    "restoring...":
+        "restaurez...",
+    "Paste the text of your CV into the box first.":
+        "Lipește mai întâi textul CV-ului în casetă.",
+    "This replaces your whole profile with whatever the model reads out of that text. The copy it replaces is kept as profile.previous.json. Continue?":
+        "Asta îți înlocuiește tot profilul cu ce citește modelul din acel text. Copia înlocuită este păstrată ca profile.previous.json. Continui?",
+    "Your last change could not be saved, so the CV was not built. Fix that first or the PDF will be out of date.":
+        "Ultima modificare nu a putut fi salvată, așa că CV-ul nu a fost generat. Rezolvă asta întâi, altfel PDF-ul va fi depășit.",
+    "Building your CV — the download starts in a moment.":
+        "Îți generez CV-ul — descărcarea începe imediat.",
+    "building...":
+        "generez...",
+    "Could not load the ad.":
+        "Nu am putut încărca anunțul.",
+    "Could not check the board sign-ins just now.":
+        "Nu am putut verifica acum autentificările pe site-uri.",
+    "Could not read your profile, so the checklist and the alerts above are not showing. The app itself is fine - reload the page.":
+        "Nu am putut citi profilul, așa că lista de verificare și alertele de mai sus nu apar. Aplicația în sine funcționează - reîncarcă pagina.",
+    "Could not read the CV templates. The rest of the page still works.":
+        "Nu am putut citi șabloanele de CV. Restul paginii funcționează.",
+    "No templates found in templates/cv/.":
+        "Niciun șablon găsit în templates/cv/.",
+    "Your photo will be put on new CVs.":
+        "Poza ta va fi pusă pe CV-urile noi.",
+    "New CVs will be written without a photo.":
+        "CV-urile noi vor fi scrise fără poză.",
+    "Erased {n} item(s). Starting fresh.":
+        "Am șters {n} element(e). O luăm de la capăt.",
+    "Erased {n} item(s), but {k} could NOT be removed and are still on this PC: {which}. Close the app (the black run.bat window) and press this again.":
+        "Am șters {n} element(e), dar {k} NU au putut fi șterse și sunt încă pe acest PC: {which}. Închide aplicația (fereastra neagră run.bat) și apasă din nou aici.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

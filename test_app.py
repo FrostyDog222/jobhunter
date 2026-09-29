@@ -180,10 +180,12 @@ assert _match("hipo", "aplica fara cv") and _match("hipo", "aplică fără cv")
 assert _match("hipo", "apply to this job") and _match("hipo", "apply without cv")
 # a nearby-but-wrong control must still not match
 assert not _match("hipo", "apply with linkedin")
-# Hipo's question fields are named intrebari[<id>]. The cover-letter box sits on the same
-# form and must NOT be scoped in as a question - it would read as unanswered and block
-# every send.
-assert "intrebari" in _pf.HIPO_Q and "scrisoare" not in _pf.HIPO_Q
+# Hipo never reaches board_apply: it is manual-apply, and every route in is behind
+# apply_mode(...) == "auto". The screening-form handling written for it was unreachable and is
+# gone; this asserts it stays that way rather than quietly coming back.
+assert not hasattr(_pf, "HIPO_Q") and not hasattr(_pf, "_hipo_form")
+assert "hipo" in _pf.MANUAL_APPLY and "hipo" not in _pf.AUTO_APPLY
+assert 'board == "hipo"' not in _i.getsource(_pf.board_apply)
 # Hipo confirms with "Ati aplicat deja la acest job" - the words the other way round from
 # "deja aplicat", so a real application read as "saw no confirmation" until this was added
 assert any(m in "ati aplicat deja la acest job" for m in _pf.BOARD_UI["hipo"]["applied"])
@@ -1735,5 +1737,42 @@ _tracked = [app.HERE / _t for _t in subprocess.run(
 if _tracked:                                  # a copy unzipped outside git has nothing to check
     _hits = _sh2.secrets_in(_tracked)
     assert not _hits, f"share.bat would refuse to build: key-shaped text in {_hits}"
+
+
+# 5a. A translation key one word out of date never matches anything again, and nothing
+# complains: the paragraph simply shows through in English on a Romanian page. Four had rotted
+# that way, including both paragraphs of the local-model advice.
+_sq = lambda x: _re.sub(r"[^a-z0-9]+", "", x.lower())
+_all_src = _sq("\n".join(
+    [f.read_text(encoding="utf-8") for f in (app.HERE / "templates").rglob("*.html")]
+    + [f.read_text(encoding="utf-8") for f in app.HERE.glob("*.py") if f.name != "lang.py"]))
+_rotted = [k for k in _lg.RO if _sq(k) not in _all_src]
+assert not _rotted, ("these translations can never fire again - the English moved on without "
+                     f"them: {[k[:60] for k in _rotted]}")
+
+# 5b. Every label points at an element that exists. The last pass attached 46 labels and checked
+# only that none was left bare - so four chip labels pointed at ids that were never added, which
+# is exactly as useless as no label at all.
+for _page in ("/", "/profile"):
+    _h = _cl.get(_page).text
+    _ids = set(_re.findall(r'\bid="([^"]+)"', _h))
+    # ...including the ones the page builds itself, whose id is a template literal
+    _tpl_ids = set(_re.findall(r'\bid="([a-z_]+)\$\{', _h))
+    for _for in _re.findall(r'<label for="([^"]+)"', _h):
+        _ok = _for in _ids or any(_for.startswith(pre) for pre in _tpl_ids)
+        assert _ok, f"{_page}: <label for={_for!r}> names an element that does not exist"
+
+# 5c. The app has kept a copy of the profile before every save since the day that was added, and
+# there was no way to reach it: no button, no link, nothing in the README. A safety net nobody
+# can get to is not a safety net.
+_prof5c = (app.HERE / "templates" / "profile.html").read_text(encoding="utf-8")
+assert "/api/profile/restore" in _prof5c, "the previous copy still has no door"
+assert "clearTimeout(_timer)" in _prof5c.split("#restore")[1][:600], \
+    "restoring leaves the pending autosave to put the old profile straight back"
+
+# 5d. Hipo cannot reach board_apply, so nothing there may pretend to handle it. (The selector
+# and the form-preselect written for it were unreachable and are gone; see 1n.)
+_bsrc = _iK.getsource(_pfm.board_apply)
+assert "hipo" not in _bsrc.lower(), "board_apply is handling a board that never arrives"
 
 print("ok")

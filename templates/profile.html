@@ -170,6 +170,15 @@
     the board sign-ins, your settings and the weekly schedule. It cannot be undone, and it does
     not touch anything on eJobs, BestJobs or Hipo: applications you have already sent stay sent.</p>
   <button id="purge" style="background:var(--bad)">Erase all my data</button>
+  <p id="purgefailed" class="warn" style="display:none;margin:10px 0 0"></p>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Go back one step</h2>
+  <p class="muted" style="margin:0 0 10px">Every save keeps the copy it replaced. If an upload
+    read your CV badly, or you deleted something you wanted, this puts that copy back. One step
+    only — it is the profile as it was immediately before the most recent save.</p>
+  <button id="restore" class="ghost">Restore the previous copy</button>
 </div>
 
 <div class="bar"><button id="save">Save profile</button><span class="muted" id="saved"></span>
@@ -262,10 +271,6 @@ document.addEventListener('click', e => {
   // lands on the NEXT language's button and removed two
   if(d !== undefined && e.detail <= 1){ P.languages.splice(+d,1); renderLangs(); touched(); }
 });
-
-function chipPaths(){
-  return CHIPS.concat((P.experience||[]).map((_,i) => `experience.${i}.bullets`));
-}
 
 function commit(input, path){
   const v = input.value.trim();
@@ -565,6 +570,17 @@ api('/api/settings', undefined, 'GET')
 loadPhoto();
 
 /* ---------- erase everything ---------- */
+$('#restore').onclick = e => busy(e.target, async () => {
+  if(!confirm(t('This replaces what is on the page now with the copy from before your last '
+             + 'save. Anything typed since then is lost. Continue?'))) return;
+  // the pending autosave first: it would otherwise fire after the restore and put the current
+  // profile straight back, exactly as it used to do after Erase everything
+  clearTimeout(_timer);
+  P = await api('/api/profile/restore', {});
+  render(); DIRTY = false; mark('saved');
+  toast(t('Put back the copy from before your last save.'), 6000);
+}, 'restoring...');
+
 $('#purge').onclick = e => busy(e.target, async () => {
   // Two questions on purpose, and the second one has to be typed: this is the only button in
   // the app that destroys something no backup here can bring back.
@@ -580,11 +596,18 @@ $('#purge').onclick = e => busy(e.target, async () => {
   // whole profile back AFTER the wipe - re-creating profile.json from the copy in this tab,
   // straight past the wipe guard, because by then there is nothing on disk left to guard.
   clearTimeout(_timer); DIRTY = false; LOADED = false; P = {};
-  toast(r.failed && r.failed.length
-    ? `Erased ${r.removed.length} item(s), but ${r.failed.length} could NOT be removed and are `
-      + `still on this PC: ${r.failed.map(f => String(f).split(':')[0]).join(', ')}. `
-      + `Close the app (the black run.bat window) and try again.`
-    : `Erased ${r.removed.length} item(s). Starting fresh.`, r.failed && r.failed.length ? 20000 : 8000);
+  if(r.failed && r.failed.length){
+    // No reload on a partial failure. It used to reload 1.2s later, which wiped the one message
+    // that matters - the list of files still sitting on this PC - before it could be read.
+    // The page below is empty anyway now, so there is nothing to refresh it for.
+    $('#purgefailed').textContent = fill('Erased {n} item(s), but {k} could NOT be removed and '
+      + 'are still on this PC: {which}. Close the app (the black run.bat window) and press this '
+      + 'again.', {n: r.removed.length, k: r.failed.length,
+                   which: r.failed.map(f => String(f).split(':')[0]).join(', ')});
+    $('#purgefailed').style.display = 'block';
+    return;
+  }
+  toast(fill('Erased {n} item(s). Starting fresh.', {n: r.removed.length}), 8000);
   setTimeout(() => location.reload(), 1200);
 }, 'erasing...');
 

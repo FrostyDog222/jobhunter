@@ -303,6 +303,9 @@ and rebuilds it.
     update.py     the update, and the one list of what it may never overwrite
     auto.py       the weekly run, started by Windows Task Scheduler
     auto_apply.py the applying step of the weekly run, and the limits on it
+    lang.py       the Romanian for every sentence in the app, keyed by the English
+    test_app.py   the whole suite; `python test_app.py` prints ok or the first failure
+    restart.ps1   restarts the server while you work on it; nothing in the app calls it
 
     profile.json  your data          settings.json  your preferences
     db.sqlite     jobs and history   out/           generated CVs
