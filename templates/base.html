@@ -95,9 +95,14 @@ a{color:var(--accent)} a:hover{text-decoration:none}
 #alerts .alert .muted{font-size:12.8px}
 #alerts .alert a.act{white-space:nowrap;font-weight:600;font-size:13px;align-self:center}
 .chainrow{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;
+  flex-wrap:wrap;          /* on a phone the two buttons drop to their own line instead of
+                              pushing the model name off the side of the card */
   border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
 .chainrow .mark{width:12px;flex:0 0 auto}
-.chainrow .gap{flex:1}
+/* a model name is "nvidia/deepseek-ai/deepseek-v4.1-flash" - longer than a phone is wide, so it
+   shortens with an ellipsis rather than deciding how wide the row is */
+.chainrow .muted{flex:1 1 90px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chainrow .gap{flex:1 1 0;min-width:0}
 button.tiny{padding:3px 9px;font-size:12px}
 button.ghost.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
 button.ghost.danger:hover:not(:disabled){color:var(--bad);border-color:var(--bad)}

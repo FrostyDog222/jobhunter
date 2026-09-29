@@ -359,8 +359,22 @@ def _set_auto(body):
               "auto_county", "auto_country", "keep_signed_in",
               "auto_min_fit", "auto_apply", "auto_apply_min_fit",
               "auto_apply_cap"):
-        if k in body:
-            cur[k] = body[k]
+        if k not in body:
+            continue
+        # The same check /api/settings does, for the same reason: every one of these is written
+        # to disk and read back on every request, so the wrong type is not a request that fails
+        # once - it is a file that breaks the app until someone edits it by hand.
+        # {"auto_query": 123} got written, and then "type what it should search for" tried to
+        # .strip() an int on every save after that.
+        # the three numbers are clamped a few lines down, which also answers 8.5 and "90" with
+        # a sentence about numbers rather than about types
+        numeric = isinstance(DEFAULTS[k], int) and not isinstance(DEFAULTS[k], bool)
+        if not _same_shape(body[k], DEFAULTS[k]) and not numeric:
+            raise HTTPException(400, f"{k} must be {type(DEFAULTS[k]).__name__}, "
+                                     f"not {type(body[k]).__name__}")
+        if isinstance(body[k], str) and len(body[k]) > 2000:
+            raise HTTPException(400, f"{k} is too long")
+        cur[k] = body[k]
     if cur["auto_day"] not in DAYS:
         raise HTTPException(400, f"not a day: {cur['auto_day']}")
     if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", str(cur["auto_time"])):

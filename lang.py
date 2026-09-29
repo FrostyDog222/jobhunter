@@ -579,6 +579,8 @@ RO = {
         "mai bun fără poză",
     "works either way":
         "arată bine oricum",
+    "Default template: {name}.":
+        "Șablon implicit: {name}.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

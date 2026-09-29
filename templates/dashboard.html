@@ -50,6 +50,7 @@
 .advanced{display:none;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:12px;
   border-top:1px solid var(--line)}
 .advanced.open{display:flex} .advanced>div{flex:1;min-width:130px}
+.tpl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 /* ---- stats ---- */
 .stats{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 12px}
@@ -188,14 +189,14 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 <div class="card panel" id="setup">
   <b>AI model</b>
   <div class="row" style="margin-top:8px">
-    <div><label>Provider</label><select id="prov"></select>
+    <div><label for="prov">Provider</label><select id="prov"></select>
       <a id="keylink" class="keylink" href="#" target="_blank" rel="noopener">Get a key ↗</a></div>
-    <div style="flex:2"><label>API key</label>
+    <div style="flex:2"><label for="key">API key</label>
       <input id="key" type="password" placeholder="leave blank to keep the saved one">
       <span class="muted" id="keynote" style="font-size:12.5px;display:block;margin-top:4px"></span></div>
   </div>
   <div class="row">
-    <div style="flex:2"><label>Model</label>
+    <div style="flex:2"><label for="model">Model</label>
       <input id="model" list="modellist" placeholder="provider default">
       <datalist id="modellist"></datalist></div>
     <div style="flex:0 0 auto;display:flex;align-items:flex-end;gap:8px">
@@ -279,23 +280,23 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 
   <b style="display:block;margin-top:18px">Defaults</b>
   <div class="row" style="margin-top:8px">
-    <div><label>CV language</label>
+    <div><label for="lang">CV language</label>
       <select id="lang">
         <option value="auto" selected>Match the job ad</option>
         <option value="en">Always English</option>
         <option value="ro">Always Romanian</option>
       </select></div>
-    <div><label>ATS prefill</label>
+    <div><label for="headless">ATS prefill</label>
       <select id="headless">
         <option value="">Open the browser to review</option>
         <option value="1">Dry run — just report</option>
       </select></div>
-    <div><label>Interface language</label>
+    <div><label for="ui_lang">Interface language</label>
       <select id="ui_lang" title="The language of this page. The language your CV is written in is the setting to the left.">
         <option value="en">English</option>
         <option value="ro">Română</option>
       </select></div>
-    <div><label>Clock</label>
+    <div><label for="clock">Clock</label>
       <select id="clock" title="How times are shown on this page. It changes nothing that is stored.">
         <option value="24">24-hour — 14:30</option>
         <option value="12">12-hour — 2:30 PM</option>
@@ -308,7 +309,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     marked, not hidden, because a job worth moving for is your call. Remote and hybrid ads are
     never flagged, and ads that name no location are left alone.</p>
   <div class="row">
-    <div class="small"><label>My county</label>
+    <div class="small"><label for="home_county">My county</label>
       <select id="home_county">
         <option value="">Do not judge distance</option>
         {% for slug, name in counties %}<option value="{{ slug }}">{{ name }}</option>
@@ -347,23 +348,23 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       font-size:13.5px;cursor:pointer"><input type="checkbox" id="auto_enabled" style="width:auto">
       Search and score every week, on its own</label>
     <div class="row">
-      <div><label>Day</label><select id="auto_day">
+      <div><label for="auto_day">Day</label><select id="auto_day">
         <option value="MON">Monday</option><option value="TUE">Tuesday</option>
         <option value="WED">Wednesday</option><option value="THU">Thursday</option>
         <option value="FRI">Friday</option><option value="SAT">Saturday</option>
         <option value="SUN" selected>Sunday</option></select></div>
-      <div><label>Time</label><input id="auto_time" type="time" value="09:00"></div>
-      <div><label>Worth my attention from</label><input id="auto_min_fit" type="number"
+      <div><label for="auto_time">Time</label><input id="auto_time" type="time" value="09:00"></div>
+      <div><label for="auto_min_fit">Worth my attention from</label><input id="auto_min_fit" type="number"
         min="0" max="100" step="5" value="75" title="Jobs scoring this or higher are counted in the summary"></div>
     </div>
     <div class="row">
-      <div style="flex:3"><label>Job titles to search for</label>
+      <div style="flex:3"><label for="auto_query">Job titles to search for</label>
         <input id="auto_query" list="qterms"
           placeholder="customer support, suport clienti, technical support"
           title="Job titles, separated by commas. Each one is searched on its own."></div>
-      <div class="small"><label>City</label><select id="auto_location"></select></div>
-      <div class="small"><label>County</label><select id="auto_county"></select></div>
-      <div class="small"><label>Country</label><select id="auto_country"></select></div>
+      <div class="small"><label for="auto_location">City</label><select id="auto_location"></select></div>
+      <div class="small"><label for="auto_county">County</label><select id="auto_county"></select></div>
+      <div class="small"><label for="auto_country">Country</label><select id="auto_country"></select></div>
     </div>
     <p class="muted" style="margin:6px 0 0">The job titles you would type into the search bar at
       the top — <b>not</b> a description of yourself. Separate them with commas: each one is
@@ -381,9 +382,9 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="auto_apply"
       style="width:auto"> <b style="color:var(--mid)">Also apply for me, without asking</b></label>
     <div class="row" id="applyrow">
-      <div><label>Only jobs scoring</label><input id="auto_apply_min_fit" type="number"
+      <div><label for="auto_apply_min_fit">Only jobs scoring</label><input id="auto_apply_min_fit" type="number"
         min="0" max="100" step="5" value="85"></div>
-      <div><label>At most, per week</label><input id="auto_apply_cap" type="number"
+      <div><label for="auto_apply_cap">At most, per week</label><input id="auto_apply_cap" type="number"
         min="1" max="20" step="1" value="5"></div>
       <div style="flex:2;display:flex;align-items:flex-end">
         <span class="muted" style="font-size:12.5px">On eJobs and BestJobs only — the boards that
@@ -455,15 +456,15 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 
 <div class="card">
   <div class="searchbar">
-    <div class="grow"><label>Search jobs for</label>
+    <div class="grow"><label for="q">Search jobs for</label>
       <input id="q" list="qterms" placeholder="customer support, suport clienti, relatii clienti"
         title="Pick from the suggestions or type your own, separated by commas">
       <datalist id="qterms"></datalist></div>
-    <div class="small"><label>Preset</label>
+    <div class="small"><label for="preset">Preset</label>
       <select id="preset" title="Fills the box with terms for one role family. Edit before searching if you like.">
         <option value="">Pick a role family…</option>
       </select></div>
-    <div class="small"><label>City</label>
+    <div class="small"><label for="loc">City</label>
       <select id="loc">
         <option value="" selected>Anywhere in the country</option>
         <option value="bucuresti">București</option>
@@ -483,12 +484,12 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
         <option value="targu-mures">Târgu Mureș</option>
         <option value="remote">Remote</option>
       </select></div>
-    <div class="small"><label>County</label>
+    <div class="small"><label for="county">County</label>
       <select id="county" title="Judetul. Picking a city already narrows it further, so a city wins over this.">
         <option value="" selected>Any county</option>
         {% for slug, name in counties %}<option value="{{ slug }}">{{ name }}</option>
         {% endfor %}</select></div>
-    <div class="small"><label>Country</label>
+    <div class="small"><label for="country">Country</label>
       <select id="country">
         <option value="ro" selected>Romania</option>
         <option value="*">Worldwide</option>
@@ -514,16 +515,16 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <div style="flex:1 1 100%;margin:0"><span class="muted" style="font-size:12.5px">These four
       narrow the freehire results only — eJobs and Hipo have no equivalent, so they come back
       unfiltered.</span></div>
-    <div><label>Freshness</label><select id="fresh">
+    <div><label for="fresh">Freshness</label><select id="fresh">
       <option value="fresh" selected>Fresh only</option><option value="">Any age</option></select></div>
-    <div><label>Work mode</label><select id="work_mode">
+    <div><label for="work_mode">Work mode</label><select id="work_mode">
       <option value="">Any</option><option value="remote">Remote</option>
       <option value="hybrid">Hybrid</option><option value="onsite">On-site</option></select></div>
-    <div><label>Seniority</label><select id="seniority">
+    <div><label for="seniority">Seniority</label><select id="seniority">
       <option value="">Any</option><option value="intern">Intern</option>
       <option value="junior">Junior</option><option value="middle">Mid</option>
       <option value="senior">Senior</option><option value="lead">Lead</option></select></div>
-    <div><label>Application type</label><select id="ats">
+    <div><label for="ats">Application type</label><select id="ats">
       <option value="">Any</option><option value="true">ATS form only</option></select></div>
   </div>
 
@@ -906,7 +907,12 @@ $('#autonow').onclick = e => busy(e.target, async () => {
 
 /* ---------- CV templates ---------- */
 function tplCards(selected){
-  return Object.entries(TPLS).map(([k, t]) => `<div class="tpl ${k === selected ? 'on' : ''}" data-tpl="${esc(k)}">
+  // role/tabindex/aria-pressed: these are buttons drawn as cards. As plain divs they were
+  // unfocusable and silent, which made the template your CV is built from the only setting on
+  // the page you could not reach without a mouse.
+  return Object.entries(TPLS).map(([k, t]) => `<div class="tpl ${k === selected ? 'on' : ''}"
+      data-tpl="${esc(k)}" role="button" tabindex="0"
+      aria-pressed="${k === selected}">
       <img src="/api/cv/thumb/${esc(k)}.png" alt="${esc(t.name)} template preview">
       <b>${esc(t.name)}</b><span>${esc(t.blurb)}</span></div>`).join('');
 }
@@ -915,10 +921,19 @@ function drawTemplates(){
     || '<span class="muted">No templates found in templates/cv/.</span>';
   localiseDOM();   // this panel is innerHTML, so the server pass never saw it
 }
-$('#tplpick').addEventListener('click', e => {
-  const c = e.target.closest('.tpl'); if(!c) return;
+function pickTemplate(c){
   saveSettings({cv_template: c.dataset.tpl});
-  toast(`Default template: ${TPLS[c.dataset.tpl].name}.`);
+  toast(fill('Default template: {name}.', {name: TPLS[c.dataset.tpl].name}));
+}
+$('#tplpick').addEventListener('click', e => {
+  const c = e.target.closest('.tpl'); if(c) pickTemplate(c);
+});
+// Enter and Space, because that is what a button does - and preventDefault on Space, or the
+// page scrolls instead of choosing
+$('#tplpick').addEventListener('keydown', e => {
+  if(e.key !== 'Enter' && e.key !== ' ') return;
+  const c = e.target.closest('.tpl'); if(!c) return;
+  e.preventDefault(); pickTemplate(c);
 });
 // -> a template key, or null if cancelled. Asks only when there is no default or you asked it to.
 const PHOTO_HINT = {yes: 'better with one', no: 'this one is better without',
@@ -1129,7 +1144,8 @@ async function loadLlm(){
         return `<div class="chainrow" data-prov="${esc(n)}">
          <span class="mark">${c && c.live ? '▶' : '<span style="opacity:.35">·</span>'}</span>
          <b${p.paused ? ' style="opacity:.5"' : ''}>${esc(n)}</b>
-         <span class="muted">${esc(c ? c.model : (p.default || ''))}</span>
+         <span class="muted" title="${esc(c ? c.model : (p.default || ''))}"
+           >${esc(c ? c.model : (p.default || ''))}</span>
          ${p.paused ? `<span class="pill">${t('paused')}</span>` : ''}
          ${c && c.blocked ? '<span class="pill" style="border-color:var(--bad);color:var(--bad)">'
              + t('spent') + '</span>' : ''}

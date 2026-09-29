@@ -1383,11 +1383,28 @@ def board_status():
         return {b: _cookie_session(b) for b in BOARD_UI}
 
 
+SIGNIN_LOG_CAP = 512 * 1024      # what a few dozen sign-ins come to; older ones are not useful
+
+
 def _log():
     """Subprocess output goes to a file, not a pipe. A pipe fills at ~64KB and blocks the child
     (Chromium is chatty); DEVNULL avoids that but discards the diagnostics we need when a
-    sign-in quietly fails."""
-    return open(HERE / "signin.log", "a", encoding="utf-8", errors="replace")
+    sign-in quietly fails.
+
+    Appended to for ever, though, with the keep-alive task adding to it every half hour. Kept to
+    the most recent half a megabyte: what is worth reading is the sign-in that just failed.
+    """
+    path = HERE / "signin.log"
+    try:
+        if path.stat().st_size > SIGNIN_LOG_CAP:
+            with open(path, "rb") as f:
+                f.seek(-SIGNIN_LOG_CAP // 2, 2)
+                f.readline()                  # start at a line break, not mid-character
+                tail = f.read()
+            path.write_bytes(b"[older lines trimmed]\n" + tail)
+    except OSError:
+        pass                                  # a log we cannot trim is not worth failing over
+    return open(path, "a", encoding="utf-8", errors="replace")
 
 
 def signin(url):

@@ -51,22 +51,22 @@
 
 <h2>Basics</h2>
 <div class="card row">
-  <div><label>Full name</label><input data-f="name"></div>
-  <div><label>Headline / target role</label><input data-f="title"></div>
+  <div><label for="f_name">Full name</label><input data-f="name" id="f_name"></div>
+  <div><label for="f_title">Headline / target role</label><input data-f="title" id="f_title"></div>
 </div>
 <div class="card row">
-  <div><label>Email</label><input data-f="email"></div>
-  <div><label>Phone</label><input data-f="phone"></div>
-  <div><label>Location</label><input data-f="location"></div>
+  <div><label for="f_email">Email</label><input data-f="email" id="f_email"></div>
+  <div><label for="f_phone">Phone</label><input data-f="phone" id="f_phone"></div>
+  <div><label for="f_location">Location</label><input data-f="location" id="f_location"></div>
 </div>
 <div class="card">
-  <label>Links</label><div class="chips" id="c_links"></div>
-  <label>Summary</label><textarea data-f="summary"></textarea>
+  <label for="chip_links">Links</label><div class="chips" id="c_links"></div>
+  <label for="f_summary">Summary</label><textarea data-f="summary" id="f_summary"></textarea>
 </div>
 
 <label class="muted" style="display:flex;gap:8px;align-items:flex-start;margin:18px 0 0;
        font-size:13.5px;cursor:pointer;max-width:70ch">
-  <input type="checkbox" data-f="new_to_work" style="width:auto;margin-top:3px">
+  <input type="checkbox" data-f="new_to_work" id="f_new_to_work" style="width:auto;margin-top:3px">
   <span><b>I am new to the workforce — no paid job yet.</b> Scoring stops treating "no
     experience" as a fault on every ad and looks at what an employer hiring a beginner actually
     checks: your studies, a licence, languages, and whether the job trains you. Fill in
@@ -83,9 +83,9 @@
 
 <h2>Skills &amp; more</h2>
 <div class="card">
-  <label>Skills</label><div class="chips" id="c_skills"></div>
-  <label>Certifications</label><div class="chips" id="c_certifications"></div>
-  <label>Interests / hobbies</label><div class="chips" id="c_hobbies"></div>
+  <label for="chip_skills">Skills</label><div class="chips" id="c_skills"></div>
+  <label for="chip_certifications">Certifications</label><div class="chips" id="c_certifications"></div>
+  <label for="chip_hobbies">Interests / hobbies</label><div class="chips" id="c_hobbies"></div>
 </div>
 
 <h2>Application answers</h2>
@@ -94,9 +94,9 @@
     goes through. These are the questions no CV answers, so the app fills them with exactly what
     you write here and leaves them blank if you do not. It never invents a figure.</p>
   <div class="row">
-    <div><label>Salary expectation</label>
+    <div><label for="f_salary_expectation">Salary expectation</label>
       <div style="display:flex;gap:6px">
-        <input data-f="salary_expectation" placeholder="e.g. 5500 net / month" style="flex:1">
+        <input data-f="salary_expectation" id="f_salary_expectation" placeholder="e.g. 5500 net / month" style="flex:1">
         <select id="salary_currency" style="flex:0 0 auto;width:auto"
           title="Writes the currency into the answer beside your figure">
           <option value="">currency</option>
@@ -105,10 +105,10 @@
           <option value="RON">RON (lei)</option>
         </select>
       </div></div>
-    <div><label>Notice period</label>
-      <input data-f="notice_period" placeholder="e.g. 30 days"></div>
-    <div><label>Earliest start</label>
-      <input data-f="earliest_start" placeholder="e.g. immediately"></div>
+    <div><label for="f_notice_period">Notice period</label>
+      <input data-f="notice_period" id="f_notice_period" placeholder="e.g. 30 days"></div>
+    <div><label for="f_earliest_start">Earliest start</label>
+      <input data-f="earliest_start" id="f_earliest_start" placeholder="e.g. immediately"></div>
   </div>
 </div>
 
@@ -155,7 +155,7 @@
     are written per posting, from the job list.</p>
   <!-- "Language" alone reads as the language of the APP, which is a different setting and
        lives in the bar at the top of this page. -->
-  <div class="small" style="max-width:210px;margin-bottom:12px"><label>Language of the CV</label>
+  <div class="small" style="max-width:210px;margin-bottom:12px"><label for="cvlang">Language of the CV</label>
     <select id="cvlang" title="Which language the downloaded PDF is written in. The language of this page is the switch at the top.">
       <option value="en">English</option>
       <option value="ro">Română</option></select></div>
@@ -205,10 +205,10 @@ function renderList(key){
   box.innerHTML = (P[key]||[]).map((item,i) => `<div class="entry" data-i="${i}">
     <button class="ghost del" data-del="${key}" data-idx="${i}">✕</button>
     ${FIELDS[key].map(f => f==='bullets'
-      ? `<label>What you did</label><div class="chips" id="c_${key}.${i}.${f}"></div>`
+      ? `<label for="chip_${key}.${i}.${f}">What you did</label><div class="chips" id="c_${key}.${i}.${f}"></div>`
       : f==='desc'
-      ? `<label>${lab(f)}</label><textarea data-e="${key}.${i}.${f}">${esc(item[f])}</textarea>`
-      : `<label>${lab(f)}</label><input data-e="${key}.${i}.${f}" value="${esc(item[f])}">`).join('')}
+      ? `<label for="e_${key}.${i}.${f}">${lab(f)}</label><textarea id="e_${key}.${i}.${f}" data-e="${key}.${i}.${f}">${esc(item[f])}</textarea>`
+      : `<label for="e_${key}.${i}.${f}">${lab(f)}</label><input id="e_${key}.${i}.${f}" data-e="${key}.${i}.${f}" value="${esc(item[f])}">`).join('')}
   </div>`).join('') || '<p class="muted">Nothing yet.</p>';
   if(key === 'experience') (P.experience||[]).forEach((_,i) => renderChips(`experience.${i}.bullets`));
   localiseDOM(box);        // built with innerHTML, so the server's pass never saw it
@@ -239,8 +239,9 @@ function renderChips(path){
 
 function renderLangs(){
   $('#langs').innerHTML = (P.languages||[]).map((l,i) => `<div class="lang">
-      <input data-lang="${i}" data-k="name" value="${esc(l.name)}" placeholder="Language">
-      <select data-lang="${i}" data-k="level">
+      <input data-lang="${i}" data-k="name" value="${esc(l.name)}" placeholder="Language"
+             aria-label="Language">
+      <select data-lang="${i}" data-k="level" aria-label="Level">
         <option value="">level…</option>
         ${LEVELS.map(v => `<option ${v===l.level?'selected':''}>${v}</option>`).join('')}
         ${l.level && !LEVELS.includes(l.level) ? `<option selected>${esc(l.level)}</option>` : ''}

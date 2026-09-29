@@ -1470,8 +1470,8 @@ assert "visited.append(BOARD_APEX" in _vsrc
 # and swaps it in first. Nothing ever wrote that file, so an update overwrote the script that
 # was running it and execution carried on at that offset in different text.
 import tempfile as _tf, shutil as _sh, zipfile as _zf
-import contextlib as _cl, io as _io
-_quiet = lambda: _cl.redirect_stdout(_io.StringIO())   # apply()/main() narrate
+import contextlib as _ctxl, io as _io
+_quiet = lambda: _ctxl.redirect_stdout(_io.StringIO())   # apply()/main() narrate
 import update as _up, share as _sh2
 _sand = pathlib.Path(_tf.mkdtemp())
 assert app.HERE != _sand and app.HERE not in _sand.parents, "the sandbox is not a sandbox"
@@ -1609,5 +1609,70 @@ import lang as _lg
 for _en in ("Job title", "Employer", "Qualification", "What you did", "Nothing yet.",
             "No languages yet.", "Native", "Beginner", "+ add", "Use this"):
     assert _en in _lg.RO, f"the profile page can say {_en!r} and Romanian cannot"
+
+
+# 4s. /api/auto took any type at all. Every one of these is written to disk and read back on
+# every request, so the wrong type is not a request that fails once - it is a file that breaks
+# the app until someone edits it by hand. {"auto_query": 123} got written, and then "type what
+# it should search for" tried to .strip() an int on every save after that.
+_keep_set = app.SETTINGS
+_tmpset = pathlib.Path(_tf.mkdtemp()) / "s.json"
+assert app.HERE not in _tmpset.parents, "not sandboxed"
+_GOOD_AUTO = {"auto_enabled": False, "auto_day": "SUN", "auto_time": "09:00",
+              "auto_query": "manager", "keep_signed_in": False, "auto_min_fit": 75,
+              "auto_apply": False, "auto_apply_min_fit": 85, "auto_apply_cap": 5}
+try:
+    app.SETTINGS = _tmpset
+    for _body, _want in (({"auto_query": 123}, "auto_query must be str, not int"),
+                         ({"auto_enabled": "yes"}, "auto_enabled must be bool, not str"),
+                         ({"auto_county": ["cluj"]}, "auto_county must be str, not list"),
+                         ({"keep_signed_in": {}}, "keep_signed_in must be bool, not dict"),
+                         ({"auto_query": "x" * 2001}, "auto_query is too long"),
+                         # a number still gets the sentence about numbers, not about types
+                         ({"auto_min_fit": "high"}, "the score and the cap must be numbers")):
+        try:
+            app._set_auto({**_GOOD_AUTO, **_body})
+            raise AssertionError(f"accepted {_body}")
+        except _HE as _e:
+            assert str(_e.detail) == _want, f"{_body}: {_e.detail}"
+    assert not _tmpset.exists(), "a rejected save still wrote settings.json"
+finally:
+    app.SETTINGS = _keep_set
+
+# 4t. signin.log was appended to for ever, with the keep-alive adding to it every half hour.
+_tmplog = pathlib.Path(_tf.mkdtemp())
+_keep_ph = _pfm.HERE
+try:
+    _pfm.HERE = _tmplog
+    (_tmplog / "signin.log").write_bytes(b"padding padding padding padding\n" * 40000)
+    _fh = _pfm._log(); _fh.write("after\n"); _fh.close()
+    _size = (_tmplog / "signin.log").stat().st_size
+    assert _size < _pfm.SIGNIN_LOG_CAP, f"the log is not trimmed: {_size}"
+    assert (_tmplog / "signin.log").read_bytes().startswith(b"[older lines trimmed]")
+    # ...and a small log is left exactly alone
+    (_tmplog / "signin.log").write_bytes(b"short\n")
+    _fh = _pfm._log(); _fh.close()
+    assert (_tmplog / "signin.log").read_bytes() == b"short\n"
+finally:
+    _pfm.HERE = _keep_ph
+    _sh.rmtree(_tmplog, ignore_errors=True)
+
+# 4u. Every label on both pages names the field it sits next to. A <label> with no `for` is
+# decoration: the control is announced as unlabelled and clicking the word does nothing - which
+# matters most for a checkbox, where the target was the box alone. And the CV template cards
+# were divs with a click listener, so choosing the template your CV is built from was the one
+# setting on the page a keyboard could not reach.
+import re as _reL
+for _page in ("/", "/profile"):
+    _html = _cl.get(_page).text
+    for _m in _reL.finditer(r"<label(?! for=)[^>]*>(.*?)</label>", _html, _reL.S):
+        # a label that WRAPS its control needs no for=; anything else names nothing
+        assert _reL.search(r"<(input|select|textarea)\b", _m.group(1)), \
+            f"{_page}: a label names nothing: {' '.join(_m.group(1).split())[:60]!r}"
+_dash4u = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+for _need in ('role="button"', 'tabindex="0"', "aria-pressed", "keydown"):
+    assert _need in _dash4u.split("function tplCards")[1][:2000] \
+        or _need in _dash4u.split("function pickTemplate")[1][:900], \
+        f"the CV template cards are still mouse-only: no {_need}"
 
 print("ok")
