@@ -393,7 +393,25 @@ RO = {
         "Site-urile reînnoiesc autentificarea de fiecare dată când sunt deschise, așa că Windows le vizitează la câteva ore în fundal și sesiunea nu expiră niciodată. A celor de la Hipo ține cam șase ore de la sine, deci fără asta ești deconectat mai tot timpul. Nu trimite nimic și nu aplică nicăieri — doar încarcă fiecare site. Oprește-o și autentificările expiră din nou singure.",
     "— after that search, it applies to the highest-scoring jobs on eJobs and BestJobs only, up to the cap you set. Hipo and employer forms are never sent for you. A board apply attaches the CV stored on that board's profile, not the tailored PDF this app writes, so an out-of-date board profile is what the employer sees. Read the warning below before turning it on.":
         "— după acea căutare, aplică la joburile cu cel mai mare scor, doar pe eJobs și BestJobs, până la limita pe care o stabilești. Hipo și formularele angajatorilor nu sunt trimise niciodată în locul tău. O aplicare de pe site atașează CV-ul salvat în profilul de pe acel site, nu PDF-ul adaptat pe care îl scrie aplicația, așa că un profil vechi este ce vede angajatorul. Citește avertismentul de mai jos înainte să o pornești.",
-    "Back to top": "Înapoi sus",}
+    "Back to top": "Înapoi sus",
+    # ---- saving as you go
+    "saved":
+        "salvat",
+    "saving...":
+        "se salvează...",
+    "not saved yet":
+        "nesalvat încă",
+    "could not save - press Save profile":
+        "nu s-a putut salva - apasă Salvează profilul",
+    "Your last change could not be saved, so it is still only on this page. Press Save profile to try again before you leave.":
+        "Ultima modificare nu a putut fi salvată, deci există doar pe această pagină. Apasă Salvează profilul ca să încerci din nou înainte să pleci.",
+    # ---- the two languages, which are not the same thing
+    "Language of the CV":
+        "Limba CV-ului",
+    "Which language the downloaded PDF is written in. The language of this page is the switch at the top.":
+        "În ce limbă este scris PDF-ul descărcat. Limba acestei pagini este comutatorul de sus.",
+    "The language of this page and the dashboard. The CV has its own setting further up.":
+        "Limba acestei pagini și a panoului. CV-ul are propria setare mai sus.",}
 
 # Longest first, so replacing a short string can never eat part of a longer one that contains it.
 PAIRS = sorted(RO.items(), key=lambda kv: -len(kv[0]))

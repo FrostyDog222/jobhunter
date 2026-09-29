@@ -125,6 +125,9 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             # from the language a CV is written in - plenty of people want the app in
             # Romanian and their CV in English. English until someone says otherwise.
             "ui_lang": "en",
+            # which language the "Download my CV" buttons build. It was not saved at all:
+            # picking Romanian and reloading put it back to English every time.
+            "cv_lang": "en",
             # Romania writes the time as 14:30, so that is the default; "12" is for anyone who
             # reads a clock the other way. It only changes how a time is printed, never what is
             # stored - applied_at stays ISO in the database either way.

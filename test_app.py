@@ -1077,4 +1077,19 @@ assert "a.drift" in _dash2, "the page never shows the mismatch"
 _tsrc = (app.HERE / "test_app.py").read_text(encoding="utf-8")
 assert "app.PROFILE, app.PROFILE_BAK = _scratch, _scratchbak" in _tsrc,     "the tests still write their backup over the real one"
 
+
+# 3r. Typing is saved on its own. Three gaps, all of them the same shape - an edit that never
+# reached disk and nothing saying so: the CV language dropdown was not persisted at all (pick
+# Romanian, reload, English again), the profile only saved when you remembered the button, and
+# leaving the page took the pending edit with it.
+_pf = (app.HERE / "templates" / "profile.html").read_text(encoding="utf-8")
+assert "cv_lang" in app.DEFAULTS and "cv_lang" in _pf, "the CV language is still not remembered"
+assert "function saveNow" in _pf, "nothing saves without the button"
+assert '"input"' in _pf or "'input'" in _pf, "typing does not trigger a save"
+# a failed save must leave the page dirty - silently dropping the edit is the bug being fixed
+assert "DIRTY = true;" in _pf and "mark('failed')" in _pf
+# and leaving with an edit in the air has to say so, both ways out
+assert "beforeunload" in _pf, "closing the window loses a pending edit silently"
+assert "if(await saveNow()) location.href = href;" in _pf,     "an in-page link does not flush the pending edit first"
+
 print("ok")

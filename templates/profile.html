@@ -145,8 +145,11 @@
   <p class="muted" style="margin:0 0 10px">Your profile as it stands, in whichever style you
     want — nothing is tailored to a job and no AI is used, so it is instant. The tailored ones
     are written per posting, from the job list.</p>
-  <div class="small" style="max-width:190px;margin-bottom:12px"><label>Language</label>
-    <select id="cvlang"><option value="en">English</option>
+  <!-- "Language" alone reads as the language of the APP, which is a different setting and
+       lives in the bar at the top of this page. -->
+  <div class="small" style="max-width:210px;margin-bottom:12px"><label>Language of the CV</label>
+    <select id="cvlang" title="Which language the downloaded PDF is written in. The language of this page is the switch at the top.">
+      <option value="en">English</option>
       <option value="ro">Română</option></select></div>
   <div id="cvbuttons" style="display:flex;gap:10px;flex-wrap:wrap"></div>
   <p class="muted" id="cvphotonote" style="margin:12px 0 0"></p>
@@ -161,7 +164,16 @@
   <button id="purge" style="background:var(--bad)">Erase all my data</button>
 </div>
 
-<div class="bar"><button id="save">Save profile</button><span class="muted" id="saved"></span></div>
+<div class="bar"><button id="save">Save profile</button><span class="muted" id="saved"></span>
+  <span style="flex:1"></span>
+  <label class="muted" style="display:flex;align-items:center;gap:7px;font-size:13px">
+    Interface language
+    <select id="ui_lang_p" style="width:auto;padding:5px 8px"
+            title="The language of this page and the dashboard. The CV has its own setting further up.">
+      <option value="en">English</option><option value="ro">Română</option>
+    </select>
+  </label>
+</div>
 {% endblock %}
 
 {% block js %}
@@ -291,11 +303,79 @@ document.addEventListener('click', async e => {
   if(del){ collect(); P[del].splice(+e.target.dataset.idx,1); renderList(del); }
 });
 
+/* ---------- saving ----------
+   Typing is saved on its own a moment after you stop. The button stays, because "did that
+   save?" deserves an answer you can ask for, and because a failed autosave needs a retry that
+   is not "type another character". */
+let DIRTY = false, SAVING = null, _timer;
+
+function mark(state, when){
+  const el = $('#saved');
+  el.textContent = state === 'saving' ? t('saving...')
+    : state === 'dirty' ? t('not saved yet')
+    : state === 'failed' ? t('could not save - press Save profile')
+    : t('saved') + ' ' + hhmm(when || new Date());
+  el.style.color = state === 'failed' ? 'var(--bad)' : '';
+}
+
+async function saveNow(){
+  if(!LOADED || !DIRTY) return true;
+  DIRTY = false;
+  mark('saving');
+  SAVING = api('/api/profile', collect());
+  try {
+    await SAVING;
+    mark('saved');
+    return true;
+  } catch(err){
+    DIRTY = true;                       // it never reached disk, so it is still unsaved
+    mark('failed');
+    toast('⚠ ' + friendly(err.message), 9000);
+    return false;
+  } finally {
+    SAVING = null;
+  }
+}
+
+// any edit to a profile field, typed or picked
+document.addEventListener('input', e => {
+  if(!LOADED || !e.target.matches('[data-f],[data-e]')) return;
+  DIRTY = true; mark('dirty');
+  clearTimeout(_timer); _timer = setTimeout(saveNow, 900);
+});
+document.addEventListener('change', e => {
+  if(!LOADED || !e.target.matches('[data-f],[data-e]')) return;
+  DIRTY = true; clearTimeout(_timer); saveNow();
+});
+
 $('#save').onclick = e => busy(e.target, async () => {
   if(!LOADED) return toast('Your profile has not loaded, so there is nothing to save yet. '
                          + 'Reload the page.', 9000);
-  await api('/api/profile', collect()); $('#saved').textContent = 'saved ' + hhmm(new Date());
+  DIRTY = true;                         // an explicit press always writes, dirty or not
+  clearTimeout(_timer);
+  await saveNow();
 }, 'saving...');
+
+/* Leaving with an edit still in the air. beforeunload cannot wait for a request, so the
+   browser's own prompt is the only honest thing there; an in-page link CAN wait, so that one
+   flushes the save first and only complains if it actually failed. */
+addEventListener('beforeunload', e => {
+  if(!DIRTY && !SAVING) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
+document.addEventListener('click', async e => {
+  const a = e.target.closest('a[href]');
+  if(!a || !LOADED || (!DIRTY && !SAVING)) return;
+  if(a.target === '_blank' || a.hasAttribute('download')) return;
+  const href = a.getAttribute('href') || '';
+  if(!href.startsWith('/')) return;
+  e.preventDefault();
+  clearTimeout(_timer);
+  if(await saveNow()) location.href = href;
+  else alert(t('Your last change could not be saved, so it is still only on this page. '
+             + 'Press Save profile to try again before you leave.'));
+}, true);
 
 /* ---------- download my CV ---------- */
 // The profile as it stands, in each template. No tailoring and no model call, so these are
@@ -327,6 +407,8 @@ async function drawCvButtons(){
   try {
     const st = await api('/api/settings', undefined, 'GET');
     // the ticks above decide these downloads, so the note must not point at the other checkbox
+    if(st.cv_lang) $('#cvlang').value = st.cv_lang;
+    $('#ui_lang_p').value = st.ui_lang === 'ro' ? 'ro' : 'en';
     $('#cvphotonote').textContent = st.has_photo
       ? 'Each tick above decides that download on its own — the suggestion under it is what '
         + 'usually suits that style.'
@@ -334,6 +416,21 @@ async function drawCvButtons(){
         + 'Photo above.';
   } catch(e){}
 }
+// the CV language is a preference, not a per-click choice: it was reset to English on every
+// reload because nothing ever wrote it down
+// The whole page is translated on the way out of the server, so switching it needs the page
+// again - a redraw cannot reach text that was rendered before the choice was made.
+$('#ui_lang_p').addEventListener('change', async e => {
+  try {
+    await saveNow();                    // never lose a half-typed edit to a language change
+    await api('/api/settings', {ui_lang: e.target.value});
+    location.reload();
+  } catch(err){ toast('⚠ ' + friendly(err.message), 8000); }
+});
+
+$('#cvlang').addEventListener('change', e => api('/api/settings', {cv_lang: e.target.value})
+  .catch(() => toast('Could not save that choice.')));
+
 document.addEventListener('change', async e => {
   if(!e.target.classList.contains('cvphoto')) return;
   const all = {};
