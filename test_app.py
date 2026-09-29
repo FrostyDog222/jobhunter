@@ -257,6 +257,7 @@ class _NoCreds:
     def get(self, board): return None
     def note_failure(self, board): return 1
     def note_success(self, board): pass
+    def status(self): return {}
 class _FakeApp:
     """Just enough app for candidates(): a db() whose one query answers with these rows."""
     def __init__(self, rows): self.rows = rows
@@ -1894,7 +1895,7 @@ assert scrape._bj_pay("960 - 1060") == "960 - 1060 EUR/month"
 assert scrape._bj_pay("negociabil") == "negociabil", "prose must not be given a currency"
 assert scrape._bj_pay("") == ""
 # note goes back to being a warning, which is what it is on every other board
-assert _b["note"] == "applies on the employer site" and _q["note"] == ""
+assert _b["note"] == scrape.EXTERNAL_NOTE and _q["note"] == ""
 
 # 5f. One request brings back 100 and the app kept whichever 20 came first. Half the budget
 # still goes to the board's own relevance order; the rest goes to the least crowded of what is
@@ -1940,9 +1941,13 @@ _dash5i = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8"
 for _gone in ("data-out=", "@waiting", "@nudge", "needsNudge"):
     assert _gone not in _dash5i, f"{_gone} survived the removal"
 assert "function followLine" in _dash5i and "waitingDays" in _dash5i,     "the plain 'how long ago' line went too, and it asks nothing of anybody"
-with app.db() as _c:
-    _cols = [_d[1] for _d in _c.execute("PRAGMA table_info(jobs)")]
-assert "outcome" not in _cols and "outcome_at" not in _cols,     "the columns are still there, so the next start will refill the migration list"
+# The migration list, not the live database. Nothing drops a column, so a database made before
+# today still HAS outcome/outcome_at and always will - harmlessly, since no query names them.
+# Asserting against the real file passed here only because they were dropped by hand, and would
+# have failed on every other copy. What actually matters is that a NEW database is not given
+# them again, which is the list in _connect().
+_mig5i = _iK.getsource(app._connect)
+assert "outcome" not in _mig5i, "the migration list is adding the outcome columns again"
 
 # 5j. A saved board password is the most dangerous thing this app can hold, so the rules it is
 # allowed to break are none. Everything here runs against a temp file, never the real one.
@@ -2024,7 +2029,10 @@ assert "for " not in _assrc.split("btn.click()")[0].split("query_selector_all")[
 assert _assrc.count("btn.click()") == 1, "more than one submit in a sign-in attempt"
 # and the password must not reach a log or a return value
 assert "print(" not in _assrc, "a sign-in attempt prints something, and it holds a password"
-assert "password" not in _assrc.split("return False, f\"{type(e).__name__}")[1][:120]
+# None, not False: a timeout or a 502 is not the board rejecting the password, and the caller
+# spends a two-strike budget on False that permanently disables the saved sign-in.
+assert "password" not in _assrc.split("return None, f\"{type(e).__name__}")[1][:120]
+assert _assrc.count("return False,") == 1,     "only the board rejecting the password may count as a failed attempt"
 
 
 # 5l. Hipo renders its login form three times - twice inside a display:none header flyout, once
@@ -2198,5 +2206,124 @@ assert len(_asked) > 40, f"only found {len(_asked)} t() calls - the scan is brok
 _untranslated = sorted(x for x in _asked if x not in _lg.RO)
 assert not _untranslated, ("the page asks for these at runtime and Romanian has no answer: "
                            + repr([x[:60] for x in _untranslated[:6]]))
+
+
+# 5w. A run that finishes has to leave a report behind. Every FAILURE path wrote one and only
+# the success path stopped - so auto.log filled up correctly while the dashboard showed the
+# previous run's numbers as if they were today's, which reads as a run that never happened.
+# Caught by an audit, not by this suite, because the deletion was inside a cut range.
+import auto as _au
+_rundir = pathlib.Path(_tf.mkdtemp())
+_keep = (_au.LAST, _au.LOG, app.settings, app.search)
+try:
+    _au.LAST, _au.LOG = _rundir / "auto_last.json", _rundir / "auto.log"
+    app.settings = lambda: {**app.DEFAULTS, "auto_enabled": True, "auto_query": "x",
+                            "auto_apply": False, "auto_min_fit": 75}
+
+    async def _fake_search(body):
+        return {"found": 3, "new": 1, "scored": 1, "failed": 0, "vetoed": 0,
+                "freed": 0, "expired": 0, "queries": 1, "warnings": []}
+
+    app.search = _fake_search
+    with _quiet():          # run() narrates to stdout, which is the log's job not the suite's
+        _r = _au.run()
+    assert _au.LAST.exists(), "a successful run with applying off left no report"
+    _got = _json.loads(_au.LAST.read_text(encoding="utf-8"))
+    assert _got["searched"]["found"] == 3, _got
+    assert _got["error"] is None and _got["when"], _got
+    assert _r["applied"] is None, "applying ran with the switch off"
+finally:
+    _au.LAST, _au.LOG, app.settings, app.search = _keep
+    _sh.rmtree(_rundir, ignore_errors=True)
+
+
+import os as _os6, shutil as _sh6, time as _time
+# 6a. "the board said nothing" and "the board said no" are different facts, and this said 0 for
+# both. Every COALESCE guard around responsive is written for the first, so one re-search of the
+# same query cleared the badge off every row that had it.
+_keep_get6 = scrape._get
+try:
+    scrape._get = lambda c, u, **k: _FakeResp({"items": [
+        {"slug": "yes", "title": "Answers", "responsive": True},
+        {"slug": "quiet", "title": "Says nothing"}]})
+    _r6 = {j["title"]: j["responsive"] for j in scrape.bestjobs("x", limit=10)}
+finally:
+    scrape._get = _keep_get6
+assert _r6["Answers"] == 1, "the badge stopped being set at all"
+assert _r6["Says nothing"] is None,     "an ad the board says nothing about still erases what it said last time (COALESCE(0,1) is 0)"
+
+# 6b. "applies on the employer site" is not a substring of "apply on the employer site", so the
+# auto-apply skip and the dashboard's "you apply" badge both missed every BestJobs ad they were
+# written for - the ad filled one of the week's slots and was then reported as a failure.
+_keep_get6b = scrape._get
+try:
+    scrape._get = lambda c, u, **k: _FakeResp({"items": [
+        {"slug": "own", "title": "Own site", "hasOwnApplyUrl": True}]})
+    _n6 = scrape.bestjobs("x", limit=10)[0]["note"]
+finally:
+    scrape._get = _keep_get6b
+assert app.EXTERNAL_NOTE in _n6, f"the two spellings drifted apart again: {_n6!r}"
+import auto_apply as _aa6
+assert _aa6.candidates(_FakeApp([{"url": "https://www.bestjobs.eu/ro/loc-de-munca/x",
+                                  "source": "bestjobs", "fit": 99, "title": "t",
+                                  "note": _n6}]),
+                       _pfm, 70, 5) == [],     "a job nobody can apply to from here still costs one of the week's slots"
+
+# 6c. board_apply sets clicked AND needs_you on the "sent the mini interviu, saw no
+# confirmation" path. clicked was tested first, so the job was filed as pressed-and-forgotten
+# and no window ever opened - while the run's own report still said "needs you" about it.
+_ab6 = _iK.getsource(app.apply_batch)
+assert _ab6.index('res.get("needs_you")') < _ab6.index('elif res.get("clicked")'),     "clicked is tested before needs_you again, so a half-sent screening form is never handed over"
+
+# 6d. Hipo confirms nothing, so "the apply button is gone" was the entire proof of a successful
+# application - and that is equally true of the sign-in page a lapsed session lands on. Filing
+# that as applied is not recoverable: the row leaves the queue and nothing later contradicts it.
+_ba6 = _iK.getsource(_pfm.board_apply)
+_tail6 = _ba6.split('if board == "hipo" and not apply_control')[1][:900]
+assert '"denied"' in _tail6 and "/candidat/aplica/" in _tail6,     "Hipo calls any page without an apply button a sent application again"
+
+# 6e. Only the board rejecting the password may spend a strike. auto_signin fails six ways and
+# five of them - no form, no button, a timeout, a 502 - say nothing about the password; counting
+# those meant two runs during a wifi outage disabled the saved sign-in for good.
+_ru6 = _iK.getsource(_aa6.run)
+assert "elif ok is False:" in _ru6,     "every sign-in failure counts towards giving up on the saved password again"
+assert "stopped" in _ru6, "a switched-off saved sign-in goes back to failing in silence"
+
+# 6f. Task Scheduler does not retry a run that returned success, so the search giving up the
+# moment a keep-alive holds the lock cost a whole day. The search waits; the keep-alive does not.
+_ao6 = _iK.getsource(_auto.only_one)
+assert "deadline" in _ao6 and 'only_one(wait=0 if mode == "touch" else' in         (app.HERE / "auto.py").read_text(encoding="utf-8"),     "the search is back to skipping the day when a keep-alive is in flight"
+_lockdir6 = _tf.mkdtemp()
+_keep6, _auto.LOCK = _auto.LOCK, pathlib.Path(_lockdir6) / ".auto.lock"
+try:
+    assert _auto.only_one(wait=2), "could not take a lock nothing else is holding"
+    _t0 = _time.monotonic()
+    assert _auto.only_one(wait=0) is False, "the lock let a second run straight through"
+    assert _time.monotonic() - _t0 < 2, "a keep-alive waited for the lock instead of yielding"
+finally:
+    _auto.LOCK = _keep6
+    _sh6.rmtree(_lockdir6, ignore_errors=True)
+
+# 6g. One mtime covers all three boards, so recording ONE board's live answer told the dashboard
+# the other two had just been checked too - and it skipped the re-check that exists for exactly
+# that. Write the fact, leave the clock alone.
+_bs6 = _tf.mkdtemp()
+_keepbs, _pfm.BOARD_STATE = _pfm.BOARD_STATE, pathlib.Path(_bs6) / ".boards.json"
+try:
+    _pfm.BOARD_STATE.write_text(_json.dumps({"ejobs": True, "hipo": True}), encoding="utf-8")
+    _old6 = _time.time() - 9999
+    _os6.utime(_pfm.BOARD_STATE, (_old6, _old6))
+    _pfm.remember_signin("ejobs", False)
+    assert _json.loads(_pfm.BOARD_STATE.read_text(encoding="utf-8"))["ejobs"] is False,         "the answer this call actually learned was not written down"
+    assert _pfm.board_checked_ago() > 9000,         "one board's answer reset the freshness clock for boards nobody checked"
+finally:
+    _pfm.BOARD_STATE = _keepbs
+    _sh6.rmtree(_bs6, ignore_errors=True)
+
+# 6h. settings() runs on nearly every request and catches three exception types, none of them
+# TypeError - so a hand-edited "auto_days": 5 took the whole app down rather than falling back.
+assert app._migrate_days({"auto_days": 5})["auto_days"] == ["SUN"]
+assert app._migrate_days({"auto_days": "SUN"})["auto_days"] == ["SUN"]
+assert app._migrate_days({"auto_days": ["MON", "nope"]})["auto_days"] == ["MON"]
 
 print("ok")
