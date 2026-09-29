@@ -14,6 +14,7 @@ import datetime
 import json
 import pathlib
 import sys
+import time
 import traceback
 
 HERE = pathlib.Path(__file__).parent
@@ -83,6 +84,11 @@ def run():
             "SELECT COUNT(*) FROM jobs WHERE status IN ('new','ready') AND fit >= ?",
             (int(s.get("auto_min_fit", 75)),)).fetchone()[0]
     log(f"{report['waiting']} job(s) at {s.get('auto_min_fit', 75)}+ are waiting on the dashboard")
+    # Written BEFORE the applying step, so a crash there still leaves the search behind - and so
+    # a run with applying switched off, which returns just below, reports at all. Losing this
+    # line meant every successful run left auto_last.json untouched and the dashboard showing
+    # the previous run's numbers as if they were today's.
+    _write(report)
 
     if not s.get("auto_apply"):
         return report
@@ -148,23 +154,41 @@ LOCK = HERE / ".auto.lock"
 _HELD = []                             # the handle has to outlive this function or Windows frees it
 
 
-def only_one():
-    """-> True if we got the lock. False means another run is already going, so this one stops.
+def only_one(wait=0):
+    """-> True if we got the lock. False means another run is going, so this one stops.
 
     One lock for both modes on purpose: they drive the same browser profile directory, and two
-    Chromiums sharing one is how a signed-in session gets corrupted. A keep-alive skipped because
-    the weekly run is in progress has lost nothing - that run visits every board anyway.
+    Chromiums sharing one is how a signed-in session gets corrupted.
+
+    `wait` seconds is how long to keep trying, and the two modes deliberately differ. The search
+    waits, because Task Scheduler does not retry a run that returned success - so giving up
+    silently costs a whole day's search. The keep-alive does not, because skipping one costs
+    nothing: the next is two hours away, and the search it yielded to visits every board itself.
     """
     try:
         import msvcrt
-        f = open(LOCK, "a+b")
-        msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
-    except OSError:
-        return False                   # held by the other process, or the file is unusable
     except ImportError:
         return True                    # not Windows: nothing schedules two runs here anyway
-    _HELD.append(f)                    # released by the OS when this process ends, crash or not
-    return True
+    deadline = time.monotonic() + max(0, wait)
+    while True:
+        try:
+            f = open(LOCK, "a+b")
+        except OSError as e:
+            # Not the same thing as another run, and saying so sent someone looking for a second
+            # process that was never there: read-only file, a backup tool holding it, a share
+            # that refuses locks.
+            log(f"could not open {LOCK.name} ({type(e).__name__}) - running without the lock")
+            return True
+        try:
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            f.close()
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(5)
+            continue
+        _HELD.append(f)                # released by the OS when this process ends, crash or not
+        return True
 
 
 if __name__ == "__main__":
@@ -178,7 +202,8 @@ if __name__ == "__main__":
             except Exception:
                 pass
     mode = "touch" if "--touch" in sys.argv else "run"
-    if not only_one():
+    # The search waits for a keep-alive to finish; a keep-alive never waits for the search.
+    if not only_one(wait=0 if mode == "touch" else 180):
         log(f"the {mode} run stopped: another run is already going")
         sys.exit(0)                    # not a failure - Task Scheduler must not retry it
     try:
