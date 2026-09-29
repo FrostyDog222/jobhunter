@@ -783,6 +783,92 @@ RO = {
         "Fiecare rulare consumă din cota AI pentru punctare, indiferent dacă te uiți sau nu la rezultat — așa că șapte zile pe săptămână costă de șapte ori cât una, pentru cam aceleași joburi, fiindcă un anunț apare o dată, nu zilnic. Zilnic se potrivește unei căutări intense pe o piață rapidă; nu este automat mai bine.",
     "— Windows starts it at the day and time you pick, with the app closed; the black run.bat window does not need to be open. It searches the same terms you saved, across the same boards, and scores everything new against your profile. It sends nothing. Each run spends AI quota on the scoring, whether or not you look at the result — so seven days a week costs seven times one, for mostly the same jobs, since a posting appears once rather than daily. Daily suits a hard hunt in a fast market; it is not automatically better.":
         "— Windows o pornește în ziua și la ora pe care le alegi, cu aplicația închisă; fereastra neagră run.bat nu trebuie să fie deschisă. Caută aceiași termeni pe care i-ai salvat, pe aceleași site-uri, și punctează tot ce este nou față de profilul tău. Nu trimite nimic. Fiecare rulare consumă din cota AI pentru punctare, indiferent dacă te uiți sau nu la rezultat — așa că șapte zile pe săptămână costă de șapte ori cât una, pentru cam aceleași joburi, fiindcă un anunț apare o dată, nu zilnic. Zilnic se potrivește unei căutări intense pe o piață rapidă; nu este automat mai bine.",
+    "Forget":
+        "Uită",
+    "Forget the saved sign-in for this board?":
+        "Uit datele de autentificare salvate pentru acest site?",
+    "Forgotten.":
+        "Am uitat-o.",
+    "Nothing saved. Sessions that lapse while you are away will simply mean no applications that week.":
+        "Nimic salvat. Sesiunile care expiră cât ești plecat vor însemna pur și simplu nicio candidatură în acea perioadă.",
+    "Saved for {which}. Used only by the weekly run, and only when the board says you are signed out.":
+        "Salvat pentru {which}. Folosit doar de rularea programată și doar când site-ul spune că ești deconectat.",
+    "Saved, encrypted to this Windows account.":
+        "Salvat, criptat pentru acest cont Windows.",
+    "Stopped using this one - it failed twice. Save it again to re-enable.":
+        "Nu o mai folosesc - a eșuat de două ori. Salveaz-o din nou pentru a o reactiva.",
+    "Type both the username and the password first.":
+        "Scrie mai întâi și utilizatorul, și parola.",
+    "email or username":
+        "email sau utilizator",
+    "password":
+        "parolă",
+    "saved — type to replace":
+        "salvat — scrie pentru a înlocui",
+    "Applied jobs stay in the history and cannot be changed.":
+        "Joburile la care ai aplicat rămân în istoric și nu pot fi modificate.",
+    "Applied jobs stay in the history and cannot be deleted.":
+        "Joburile la care ai aplicat rămân în istoric și nu pot fi șterse.",
+    "Applying happens during the weekly run, so switch that on too.":
+        "Aplicarea are loc în timpul rulării programate, deci pornește-o și pe aceea.",
+    "Could not read text from that file (scanned image PDF?). Paste the text instead.":
+        "Nu am putut citi text din acel fișier (PDF scanat ca imagine?). Lipește textul în loc.",
+    "Fill in your profile first - there is nothing to put on a CV.":
+        "Completează-ți mai întâi profilul - nu este nimic de pus pe un CV.",
+    "Not confirmed, so nothing was erased.":
+        "Neconfirmat, așa că nu s-a șters nimic.",
+    "Not confirmed.":
+        "Neconfirmat.",
+    "Only new or vetoed rows can be cleared.":
+        "Doar rândurile noi sau respinse pot fi curățate.",
+    "Only vetoed or skipped jobs can be queued again. Applied jobs are the record of what you sent.":
+        "Doar joburile respinse sau sărite pot fi puse din nou la coadă. Cele la care ai aplicat sunt evidența a ceea ce ai trimis.",
+    "Pick at least one day for it to run on.":
+        "Alege cel puțin o zi în care să ruleze.",
+    "Refusing to delete rows you have acted on.":
+        "Refuz să șterg rânduri pe care ai acționat deja.",
+    "That does not look like a JPG or a PNG. Those are the two a CV can carry safely.":
+        "Asta nu pare a fi un JPG sau un PNG. Acestea două sunt singurele pe care un CV le poate purta în siguranță.",
+    "That is the only provider left, so pausing it would stop the app doing anything. Add another one first.":
+        "Acesta este singurul furnizor rămas, așa că oprirea lui ar împiedica aplicația să mai facă ceva. Adaugă altul mai întâi.",
+    "There is no previous copy to go back to yet.":
+        "Nu există încă o copie anterioară la care să revii.",
+    "Too late to undo - applied jobs stay in the history.":
+        "Prea târziu pentru anulare - joburile la care ai aplicat rămân în istoric.",
+    "Type what the weekly run should search for.":
+        "Scrie ce ar trebui să caute rularea programată.",
+    "lang must be auto, en or ro":
+        "lang trebuie să fie auto, en sau ro",
+    "no photo saved":
+        "nicio poză salvată",
+    "no such template":
+        "nu există acest șablon",
+    "nothing selected":
+        "nimic selectat",
+    "path must be a dotted string into the profile":
+        "path trebuie să fie un șir cu puncte care indică în profil",
+    "status must be a list of statuses":
+        "status trebuie să fie o listă de stări",
+    "suggestion has no path":
+        "sugestia nu are o cale",
+    "the score and the cap must be numbers":
+        "punctajul și limita trebuie să fie numere",
+    "time must be HH:MM, e.g. 09:00":
+        "ora trebuie să fie HH:MM, de exemplu 09:00",
+    "url is required":
+        "url este obligatoriu",
+    "That file is named .docx but does not open as one. If you renamed a .doc, use Save As in Word to make a real .docx - or paste the text in.":
+        "Fișierul se numește .docx dar nu se deschide ca atare. Dacă ai redenumit un .doc, folosește Salvare ca în Word pentru a face un .docx real - sau lipește textul aici.",
+    "That file is named .pdf but does not open as one. If you renamed it, use Save As in Word instead - or paste the text in.":
+        "Fișierul se numește .pdf dar nu se deschide ca atare. Dacă l-ai redenumit, folosește Salvare ca în Word - sau lipește textul aici.",
+    "That is an old Word (.doc) file, which this app cannot read. Open it in Word and use Save As to make a .docx or a PDF - or paste the text in instead.":
+        "Acesta este un fișier Word vechi (.doc), pe care aplicația nu îl poate citi. Deschide-l în Word și folosește Salvare ca pentru a face un .docx sau un PDF - sau lipește textul aici.",
+    "That would have emptied your whole profile, so it was not saved. Reload the page - if the fields come back, the page had failed to load rather than your data being gone.":
+        "Asta ți-ar fi golit tot profilul, așa că nu a fost salvat. Reîncarcă pagina - dacă revin câmpurile, pagina nu se încărcase, nu ți-au dispărut datele.",
+    "That would have emptied your whole profile, so nothing was saved. If a CV you uploaded came back almost empty, the file probably has no readable text - try the PDF, or paste the text in instead.":
+        "Asta ți-ar fi golit tot profilul, așa că nu s-a salvat nimic. Dacă un CV încărcat a revenit aproape gol, fișierul probabil nu are text lizibil - încearcă PDF-ul sau lipește textul aici.",
+    "Your profile file is on disk but could not be read, so this page came up blank and the save was refused rather than writing that blank page over it. Check profile.json is valid JSON - your data is still in there.":
+        "Fișierul de profil este pe disc dar nu a putut fi citit, așa că pagina a apărut goală iar salvarea a fost refuzată în loc să scrie pagina goală peste el. Verifică dacă profile.json este JSON valid - datele tale sunt încă acolo.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

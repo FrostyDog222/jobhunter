@@ -2178,4 +2178,25 @@ _dash5u = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8"
 assert "k === 'auto_days' ? el.value.split(',').filter(Boolean)" in _dash5u,     "the day picker posts a string where the server wants a list"
 assert "'auto_days'" in _dash5u.split("const AUTO_FIELDS")[1][:260]
 
+
+
+# 5v. The round-trip check above only sees the HTML the SERVER sends. Everything the page builds
+# afterwards - job cards, the model chain, the sign-in rows, every toast - is translated in the
+# browser by localiseDOM against the same table, and none of it was ever checked. That is how the
+# whole credentials panel shipped untranslated: eleven strings, all invisible to that test.
+_tpl = "\n".join(f.read_text(encoding="utf-8") for f in (app.HERE / "templates").rglob("*.html"))
+_CALL = _reL.compile(r"""\b(?:t|fill)\(\s*((?:['"](?:[^'"\\]|\\.)*['"]\s*\+\s*)*['"](?:[^'"\\]|\\.)*['"])""")
+_PIECE = _reL.compile(r"""'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)\"""")
+_asked = set()
+for _m in _CALL.finditer(_tpl):
+    _joined = "".join(_a or _b for _a, _b in _PIECE.findall(_m.group(1)))
+    _joined = _joined.replace("\\'", "'").replace('\\"', '"')
+    # a template literal is built at runtime and cannot be a key; so are bare words like "ok"
+    if len(_joined) > 2 and _reL.search(r"[A-Za-z]{3}", _joined) and "${" not in _joined:
+        _asked.add(_joined)
+assert len(_asked) > 40, f"only found {len(_asked)} t() calls - the scan is broken, not the app"
+_untranslated = sorted(x for x in _asked if x not in _lg.RO)
+assert not _untranslated, ("the page asks for these at runtime and Romanian has no answer: "
+                           + repr([x[:60] for x in _untranslated[:6]]))
+
 print("ok")
