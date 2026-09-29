@@ -87,6 +87,32 @@ h2{font-size:15px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06e
 <script>
 const $ = s => document.querySelector(s);
 
+// The same dictionary the server used, for the half of the page this file writes itself.
+// Empty in English, so every call below is a no-op and the English page is untouched.
+const T = {{ T | default({}, true) | tojson }};
+const t = s => T[String(s)] ?? s;
+
+// Walk what was just rendered and swap whole text nodes and the three attributes a person
+// reads. Exact matches only: text this dictionary has never heard of is left alone, which is
+// why an untranslated string shows as English rather than as a gap.
+function localiseDOM(root){
+  if(!Object.keys(T).length) return;
+  const walk = document.createTreeWalker(root || document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: n => n.parentElement && /^(SCRIPT|STYLE|TEXTAREA)$/.test(n.parentElement.tagName)
+      ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
+  const hits = [];
+  for(let n = walk.nextNode(); n; n = walk.nextNode()){
+    const key = n.nodeValue.trim();
+    if(key && T[key]) hits.push([n, n.nodeValue.replace(key, T[key])]);
+  }
+  for(const [n, v] of hits) n.nodeValue = v;
+  for(const el of (root || document.body).querySelectorAll('[title],[placeholder],[aria-label]'))
+    for(const a of ['title', 'placeholder', 'aria-label']){
+      const v = el.getAttribute(a);
+      if(v && T[v.trim()]) el.setAttribute(a, T[v.trim()]);
+    }
+}
+
 // Every time printed anywhere in the app comes through here, so the switch in Settings is one
 // variable rather than a hunt through the templates. 24-hour is the default because that is how
 // the time is written here; en-US is only borrowed for its am/pm, not for its date order.
@@ -104,8 +130,8 @@ function progress(pct, label){
   if(b) b.textContent = label || '';
 }
 
-function toast(m, ms=3200){ const t=$('#toast'); t.textContent=m; t.style.display='block';
-  clearTimeout(_t); _t=setTimeout(()=>t.style.display='none', ms); }
+function toast(m, ms=3200){ const el=$('#toast'); el.textContent=t(m); el.style.display='block';
+  clearTimeout(_t); _t=setTimeout(()=>el.style.display='none', ms); }
 async function api(url, body, method){
   const r = await fetch(url, body===undefined ? {} : {
     method: method||'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});

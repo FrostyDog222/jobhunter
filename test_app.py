@@ -142,6 +142,7 @@ assert app._month("2024-13", "en") == "2024"       # nonsense month degrades to 
 # used to slip past the list check and render one chip per character.
 import inspect as _i
 _fake = dict(app.llm.EMPTY, skills=[f'S{i}' for i in range(40)])
+_real_ask = app.llm.ask          # restored below: del would remove it from the module entirely
 app.llm.ask = lambda *a, **k: dict(_fake)
 assert len(app.llm.tailor({}, {'title': 't', 'description': 'd'}, 'en')['skills']) == 14
 app.llm.ask = lambda *a, **k: dict(app.llm.EMPTY, skills='Excel, Word', links={'GitHub': {'url': 'u'}})
@@ -156,7 +157,7 @@ try:
     raise SystemExit('a non-object reply must fail over, not crash the caller')
 except RuntimeError:
     pass
-del app.llm.ask
+app.llm.ask = _real_ask
 
 # 1n. Board handling is per-board, not eJobs strings everywhere
 import re as _re
@@ -985,5 +986,49 @@ assert "path must be a dotted string" in _i8.getsource(app.apply_suggestion)
 for _name in app.cv_templates():
     _css = (app.CV_DIR / f"{_name}.css").read_text(encoding="utf-8")
     assert "overflow-wrap:anywhere" in _css, f"{_name} clips long words off the page"
+
+
+# 3m. Two languages, one source. English is the source text and the translation happens on the
+# way out, so the tests that matter are: English is untouched (a page rendered in English must
+# be identical to one rendered with no dictionary at all), the page's own JavaScript is never
+# rewritten, and nothing a person reads in Romanian is still an English sentence.
+import lang as _lang, re as _re3
+from fastapi.testclient import TestClient as _TC
+_cl = _TC(app.app)
+_orig_settings = app.settings
+
+
+def _as(ui):
+    """Render both pages in one language, whatever settings.json happens to say today."""
+    app.settings = lambda: {**_orig_settings(), "ui_lang": ui}
+    try:
+        return {_u: _cl.get(_u).text for _u in ("/", "/profile")}
+    finally:
+        app.settings = _orig_settings
+
+
+_en, _ro = _as("en"), _as("ro")
+for _u in _en:
+    assert _as("en")[_u] == _en[_u], f"{_u} in English changed after a Romanian render"
+    assert _ro[_u] != _en[_u], f"{_u} did not translate at all"
+    # The page's own code must be identical in both languages. The one line that legitimately
+    # differs is the dictionary handed to the client, so it is removed before comparing - if
+    # anything ELSE differs, the swap has been let loose inside a script block.
+    _strip = lambda h: [_re3.sub(r"const T = \{.*?\};", "", _j, flags=_re3.S)
+                        for _j in _re3.findall(r"<script>(.*?)</script>", h, _re3.S)]
+    assert _strip(_en[_u]) == _strip(_ro[_u]),         f"{_u}: the translator reached inside a script block"
+    _left = []
+    for _i, _part in enumerate(app._SKIP.split(_ro[_u])):
+        if _i % 2:
+            continue
+        for _m in app._TEXT.finditer(_part):
+            _t = " ".join(_m.group(1).split())
+            if len(_t) > 34 and _t not in _lang.RO.values():
+                _left.append(_t)
+    assert not _left, f"{_u} still reads English: {_left[:2]}"
+assert app.DEFAULTS["ui_lang"] == "en", "English is the default for a new user"
+assert app.t("Dashboard", "ro") == "Panou" and app.t("Dashboard", "en") == "Dashboard"
+assert app.t("a string nobody translated", "ro") == "a string nobody translated", \
+    "an untranslated string must fall back to English, never show a key"
 
 print("ok")

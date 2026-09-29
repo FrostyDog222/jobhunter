@@ -714,6 +714,7 @@ async function loadAuto(){
     }
   }
   $('#autostate').innerHTML = bits.join('<br>');
+  localiseDOM();   // this panel is innerHTML, so the server pass never saw it
 }
 
 $('#autocopy').onclick = () => {
@@ -788,6 +789,7 @@ function tplCards(selected){
 function drawTemplates(){
   $('#tplpick').innerHTML = tplCards(S.cv_template || '')
     || '<span class="muted">No templates found in templates/cv/.</span>';
+  localiseDOM();   // this panel is innerHTML, so the server pass never saw it
 }
 $('#tplpick').addEventListener('click', e => {
   const c = e.target.closest('.tpl'); if(!c) return;
@@ -989,6 +991,7 @@ async function loadLlm(){
        </div>`).join('');
   drawKeyLink();
   steps();                 // step one of the checklist depends on the model being set
+  localiseDOM();   // this panel is innerHTML, so the server pass never saw it
 }
 
 const SBOARDS = {ejobs:'eJobs', bestjobs:'BestJobs', hipo:'Hipo (test)'};
@@ -1024,6 +1027,7 @@ async function loadSignins(){
   if(out.length)
     $('#signedoutwho').textContent = out.length === 1
       ? `You are signed out of ${out[0]}` : `You are signed out of ${out.join(' and ')}`;
+  localiseDOM();   // this panel is innerHTML, so the server pass never saw it
 }
 document.addEventListener('click', async e => {
   const board = e.target.dataset.signin; if(!board) return;
@@ -1083,6 +1087,7 @@ async function loadGaps(){
       <span>${esc(g.gap)}</span>
       <span class="muted" style="font-size:12px;margin-left:auto">${esc((g.examples||[])[0]||'')}</span>
     </div>`).join('');
+  localiseDOM();   // this panel is innerHTML, so the server pass never saw it
 }
 
 /* ---------- the list ---------- */
@@ -1232,6 +1237,8 @@ function draw(){
   SELECTED.forEach(u => { const c = document.querySelector(`.sel[data-url="${CSS.escape(u)}"]`);
                           if(c) c.checked = true; });
   drawPicked();
+  // everything above was written as innerHTML, so the server's pass never saw it
+  localiseDOM($('#list')); localiseDOM($('#stats')); localiseDOM($('#pager'));
 }
 
 // Update one card from what the server just told us, instead of re-downloading every job.
@@ -1275,6 +1282,7 @@ function steps(){
     + 'You only need them to apply, not to search.</div>';
   $('#steps').onclick = e => { const i = e.target.dataset.step;
     if(i !== undefined){ e.preventDefault(); s[i][2](); } };
+  localiseDOM();   // this panel is innerHTML, so the server pass never saw it
 }
 
 /* ---------- batch selection ---------- */

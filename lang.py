@@ -130,7 +130,269 @@ RO = {
     "better with one": "arată mai bine cu poză",
     "this one is better without": "acesta arată mai bine fără",
     "either works": "merge și așa, și așa",
-}
+
+    # ---- the rest of the interface, added after the chrome
+    "Austria": "Austria",
+    "Belgium": "Belgia",
+    "Bulgaria": "Bulgaria",
+    "France": "Franța",
+    "Germany": "Germania",
+    "Hungary": "Ungaria",
+    "Ireland": "Irlanda",
+    "Italy": "Italia",
+    "Moldova": "Moldova",
+    "Netherlands": "Olanda",
+    "Poland": "Polonia",
+    "Spain": "Spania",
+    "United Kingdom": "Regatul Unit",
+    "United States": "Statele Unite",
+    "Anywhere in the country": "Oriunde în țară",
+    "Any county": "Orice județ",
+    "Any": "Oricare",
+    "Mid": "Mediu",
+    "Junior": "Junior",
+    "Senior": "Senior",
+    "Lead": "Lead",
+    "Intern": "Intern",
+    "Remote": "Remote",
+    "Hybrid": "Hibrid",
+    "On-site": "La birou",
+    "Any age": "Orice vechime",
+    "Fresh only": "Doar recente",
+    "e.g. 30 days": "ex. 30 de zile",
+    "Preset": "Set gata făcut",
+    "Pick a role family…": "Alege un domeniu…",
+    "ATS form only": "Doar formular ATS",
+    "Strong 75+": "Bune 75+",
+    "Medium 50-74": "Medii 50-74",
+    "Weak &lt;50": "Slabe &lt;50",
+    "Search jobs for": "Caută joburi pentru",
+    "Filter by title or company…": "Filtrează după titlu sau companie…",
+    "and": "și",
+    "not": "nu",
+    "and use": "și folosește",
+    "the dashboard": "panoul",
+    "far from you": "departe de tine",
+    "signed in": "autentificat",
+    "Clear results": "Golește rezultatele",
+    "Basics": "Date de bază",
+    "Full name": "Nume complet",
+    "Email": "Email",
+    "Phone": "Telefon",
+    "Location": "Localitate",
+    "Links": "Linkuri",
+    "Photo": "Poză",
+    "Headline / target role": "Titlu profesional / rolul dorit",
+    "Summary": "Rezumat",
+    "Experience": "Experiență",
+    "Education": "Studii",
+    "Skills": "Competențe",
+    "Languages": "Limbi",
+    "Language": "Limba",
+    "Certifications": "Certificări",
+    "Projects": "Proiecte",
+    "Interests / hobbies": "Interese / hobby-uri",
+    "Skills &amp; more": "Competențe și altele",
+    "Save profile": "Salvează profilul",
+    "Upload photo": "Încarcă o poză",
+    "+ Add role": "+ Adaugă un rol",
+    "+ Add education": "+ Adaugă studii",
+    "+ Add language": "+ Adaugă o limbă",
+    "+ Add project": "+ Adaugă un proiect",
+    "Start from an existing CV": "Pornește de la un CV existent",
+    "Upload &amp; autofill": "Încarcă și completează",
+    "or paste CV text": "sau lipește textul CV-ului",
+    "Paste your CV here...": "Lipește-ți CV-ul aici...",
+    "Parse pasted text": "Citește textul lipit",
+    "Download my CV": "Descarcă-mi CV-ul",
+    "CV template": "Model de CV",
+    "Put my photo on the CV": "Pune-mi poza pe CV",
+    "AI review": "Analiză AI",
+    "Suggest improvements": "Propune îmbunătățiri",
+    "Application answers": "Răspunsuri la aplicare",
+    "Salary expectation": "Salariul dorit",
+    "Notice period": "Perioada de preaviz",
+    "Earliest start": "Cel mai devreme început",
+    "currency": "moneda",
+    "e.g. 5500 net / month": "ex. 5500 net / lună",
+    "e.g. immediately": "ex. imediat",
+    "Erase everything": "Șterge tot",
+    "Erase all my data": "Șterge-mi toate datele",
+    "Profile · jobhunter": "Profil · jobhunter",
+    "Dashboard · jobhunter": "Panou · jobhunter",
+    "AI model": "Model AI",
+    "Get a key": "Ia o cheie",
+    "provider default": "modelul implicit al furnizorului",
+    "leave blank to keep the saved one": "lasă gol ca să păstrezi cheia salvată",
+    "Settings → AI model": "Setări → Model AI",
+    "⚠ No AI model is set up yet": "⚠ Niciun model AI nu este configurat încă",
+    "Job board accounts": "Conturi pe site-urile de joburi",
+    "Keep me signed in": "Ține-mă autentificat",
+    "Keep me signed in to the boards": "Ține-mă autentificat pe site-urile de joburi",
+    "Import my Hipo applications": "Importă aplicările mele de pe Hipo",
+    "Sign in to Hipo (test)": "Autentifică-te pe Hipo (test)",
+    "Hipo is": "Hipo este",
+    "Weekly run": "Rulare săptămânală",
+    "weekly run": "rulare săptămânală",
+    "Applying for you": "Aplică în locul tău",
+    "Also apply for me": "Aplică și tu în locul meu",
+    "Also apply for me, without asking": "Aplică în locul meu, fără să mă întrebi",
+    "Job titles to search for": "Titlurile de job de căutat",
+    "⚙ Automation — what runs without you": "⚙ Automatizare — ce rulează fără tine",
+    "⚠ Read this before you switch it on": "⚠ Citește asta înainte să o pornești",
+    "Show more — exactly what each one does": "Arată mai mult — exact ce face fiecare",
+    "Search and score every week, on its own": "Caută și punctează în fiecare săptămână, singur",
+    "Switching any of them off": "Oprirea oricăreia dintre ele",
+    "It runs with nobody watching.": "Rulează fără să se uite nimeni.",
+    "It is your account doing it.": "O face contul tău.",
+    "jobhunter weekly search": "jobhunter weekly search",
+    "jobhunter keep signed in": "jobhunter keep signed in",
+    "Which template for this CV?": "Ce model pentru acest CV?",
+    "Remember this as my default": "Ține minte asta ca implicit",
+    "Ask me which template to use every time I tailor a CV":
+        "Întreabă-mă ce model să folosesc de fiecare dată când adaptez un CV",
+    "Pick one. You can set a default under Settings so this stops asking.":
+        "Alege unul. Poți seta un model implicit în Setări ca să nu mai întrebe.",
+    "is the template built around one.": "este modelul construit în jurul ei.",
+    "What employers keep asking for": "Ce cer angajatorii în mod repetat",
+    "Find jobs. Tailor your CV. Get hired.": "Găsește joburi. Adaptează-ți CV-ul. Angajează-te.",
+    "Manual apply — you send these yourself.": "Aplicare manuală — pe astea le trimiți tu.",
+    "or batch apply.": "sau aplicare în grup.",
+    "or batch apply, so nothing here is sent by accident.":
+        "sau aplicare în grup, așa că nimic de aici nu se trimite din greșeală.",
+    ". Everything it knows stays in this folder.": ". Tot ce știe rămâne în acest folder.",
+    "How times are shown on this page. It changes nothing that is stored.":
+        "Cum sunt afișate orele pe pagină. Nu schimbă nimic din ce este salvat.",
+    "The language of this page. The language your CV is written in is the setting to the left.":
+        "Limba acestei pagini. Limba în care este scris CV-ul este setarea din stânga.",
+    "The list is sorted best-first anyway, so this hides the tail rather than finding the head.":
+        "Lista este oricum ordonată cu cele mai bune primele, așa că asta ascunde coada, nu găsește capul.",
+    "Narrows the list below as you type. It searches what is already found, not the boards.":
+        "Restrânge lista de mai jos pe măsură ce scrii. Caută în ce este deja găsit, nu pe site-uri.",
+    "Judetul. Picking a city already narrows it further, so a city wins over this.":
+        "Județul. Alegerea unui oraș restrânge și mai mult, așa că orașul are prioritate.",
+    "Fills the box with terms for one role family. Edit before searching if you like.":
+        "Completează caseta cu termeni pentru un domeniu. Poți edita înainte de a căuta.",
+    "Fill this with the job titles on your profile":
+        "Completează cu titlurile de job din profilul tău",
+    "Copy what is in the search bar above into these boxes":
+        "Copiază ce este în bara de căutare de mai sus în aceste casete",
+    "Copy whatever is in the search bar at the top of the page":
+        "Copiază ce este în bara de căutare din capul paginii",
+    "Counts everything you have ticked, including jobs on other pages":
+        "Numără tot ce ai bifat, inclusiv joburile de pe alte pagini",
+    "Jobs scoring this or higher are counted in the summary":
+        "Joburile cu scorul acesta sau mai mare sunt numărate în rezumat",
+    "Writes the currency into the answer beside your figure":
+        "Scrie moneda în răspuns, lângă suma ta",
+    "Job titles, separated by commas. Each one is searched on its own.":
+        "Titluri de job, separate prin virgulă. Fiecare este căutat separat.",
+    "Pick from the suggestions or type your own, separated by commas":
+        "Alege din sugestii sau scrie ale tale, separate prin virgulă",
+    "The model reviews what you wrote and proposes rewrites. Accept the ones you like.":
+        "Modelul recitește ce ai scris și propune reformulări. Le accepți pe cele care îți plac.",
+    "The score is a model's opinion, not a fact.": "Scorul este părerea unui model, nu un fapt.",
+    "It is a useful sort order, not a judgement you should act on without reading the ad.":
+        "Este o ordine utilă de sortare, nu o judecată după care să te iei fără să citești anunțul.",
+    "An application cannot be recalled.": "O aplicare nu poate fi retrasă.",
+    "The score is the only thing holding it back.":
+        "Scorul este singurul lucru care o ține în loc.",
+    "Check your board CV before you switch this on.":
+        "Verifică CV-ul de pe site înainte să pornești asta.",
+    "is there to find out - if it shows": "este acolo ca să afli — dacă arată",
+    ": pick a provider, press": ": alege un furnizor, apasă",
+    ", paste it back and press": ", lipește-o înapoi și apasă",
+    "customer support, suport clienti, relatii clienti":
+        "customer support, suport clienti, relatii clienti",
+    "customer support, suport clienti, technical support":
+        "customer support, suport clienti, technical support",
+    "Four Romanian job boards, read and scored against your own profile. Nothing leaves this PC except the calls to the AI model you picked.":
+        "Patru site-uri românești de joburi, citite și punctate față de propriul tău profil. Nimic nu pleacă de pe acest PC în afară de apelurile către modelul AI ales de tine.",
+    "These four narrow the freehire results only — eJobs and Hipo have no equivalent, so they come back unfiltered.":
+        "Aceste patru filtre restrâng doar rezultatele de pe freehire — eJobs și Hipo nu au echivalent, așa că vin nefiltrate.",
+    "Upload a PDF/DOCX/TXT and the profile below is filled in automatically. Nothing is invented — blanks stay blank.":
+        "Încarcă un PDF/DOCX/TXT și profilul de mai jos se completează automat. Nu se inventează nimic — ce lipsește rămâne gol.",
+    "Delete results you never acted on, so a new search starts from a clean list. Applied, opened, tailored and skipped jobs stay.":
+        "Șterge rezultatele pe care nu le-ai atins, ca o căutare nouă să pornească de la o listă curată. Joburile aplicate, deschise, adaptate și refuzate rămân.",
+    "Read each job ad first — these go straight to the employer with the salary from your profile. Up to 20 per run.":
+        "Citește mai întâi fiecare anunț — acestea ajung direct la angajator, cu salariul din profilul tău. Cel mult 20 pe rulare.",
+    "On eJobs and BestJobs only — the boards that take an application without a form. Hipo and employer forms are never sent for you.":
+        "Doar pe eJobs și BestJobs — site-urile care acceptă o aplicare fără formular. Hipo și formularele angajatorilor nu se trimit niciodată în locul tău.",
+    "Boards notice patterns. Searches are ordinary traffic; a burst of applications at 09:00 every Sunday is not.":
+        "Site-urile observă tiparele. Căutările sunt trafic obișnuit; un val de aplicări la 09:00 în fiecare duminică nu este.",
+    "Every tailored CV is rendered in one of these. All four are plain text underneath — no tables, no columns — so applicant tracking systems read them correctly.":
+        "Fiecare CV adaptat este generat într-unul dintre acestea. Toate patru sunt text simplu dedesubt — fără tabele, fără coloane — ca sistemele de recrutare să le citească corect.",
+    "Your profile as it stands, in whichever style you want — nothing is tailored to a job and no AI is used, so it is instant. The tailored ones are written per posting, from the job list.":
+        "Profilul tău așa cum este, în ce stil vrei — nimic nu este adaptat unui job și nu se folosește AI, deci este instantaneu. Cele adaptate se scriu pentru fiecare anunț, din lista de joburi.",
+    "Hipo keeps its own list of what you applied to. This copies it into your Applied history, with the dates, so jobs you sent by hand stop showing up as still to do.":
+        "Hipo își ține propria listă cu aplicările tale. Asta o copiază în istoricul tău de Aplicate, cu date cu tot, ca joburile trimise manual să nu mai apară ca nefăcute.",
+    "Every week it spends API quota on scoring, whether or not you look at the result. If a free tier runs dry it fails quietly and you find out days later, in the summary.":
+        "În fiecare săptămână consumă din cota API pentru punctare, fie că te uiți la rezultat, fie că nu. Dacă un plan gratuit se golește, eșuează în tăcere și afli peste câteva zile, din rezumat.",
+    "Counted across the jobs already scored, not a new question to the AI. A thing many employers want and your profile never mentions is either the next thing to learn — or something you have and forgot to write down.":
+        "Numărat din joburile deja punctate, nu o întrebare nouă către AI. Un lucru pe care mulți angajatori îl cer și pe care profilul tău nu îl pomenește este fie următorul lucru de învățat — fie ceva ce ai și ai uitat să scrii.",
+    # ---- the long explanations, which are most of what this app says
+    "Save &amp; test":
+        "Salvează și testează",
+    "Search &amp; score":
+        "Caută și punctează",
+    "Upload &amp; autofill":
+        "Încarcă și completează",
+    "Two separate things, both off unless you switch them on. The":
+        "Două lucruri separate, ambele oprite până le pornești tu.",
+    "The job titles you would type into the search bar at the top —":
+        "Titlurile de job pe care le-ai scrie în bara de căutare din capul paginii —",
+    ". Several are free. You can still fill this page in by hand without one.":
+        ". Mai multe sunt gratuite. Poți completa pagina și de mână, fără niciunul.",
+    "Reading a CV, suggesting improvements and scoring jobs all need one. Open":
+        "Citirea unui CV, propunerile de îmbunătățire și punctarea joburilor au nevoie de unul. Deschide",
+    "is a second switch inside it, and it is the one that sends real applications in your name.":
+        "este un al doilea comutator în interiorul ei, și este cel care trimite aplicări reale în numele tău.",
+    "does your search and scores the results once a week, so the list is ready when you next open the app.":
+        "îți face căutarea și punctează rezultatele o dată pe săptămână, ca lista să fie gata când deschizi aplicația data viitoare.",
+    "A board apply sends the CV stored on your board profile, not the tailored PDF — so keep those profiles current:":
+        "O aplicare de pe site trimite CV-ul salvat în profilul tău de pe acel site, nu PDF-ul adaptat — așa că ține acele profiluri la zi:",
+    "for now: its sign-in used to stop working the moment the login window closed. A fix for the likely cause is in, so":
+        "deocamdată: autentificarea lui înceta să funcționeze în clipa în care se închidea fereastra de login. O reparație pentru cauza probabilă este pusă, deci",
+    "afterwards, it worked. Until then those jobs open in your own browser and you send them yourself. They are never picked up by":
+        "după aceea, a mers. Până atunci acele joburi se deschid în browserul tău și le trimiți tu. Nu sunt niciodată preluate de",
+    "Most boards are nationwide, so a search from a village in Timiș fills up with jobs in București. Pick your county and anything outside it is marked":
+        "Majoritatea site-urilor sunt naționale, așa că o căutare dintr-un sat din Timiș se umple de joburi în București. Alege-ți județul și tot ce este în afara lui este marcat",
+    "A few points either way changes how much goes out, so start high with a cap of one or two and watch what it picks for a few weeks before loosening it.":
+        "Câteva puncte în plus sau în minus schimbă mult cât pleacă, așa că pornește sus, cu o limită de una sau două, și urmărește ce alege câteva săptămâni înainte să o slăbești.",
+    "— marked, not hidden, because a job worth moving for is your call. Remote and hybrid ads are never flagged, and ads that name no location are left alone.":
+        "— marcat, nu ascuns, pentru că un job pentru care merită să te muți este decizia ta. Anunțurile remote și hibride nu sunt niciodată marcate, iar cele care nu spun unde sunt rămân neatinse.",
+    "Hipo lets you sign in, but the session it hands back stops working the moment it leaves its own login window, so this app cannot submit on your behalf there.":
+        "Hipo te lasă să te autentifici, dar sesiunea pe care o dă înapoi încetează să funcționeze în clipa în care iese din propria fereastră de login, așa că aplicația nu poate trimite acolo în numele tău.",
+    "removes the Windows task straight away. Nothing keeps running in the background afterwards, and you can check for yourself in Task Scheduler — they are named":
+        "șterge imediat sarcina din Windows. Nimic nu mai rulează în fundal după aceea, și poți verifica singur în Task Scheduler — se numesc",
+    "· Separate spellings with commas — each is searched on freehire, eJobs, BestJobs and Hipo. Ads demanding a language you have not declared are skipped before scoring, so they cost nothing.":
+        "· Separă variantele de scriere cu virgulă — fiecare este căutată pe freehire, eJobs, BestJobs și Hipo. Anunțurile care cer o limbă pe care nu ai declarat-o sunt sărite înainte de punctare, deci nu costă nimic.",
+    "A board application sends the CV stored on your eJobs and BestJobs profile, not a tailored one. If it is out of date, every application that week is out of date. Both profile links are above.":
+        "O aplicare de pe site trimite CV-ul salvat în profilul tău de eJobs și BestJobs, nu unul adaptat. Dacă este vechi, fiecare aplicare din săptămâna aceea este veche. Ambele linkuri către profiluri sunt mai sus.",
+    "takes you to the posting in your own browser, where you are already signed in. Everything else still works: they are searched, scored and you can tailor a CV to download and upload. They are never picked up by":
+        "te duce la anunț în browserul tău, unde ești deja autentificat. Restul funcționează la fel: sunt căutate, punctate și poți adapta un CV pe care să îl descarci și să îl încarci. Nu sunt niciodată preluate de",
+    "a description of yourself. Separate them with commas: each one is searched on its own, so listing a job in both Romanian and English finds ads the other wording misses. Click the box for suggestions from your own CV.":
+        "o descriere a ta. Separă-le cu virgulă: fiecare este căutat separat, așa că scriind un job și în română și în engleză găsești anunțuri pe care cealaltă formulare le ratează. Dă clic în casetă pentru sugestii din propriul tău CV.",
+    "JPG or PNG. With no photo saved this is ignored, so the CV simply has none. A photo is normal on a CV in Romania and most of Europe; for the UK, Ireland or the US it is usually better left off, which is what the tick is for.":
+        "JPG sau PNG. Dacă nu ai nicio poză salvată, setarea este ignorată și CV-ul pur și simplu nu are una. Poza este normală pe un CV în România și în mare parte din Europa; pentru Marea Britanie, Irlanda sau SUA este de obicei mai bine fără, și pentru asta este bifa.",
+    "Board sign-ins expire on their own after a while. Until you sign in again, applying to those jobs fails and the weekly run sends nothing — it re-checks before it applies, rather than trusting this panel. Use the button below.":
+        "Autentificările pe site-uri expiră singure după o vreme. Până te autentifici din nou, aplicarea la acele joburi eșuează și rularea săptămânală nu trimite nimic — verifică din nou înainte să aplice, în loc să se încreadă în acest panou. Folosește butonul de mai jos.",
+    "eJobs and BestJobs only let you apply while signed in. You type the password into the browser that opens, never into this app. eJobs often hangs on its redirect afterwards — that is fine, the session is already saved; just close the tab once it says":
+        "eJobs și BestJobs te lasă să aplici doar autentificat. Parola o scrii în browserul care se deschide, niciodată în această aplicație. eJobs se blochează des la redirecționarea de după — este în regulă, sesiunea este deja salvată; închide fila când scrie",
+    "Employers on eJobs often attach a short \"mini interviu\" before your application goes through. These are the questions no CV answers, so the app fills them with exactly what you write here and leaves them blank if you do not. It never invents a figure.":
+        "Angajatorii de pe eJobs atașează des un scurt \"mini interviu\" înainte ca aplicarea ta să treacă. Sunt întrebările la care niciun CV nu răspunde, așa că aplicația le completează exact cu ce scrii aici și le lasă goale dacă nu scrii nimic. Nu inventează niciodată o sumă.",
+    "With applying switched on, the salary figure from your profile and whatever CV currently sits on your board profile reach real employers, on ads nobody read, and you find out a week later. Those are the same employers you might have wanted to approach properly.":
+        "Cu aplicarea pornită, suma de salariu din profilul tău și orice CV se află acum în profilul tău de pe site ajung la angajatori reali, pe anunțuri pe care nu le-a citit nimeni, și afli o săptămână mai târziu. Sunt aceiași angajatori la care poate ai fi vrut să te prezinți cum trebuie.",
+    "— the checkbox further up, next to the sign-in buttons. Boards renew a sign-in whenever the site is opened, so Windows visits them every four hours and the session never lapses. Hipo's lasts about six hours on its own. It only loads the pages: nothing is searched, sent, or spent.":
+        "— bifa de mai sus, lângă butoanele de autentificare. Site-urile reînnoiesc autentificarea de fiecare dată când sunt deschise, așa că Windows le vizitează la patru ore și sesiunea nu expiră niciodată. A celor de la Hipo ține cam șase ore de la sine. Doar încarcă paginile: nu se caută, nu se trimite și nu se consumă nimic.",
+    "Deletes everything this app holds about you — your profile and photo, every job it found and scored, your applied history, the CVs it wrote, the board sign-ins, your settings and the weekly schedule. It cannot be undone, and it does not touch anything on eJobs, BestJobs or Hipo: applications you have already sent stay sent.":
+        "Șterge tot ce știe aplicația despre tine — profilul și poza, fiecare job găsit și punctat, istoricul aplicărilor, CV-urile scrise, autentificările pe site-uri, setările și programarea săptămânală. Nu se poate anula, și nu atinge nimic pe eJobs, BestJobs sau Hipo: aplicările deja trimise rămân trimise.",
+    "— Windows starts it at the day and time you pick, with the app closed; the black run.bat window does not need to be open. It searches the same terms you saved, across the same boards, and scores everything new against your profile. It sends nothing. Each run spends AI quota on the scoring, whether or not you look at the result.":
+        "— Windows o pornește în ziua și la ora pe care le alegi, cu aplicația închisă; fereastra neagră run.bat nu trebuie să fie deschisă. Caută aceiași termeni pe care i-ai salvat, pe aceleași site-uri, și punctează tot ce este nou față de profilul tău. Nu trimite nimic. Fiecare rulare consumă din cota AI pentru punctare, fie că te uiți la rezultat, fie că nu.",
+    "Boards renew a sign-in whenever the site is opened, so Windows visits them every few hours in the background and the session never lapses. Hipo's lasts about six hours on its own, so without this it is signed out most of the time. It sends nothing and applies to nothing — it only loads each board. Turn it off and sign-ins expire on their own again.":
+        "Site-urile reînnoiesc autentificarea de fiecare dată când sunt deschise, așa că Windows le vizitează la câteva ore în fundal și sesiunea nu expiră niciodată. A celor de la Hipo ține cam șase ore de la sine, deci fără asta ești deconectat mai tot timpul. Nu trimite nimic și nu aplică nicăieri — doar încarcă fiecare site. Oprește-o și autentificările expiră din nou singure.",
+    "— after that search, it applies to the highest-scoring jobs on eJobs and BestJobs only, up to the cap you set. Hipo and employer forms are never sent for you. A board apply attaches the CV stored on that board's profile, not the tailored PDF this app writes, so an out-of-date board profile is what the employer sees. Read the warning below before turning it on.":
+        "— după acea căutare, aplică la joburile cu cel mai mare scor, doar pe eJobs și BestJobs, până la limita pe care o stabilești. Hipo și formularele angajatorilor nu sunt trimise niciodată în locul tău. O aplicare de pe site atașează CV-ul salvat în profilul de pe acel site, nu PDF-ul adaptat pe care îl scrie aplicația, așa că un profil vechi este ce vede angajatorul. Citește avertismentul de mai jos înainte să o pornești.",}
 
 # Longest first, so replacing a short string can never eat part of a longer one that contains it.
 PAIRS = sorted(RO.items(), key=lambda kv: -len(kv[0]))
