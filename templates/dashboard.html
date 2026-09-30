@@ -1296,15 +1296,32 @@ function mirrorControls(){
   }
 }
 
-// Suggestions for the search box: the job titles this person has actually held come first,
-// because they are the terms that find their own work, then the example families. Typing is
-// never blocked - a datalist suggests, it does not constrain.
+// Suggestions for the search box, best evidence first. Typing is never blocked and never has
+// been: a datalist suggests, it does not constrain, so a term nobody here thought of is searched
+// exactly as typed.
+//
+// Order matters, because a browser shows these in the order given:
+//   1. titles of ads that ACTUALLY SCORED WELL for you. The only source here that is evidence
+//      rather than a guess, and it tunes itself every time you search - which is the answer to
+//      terms that looked sensible when typed and turned out to find nothing.
+//   2. the job titles you have held, from your profile. Terms that find your own kind of work.
+//   3. the example families below, for someone with no history yet.
 function drawTerms(){
+  // What has worked. Scored at or above the floor you set, newest first, deduplicated without
+  // regard to case so "Customer Support Officer" does not appear three times.
+  const floor = +(S.auto_min_fit ?? 75);
+  const seen = new Set();
+  const worked = (JOBS || [])
+    .filter(j => (j.fit ?? -1) >= floor && (j.title || '').trim())
+    .sort((a, b) => (b.fit - a.fit) || String(b.found || '').localeCompare(String(a.found || '')))
+    .map(j => j.title.trim())
+    .filter(t => { const k = t.toLowerCase(); return seen.has(k) ? false : seen.add(k); })
+    .slice(0, 12);
   const mine = [...new Set([(PROFILE || {}).title, ...((PROFILE || {}).experience || []).map(e => e.role)]
                   .map(x => (x || '').trim()).filter(Boolean))].slice(0, 6);
   // one entry per example family, plus each individual term, so both work while typing
   const examples = Object.values(PRESETS).flatMap(v => v.split(',').map(x => x.trim()));
-  $('#qterms').innerHTML = [...new Set([...mine, ...Object.values(PRESETS), ...examples])]
+  $('#qterms').innerHTML = [...new Set([...worked, ...mine, ...Object.values(PRESETS), ...examples])]
     .filter(Boolean).map(t => `<option value="${esc(t)}">`).join('');
 }
 mirrorControls();
@@ -1788,6 +1805,7 @@ async function load(){
   draw();                                      // draw() preserves the batch selection itself
   open.forEach(u => { const d = document.querySelector(`.job[data-url="${CSS.escape(u)}"] details.desc`);
                       if(d) d.open = true; });
+  drawTerms();     // the suggestions lead with titles that scored well, so they need the jobs
   steps();
 }
 

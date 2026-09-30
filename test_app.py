@@ -2666,4 +2666,24 @@ for _t in _all6s:
     assert not (scrape.off_target(_t, _F6S, _T6S) and
                 not scrape.off_target(_t, _F6S, [])),         f"rescuing by family made {_t[:40]!r} MORE likely to be skipped"
 
+
+# 6t. Suggestions must never become a gate. A term nobody thought of has to search exactly as
+# typed, expand to nothing it did not ask for, and survive the skip list on its own - which is the
+# whole reason the rescue rule reads the user's terms rather than a curated list.
+for _odd in ("Bibliotecar", "Instalator panouri fotovoltaice", "Dog groomer", "Arhivar"):
+    assert scrape.aliases([_odd]) == [_odd], f"{_odd!r} was quietly expanded into something else"
+# ...including when the skip list names the very word they searched for
+assert not scrape.off_target("Instalator panouri fotovoltaice Cluj",
+                             ["instalator", "engineer"], ["Instalator panouri fotovoltaice"]),     "searching for a job put it in the skip list's way"
+assert not scrape.off_target("Bibliotecar Biblioteca Judeteana", ["engineer"], ["Bibliotecar"])
+
+# and the datalist that suggests them leads with evidence: titles that actually scored well, then
+# the profile's own job titles, then the examples for somebody with no history yet.
+_dash6t = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+_dt6t = _dash6t.split("function drawTerms()")[1].split("\n}")[0]
+assert "auto_min_fit" in _dt6t and "j.fit" in _dt6t,     "the suggestions stopped being drawn from what has actually scored well"
+assert _dt6t.index("worked") < _dt6t.index("examples"),     "the example families come before the terms that have worked"
+assert "list=\"qterms\"" in _dash6t and '<datalist id="qterms">' in _dash6t,     "a datalist is what keeps this a suggestion rather than a menu"
+assert "drawTerms();" in _dash6t.split("JOBS = await api('/api/jobs'")[1][:600],     "the suggestions are not redrawn after the jobs land, so the evidence is always a page stale"
+
 print("ok")

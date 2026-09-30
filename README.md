@@ -170,6 +170,13 @@ and not one of the 34 jobs that had scored 75+ would have been dropped.
 
 Every run says how many it skipped, so you can see what the list is doing rather than trust it.
 
+**Nothing here is a menu.** The search box suggests as you type — titles that have actually scored
+well for you first, then the job titles from your profile, then a dozen example role families in
+Romanian and English — but it never restricts. Type a job nobody thought of and it is searched
+exactly as typed, expands to nothing you did not ask for, and is protected from the skip list by
+the fact that you asked for it. The suggestions get better as you use the app, because the first
+group is drawn from your own results rather than from anyone's guess.
+
 Lists show 20 jobs to a page. The filter box narrows what is already found by title, company or
 city as you type, and ignores diacritics — `iasi` finds `Iași`.
 
