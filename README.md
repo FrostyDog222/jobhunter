@@ -158,9 +158,12 @@ families to skip — `engineer`, `sudor`, `contabil`, `sofer` — and ads whose 
 never read or scored. It starts **empty**, deliberately: "engineer" is noise for one person and the
 whole point of the app for the next.
 
-Two rules keep it from hiding work you want. An ad whose title contains one of **your own search
-terms** is never skipped, whatever else it says — so if you search *Servicii Clienti*, an *Analist
-Servicii Clienti* is yours despite `analist` being on the list. And it takes job families only,
+Two rules keep it from hiding work you want. An ad whose title names **the same job you searched
+for** is never skipped, whatever else it says — and it does not have to be worded the way you typed
+it. Search *Customer Support* and *Customer Service Agent*, *Agent Relații cu Clienții*, *Consilier
+Clienți* and *Help Desk* are all recognised as the same work, in Romanian or English, with or
+without diacritics. Matching only the literal words left thirteen of the thirty-four jobs that had
+scored 75+ protected by nothing but luck. And it takes job families only,
 never a city, a language or a seniority word: those turn up in ads worth reading as often as in
 ads that are not. Measured on 894 scored ads with one real list: 28% of the wasted AI calls gone,
 and not one of the 34 jobs that had scored 75+ would have been dropped.

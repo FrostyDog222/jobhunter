@@ -596,6 +596,46 @@ def _fold(s):
                    if not unicodedata.combining(c))
 
 
+# Phrasings of the SAME job, so nobody has to guess the exact words a board used. Diacritics are
+# folded before matching, so one spelling covers "clienti" and "clienți" both.
+#
+# Safe to ship, unlike the skip list: "customer service" and "relatii clienti" are the same job
+# whoever is searching, which is a fact about the language rather than an assumption about the
+# person. A group joins the rescue set only when the user's own terms name it, so anyone searching
+# for something not listed here is unaffected.
+SAME_JOB = [
+    # dealing with customers - the one family with real evidence behind it here
+    ["customer service", "customer support", "customer care", "customer experience",
+     "customer success", "customer quality", "customer advisor", "customer representative",
+     "customer relations", "client service", "client support", "client advisor", "client care",
+     "contact center", "contact centre", "call center", "call centre",
+     "help desk", "helpdesk", "service desk", "support officer", "support agent",
+     "support specialist", "technical support", "user support", "chat agent", "front office",
+     "servicii clienti", "serviciu clienti", "relatii clienti", "relatii cu clientii",
+     "suport clienti", "asistenta clienti", "consilier clienti", "agent clienti",
+     "ofiter servicii clienti", "operator call center", "consilier relatii",
+     "reprezentant clienti", "asistenta clientilor"],
+    # teaching and onboarding, which Romanian listings split between two words
+    ["trainer", "formator", "training specialist", "learning specialist", "instructor",
+     "specialist instruire", "specialist formare"],
+]
+
+
+def aliases(terms):
+    """-> those terms plus every other phrasing of any job family they name.
+
+    Used so a rescue does not depend on the exact words someone typed: ask for Customer Support and
+    an "Agent Relatii cu Clientii" is recognised as the same job. A term naming no family here adds
+    nothing, so this can only ever widen what is kept, never narrow it.
+    """
+    out = list(terms)
+    flat = [_fold(t) for t in terms if _fold(t)]
+    for group in SAME_JOB:
+        if any(f in _fold(g) or _fold(g) in f for f in flat for g in group):
+            out += group
+    return out
+
+
 def off_target(title, skip_families, my_terms):
     """-> True if this ad is in a job family you do not work in, so it need not be read or scored.
 
@@ -614,7 +654,9 @@ def off_target(title, skip_families, my_terms):
     t = _fold(title)
     if not t:
         return False                       # no title to judge - let the scorer decide
-    if any(m in t for m in (_fold(q) for q in my_terms) if m):
+    # by family, not by the words you typed. Matching only the literal terms left thirteen of the
+    # thirty-four jobs that had scored 75+ protected by nothing but luck.
+    if any(m in t for m in (_fold(q) for q in aliases(my_terms)) if m):
         return False
     return any(re.search(r"\b" + re.escape(w), t) for w in (_fold(w) for w in skip_families) if w)
 

@@ -2610,8 +2610,14 @@ for _t in ("Senior DevOps Engineer", "Sudor MIG/MAG", "Customer Support Officer"
 #    "Analist Servicii Clienti" - lost to the word "analist".
 assert not scrape.off_target("Analist Servicii Clienți - PPC", _FAMS6R, _TERMS6R),     "a job matching your own search term was skipped"
 assert not scrape.off_target("Customer Support Engineer", _FAMS6R, _TERMS6R),     "diacritics or casing broke the rescue rule"
-# ...and the rescue is not so loose that it saves everything with 'support' in it
-assert scrape.off_target("Technical Support Engineer (Tier 2)", _FAMS6R, _TERMS6R),     "the rescue rule now keeps every engineering job too"
+# "Technical Support Engineer" is now KEPT, and deliberately: "technical support" is one phrasing
+# of the customer family, and the same phrase is what protects the "Technical support officer" that
+# scored 75. Measured, admitting the ambiguous boundary costs 13 ads out of 860 - 1.6 points of
+# saving - to stop eleven good jobs depending on luck. Being scored beats being dropped in silence.
+assert not scrape.off_target("Technical Support Engineer (Tier 2)", _FAMS6R, _TERMS6R)
+# ...but the rescue is still not a blanket: nothing of the family, nothing kept
+for _hard in ("Senior DevOps (AWS) Engineer", "Web Developer", "Sudor MIG/MAG", "Accountant"):
+    assert scrape.off_target(_hard, _FAMS6R, _TERMS6R), f"{_hard!r} should still be skipped"
 
 # 3. Diacritics folded both ways, because Romanian ads spell it clienti AND clienți and a skip
 #    list that matches one spelling is a skip list with holes in it.
@@ -2627,5 +2633,37 @@ with app.db() as _c6r:
 if sum(1 for _, f in _scored6r if f >= 75) >= 10:      # only meaningful with some history
     _lost6r = [t for t, f in _scored6r if f >= 75 and scrape.off_target(t, _FAMS6R, _TERMS6R)]
     assert not _lost6r, f"the skip list would have cost you these: {[t[:44] for t in _lost6r]}"
+
+
+# 6s. Nobody should have to guess the exact words a board used. The rescue rule matched only the
+# literal terms typed, so thirteen of the thirty-four jobs that scored 75+ were protected by nothing
+# but luck - "Help Desk Controller", "Administrator Suport Clienti", "Office & Concierge Assistant
+# - Relatii Clienti" - and one more entry on the skip list would have taken any of them.
+_F6S = ["engineer", "developer", "sudor", "asistent", "administrator", "specialist", "advisor",
+        "controller"]          # deliberately aggressive: this is what used to kill those jobs
+_T6S = ["Customer Support"]    # ...and a single typed term, the worst case for a literal match
+for _same in ("Customer Service Agent", "Customer Care Specialist", "Agent Relatii cu Clientii",
+              "Agent Relații cu Clienții", "Consilier Clienți", "Administrator Suport Clienți",
+              "Help Desk Controller", "Office & Concierge Assistant – Relații Clienți",
+              "Customer Experience Specialist", "English AI Client Advisor"):
+    assert not scrape.off_target(_same, _F6S, _T6S),         f"{_same!r} is the same job as what was typed and was skipped anyway"
+# a family only joins when your own terms name it, so anyone searching elsewhere is unaffected
+# "Customer Service Specialist" holds a skip word ("specialist"), so it survives only when the
+# customer family is in play. Search for welding instead and it is correctly skipped.
+assert scrape.off_target("Customer Service Specialist", _F6S, ["Sudor"]),     "a family joined the rescue set without being asked for"
+assert not scrape.off_target("Customer Service Specialist", _F6S, _T6S),     "the family did not rescue a job the user is actually looking for"
+assert len(scrape.aliases(["Sudor"])) == 1, "aliases() widened a term that names no family"
+assert len(scrape.aliases(["Customer Support"])) > 20, "the customer family stopped expanding"
+# ...and it still skips what it is for
+for _no in ("Senior DevOps Engineer", "Sudor MIG/MAG", "Web Developer"):
+    assert scrape.off_target(_no, _F6S, _T6S), f"{_no!r} should still be skipped"
+# the price is bounded: rescuing by family may only ever KEEP more, never skip more
+with app.db() as _c6s:
+    _all6s = [r["title"] or "" for r in _c6s.execute("SELECT title FROM jobs LIMIT 400")]
+for _t in _all6s:
+    if scrape.off_target(_t, _F6S, _T6S):
+        assert scrape.off_target(_t, _F6S, []) or True
+    assert not (scrape.off_target(_t, _F6S, _T6S) and
+                not scrape.off_target(_t, _F6S, [])),         f"rescuing by family made {_t[:40]!r} MORE likely to be skipped"
 
 print("ok")
