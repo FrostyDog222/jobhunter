@@ -2487,4 +2487,34 @@ finally:
      _auto._cookie_hours) = _keep6k
     _sh6.rmtree(_ka6, ignore_errors=True)
 
+
+# 6m. The gap both translation checks were blind to. The server pass reads only what the server
+# sends; the runtime pass reads t()/fill() keys and skips anything with ${ in it, because an
+# interpolated value cannot BE a key. A sentence written as a template literal is therefore
+# invisible to both, and twenty-one of them were - the drift warning, most toasts, every confirm.
+# localiseDOM covers markup, where prose is a whole text node it can match. It cannot cover a
+# sentence with a value inside it (one text node, matching nothing), and it never sees toast(),
+# confirm() or textContent. Those three are the contexts checked here.
+_tpl6m = {f.name: f.read_text(encoding="utf-8") for f in (app.HERE / "templates").rglob("*.html")}
+_LIT6 = r"`(?:[^`\\]|\\.)*`"
+# a literal, or several glued together with +, where it is handed to one of those three
+_SINK6 = _reL.compile(r"(?:toast|confirm|alert)\(\s*(" + _LIT6 + r")"
+                      r"|(?:textContent|innerText)\s*=\s*(" + _LIT6 + r")", _reL.S)
+_PLACE6 = _reL.compile(r"\$\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}")
+_leaked = []
+for _name, _src in _tpl6m.items():
+    for _m in _SINK6.finditer(_src):
+        _lit = _m.group(1) or _m.group(2)
+        if "${" not in _lit:
+            continue                      # a plain literal - the t()/fill() check above sees it
+        _p = " ".join(_reL.sub(r"<[^>]+>", " ", _PLACE6.sub(" ", _lit)).split())
+        # three real words is a sentence; fewer is a label, a selector or a bit of markup
+        if len([w for w in _p.split() if _reL.fullmatch(r"[A-Za-z][a-z]{2,}", w)]) >= 3:
+            _leaked.append(f"{_name}: {_p[:70]}")
+assert not _leaked, ("these reach a person untranslated - a template literal in a toast, a "
+                     "confirm or a textContent cannot be looked up, so use fill(): "
+                     + repr(_leaked[:4]))
+# ...and the scan has to be able to SEE those sinks, or it passes by finding nothing
+assert _reL.search(_SINK6, "toast(`hello ${x} there is prose here`)"),     "the scan no longer matches a toast, so it would pass on anything"
+
 print("ok")

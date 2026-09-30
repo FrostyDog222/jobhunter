@@ -796,9 +796,11 @@ $('#importhist').onclick = e => busy(e.target, async () => {
   const r = await api('/api/history/import', {board: 'hipo'});
   await load();
   toast(r.marked.length
-    ? `Added ${r.marked.length} to your Applied history: ${r.marked.join(', ').slice(0, 120)}`
-    : `Hipo lists ${r.found} application(s), and none of them are jobs in your list `
-      + `(${r.not_in_your_list.length} were sent before this app knew about them).`, 9000);
+    ? fill('Added {n} to your Applied history: {which}',
+           {n: r.marked.length, which: r.marked.join(', ').slice(0, 120)})
+    : fill('Hipo lists {n} application(s), and none of them are jobs in your list '
+           + '({old} were sent before this app knew about them).',
+           {n: r.found, old: r.not_in_your_list.length}), 9000);
 }, 'reading Hipo...');
 
 /* ---------- the scheduled run ---------- */
@@ -821,11 +823,13 @@ $('#auto_apply').onchange = async e => {
 
   const lines = ['Switch on automatic applying?', ''];
   if(p && p.picks.length){
-    lines.push(`With your settings (score ${floor}+, at most ${cap} a run), THESE would have`,
-               'been sent this week, with nobody reading them first:', '');
+    lines.push(fill('With your settings (score {floor}+, at most {cap} a run), THESE would have',
+                    {floor: floor, cap: cap}),
+               t('been sent, with nobody reading them first:'), '');
     p.picks.forEach(j => lines.push(`   ${j.fit}  ${j.title}  -  ${j.company || j.source}`));
   } else if(p){
-    lines.push(`Nothing scores ${floor}+ right now, so this week it would send nothing.`);
+    lines.push(fill('Nothing scores {floor}+ right now, so it would send nothing.',
+                    {floor: floor}));
   }
   const off = p && Object.entries(p.boards).filter(([, ok]) => !ok).map(([b]) => b);
   lines.push('', 'Two things worth knowing first:', '',
@@ -837,8 +841,9 @@ $('#auto_apply').onchange = async e => {
     '   A high score and a cap of 1 or 2 for the first few weeks lets you see what it',
     '   picks before it picks much.');
   if(off && off.length)
-    lines.push('', `You are not signed in to ${off.join(' or ')}, so nothing would be sent`,
-               'until you are.');
+    lines.push('', fill('You are not signed in to {who}, so nothing would be sent',
+                        {who: off.map(t).join(' ' + t('or') + ' ')}),
+               t('until you are.'));
   lines.push('', 'Applications cannot be taken back, and you see what went out afterwards.');
 
   if(confirm(lines.join('\n'))){ e.target.checked = true; applyRow(); }
@@ -872,21 +877,27 @@ async function loadAuto(){
   $('#autostate').style.color = drift.length ? 'var(--bad)' : '';
   const next = a.task.exists ? taskDate(a.task.next) : null;
   const bits = drift.length
-    ? [`⚠ ${drift.join(' and ')} ${drift.length > 1 ? 'are' : 'is'} switched on here but `
-       + `NOT scheduled in Windows, so nothing is running. Press Save the schedule to set `
-       + `${drift.length > 1 ? 'them' : 'it'} up again.`]
+    ? [fill(drift.length > 1
+        ? '⚠ {who} are switched on here but NOT scheduled in Windows, so nothing is running. '
+          + 'Press Save the schedule to set them up again.'
+        : '⚠ {who} is switched on here but NOT scheduled in Windows, so nothing is running. '
+          + 'Press Save the schedule to set it up again.',
+        {who: drift.map(t).join(' ' + t('and') + ' ')})]
     : [];
   bits.push(a.task.exists
-    ? (next ? `Scheduled — next run <b>${esc(next)}</b>.` : 'Scheduled with Windows.')
+    ? (next ? fill('Scheduled — next run <b>{when}</b>.', {when: esc(next)})
+            : t('Scheduled with Windows.'))
     : 'Not scheduled. Tick the box and save to set it up.');
   const l = a.last;
   if(l){
     const s = l.searched;
-    bits.push(`Last run ${esc(l.when)}: ` + (
+    bits.push(fill('Last run {when}: ', {when: esc(l.when)}) + (
       l.error ? `<span style="color:var(--bad)">${esc(friendly(l.error))}</span>`
-      : s ? `${s.found} ads seen, ${s.new} new, ${s.scored} scored`
-            + (s.expired ? `, ${s.expired} dropped as over two weeks old` : '')
-            + `. <b>${l.waiting}</b> waiting at ${esc(String(a.settings.auto_min_fit))}+.`
+      : s ? fill('{found} ads seen, {fresh} new, {scored} scored',
+                 {found: s.found, fresh: s.new, scored: s.scored})
+            + (s.expired ? fill(', {n} dropped as over two weeks old', {n: s.expired}) : '')
+            + fill('. <b>{n}</b> waiting at {floor}+.',
+                   {n: l.waiting, floor: esc(String(a.settings.auto_min_fit))})
       : esc(l.note || 'nothing to do')));
     // what it sent, one line each - the point of an unattended run is seeing it afterwards
     const ap = l.applied;
@@ -1477,8 +1488,8 @@ async function loadSignins(){
   const out = Object.entries(SBOARDS).filter(([k]) => st.boards && !st.boards[k]).map(([,n]) => n);
   $('#signedout').style.display = out.length ? 'block' : 'none';
   if(out.length)
-    $('#signedoutwho').textContent = out.length === 1
-      ? `You are signed out of ${out[0]}` : `You are signed out of ${out.join(' and ')}`;
+    $('#signedoutwho').textContent = fill('You are signed out of {who}',
+      {who: out.map(t).join(' ' + t('and') + ' ')});
   localiseDOM();   // this panel is innerHTML, so the server pass never saw it
 }
 document.addEventListener('click', async e => {
@@ -1499,9 +1510,10 @@ document.addEventListener('click', async e => {
         const r = await api('/api/signin/check', {});
         await loadSignins();
         const on = r.boards && r.boards[board];
-        toast(on ? `Signed in to ${SBOARDS[board]}.`
-                 : `Still not signed in to ${SBOARDS[board]}. Sign in inside the window this app`
-                   + ` opened — a session in your normal Chrome is not shared with it.`, 11000);
+        toast(on ? fill('Signed in to {board}.', {board: SBOARDS[board]})
+                 : fill('Still not signed in to {board}. Sign in inside the window this app'
+                        + ' opened — a session in your normal Chrome is not shared with it.',
+                        {board: SBOARDS[board]}), 11000);
       } catch(e){ await loadSignins(); }
     };
     window.addEventListener('focus', recheck, {once:true});
@@ -1579,7 +1591,7 @@ async function loadGaps(){
   const box = $('#gapsbox');
   if(!many.length){ box.style.display = 'none'; return; }
   box.style.display = '';
-  $('#gapscount').textContent = ` — across ${d.scored} scored jobs`;
+  $('#gapscount').textContent = fill(' — across {n} scored jobs', {n: d.scored});
   $('#gapslist').innerHTML = many.map(g => `<div style="display:flex;gap:10px;align-items:baseline;
       padding:4px 0;border-bottom:1px solid var(--line)">
       <b style="min-width:52px;color:var(--accent)">${g.jobs} ads</b>
@@ -1892,9 +1904,14 @@ $('#stats').addEventListener('click', e => {
 
 $('#rescore').onclick = e => busy(e.target, async () => {
   const r = await api('/api/rescore', {status:'vetoed'});
-  toast(`${r.queued} job(s) queued — press Search & score to re-run them.`, 8000);
+  toast(fill('{n} job(s) queued — press Search & score to re-run them.', {n: r.queued}), 8000);
   $('#filter').value = ''; await load();
 }, 'queueing...');
+
+// What one apply_batch call accepts, server side (app.BATCH_CAP). Spelled once: the dialog
+// used to promise "one run sends 20" next to a slice of 20 while the server had moved to 50,
+// and a sentence that disagrees with the code it describes is worse than no sentence.
+const BATCH = 20;
 
 // which fit bands "Select all shown" should pick up
 const bandOf = f => (f ?? 0) >= 75 ? 'strong' : (f ?? 0) >= 50 ? 'medium' : 'weak';
@@ -1908,14 +1925,15 @@ $('#selall').onclick = () => {
     const j = JOBS.find(x => x.url === c.dataset.url);
     return j && want.has(bandOf(j.fit));
   });
-  const cap = 20;
+  const cap = BATCH;
   if(!boxes.length) return toast(
     'Nothing on screen matches those bands. Applied rows, ATS jobs and manual-apply'
     + ' boards are never selectable.');
   boxes.slice(0, cap).forEach(c => { c.checked = true; SELECTED.add(c.dataset.url); });
   drawPicked();
   if(boxes.length > cap)
-    toast(`${boxes.length} match, selected the first ${cap} — that is the most one run will send.`, 8000);
+    toast(fill('{n} match, selected the first {cap} — that is the most one run will send.',
+               {n: boxes.length, cap: cap}), 8000);
 };
 $('#clear').onclick = e => busy(e.target, async () => {
   // ...and not the tailored ones: the server keeps any row holding a CV, so counting those
@@ -1923,11 +1941,10 @@ $('#clear').onclick = e => busy(e.target, async () => {
   const n = JOBS.filter(j => ['new','vetoed'].includes(j.status) && !j.cv).length;
   if(!n) return toast('Nothing to clear - every row here is one you have acted on.');
   const kept = JOBS.length - n;
-  if(!confirm(`Delete ${n} result(s) you have not acted on?
-
-`
-    + `${kept} stay: everything applied, opened, tailored or skipped. Skipped rows are kept on `
-    + `purpose so a job you rejected does not come straight back on the next search.`)) return;
+  if(!confirm(fill('Delete {n} result(s) you have not acted on?', {n: n}) + '\n\n'
+    + fill('{kept} stay: everything applied, opened, tailored or skipped. Skipped rows are kept '
+           + 'on purpose so a job you rejected does not come straight back on the next search.',
+           {kept: kept}))) return;
   const r = await api('/api/clear', {});
   await load();
   toast(`Cleared ${r.deleted} result(s). ${kept} kept.`);
@@ -1940,12 +1957,13 @@ $('#clearpicked').onclick = () => {
 $('#sendpicked').onclick = e => {
   const all = picked();
   if(!all.length) return;
-  const urls = all.slice(0, 20);          // the server sends at most 20 in one run
+  const urls = all.slice(0, BATCH);       // BATCH is what the server accepts in one call
   const names = urls.map(u => '  - ' + (JOBS.find(j => j.url === u) || {}).title).join('\n');
   const msg = [
-    `About to send ${urls.length} real application(s):`, '', names, '',
+    fill('About to send {n} real application(s):', {n: urls.length}), '', names, '',
     ...(all.length > urls.length
-      ? [`(${all.length - urls.length} more are ticked; one run sends 20, the rest stay selected.)`, '']
+      ? [fill('({n} more are ticked; one run sends {cap}, the rest stay selected.)',
+              {n: all.length - urls.length, cap: BATCH}), '']
       : []),
     'Have you read each job ad? Open "Read the job ad" on any you are unsure about.',
     'Any job with screening questions is not sent — it opens in a window for you to finish.',
@@ -2023,12 +2041,14 @@ $('#go').onclick = e => busy(e.target, async () => {
                                                  work_mode:$('#work_mode').value,
                                                  seniority:$('#seniority').value,
                                                  auto_apply_available:$('#ats').value}});
-    toast(`${r.found} ads seen, ${r.new} new. Scored ${r.scored}.` +
-          (r.vetoed ? ` ${r.vetoed} skipped on language.` : '') +
-          (r.freed ? ` ${r.freed} re-opened by the language check.` : '') +
-          (r.expired ? ` ${r.expired} dropped as over two weeks old.` : '') +
+    toast(fill('{found} ads seen, {fresh} new. Scored {scored}.',
+               {found: r.found, fresh: r.new, scored: r.scored}) +
+          (r.vetoed ? ' ' + fill('{n} skipped on language.', {n: r.vetoed}) : '') +
+          (r.freed ? ' ' + fill('{n} re-opened by the language check.', {n: r.freed}) : '') +
+          (r.expired ? ' ' + fill('{n} dropped as over two weeks old.', {n: r.expired}) : '') +
           ((r.warnings || []).length ? ' ⚠ ' + r.warnings.map(friendly).join('; ') : '') +
-          (r.failed ? ` ${r.failed} failed — search again to retry them.` : ''), 8000);
+          (r.failed ? ' ' + fill('{n} failed — search again to retry them.',
+                                 {n: r.failed}) : ''), 8000);
     await load();
   } finally {
     stopWatching();          // also on failure, or the bar keeps counting a search that stopped
@@ -2059,7 +2079,9 @@ function askSent(url, title){
     window.removeEventListener('focus', back);
     const j = JOBS.find(x => x.url === url);
     if(!j || j.status === 'applied') return;
-    if(confirm(`Did you send your application for:\n\n${title}\n\nOK = yes, add it to my Applied history.\nCancel = not yet.`)){
+    if(confirm(fill('Did you send your application for:', {}) + '\n\n' + title + '\n\n'
+               + t('OK = yes, add it to my Applied history.') + '\n'
+               + t('Cancel = not yet.'))){
       await api('/api/status', {url, status:'applied'});
       await load(); toast('Added to your Applied history.');
     }
@@ -2084,14 +2106,18 @@ $('#list').addEventListener('click', async e => {
       const r = await api('/api/apply', {url, headless: !!$('#headless').value});
       if(r.report){
         const g = r.report;
-        toast(`Dry run on ${r.ats}: filled ${g.filled.length} field(s)${g.cv ? ' + CV' : ''}`
-              + (g.answered.length ? `, answered ${g.answered.length} question(s)` : '')
-              + (g.left_blank.length ? `, left ${g.left_blank.length} for you` : '')
+        toast(fill('Dry run on {ats}: filled {n} field(s)',
+                   {ats: r.ats, n: g.filled.length}) + (g.cv ? t(' + CV') : '')
+              + (g.answered.length ? fill(', answered {n} question(s)',
+                                          {n: g.answered.length}) : '')
+              + (g.left_blank.length ? fill(', left {n} for you',
+                                            {n: g.left_blank.length}) : '')
               + (g.error ? ` — ${g.error}` : ''), 10000);
         console.log('prefill report', g);
       } else {
         toast(r.ats
-          ? `Opening the ${r.ats} form with your details filled in. Check every field, then submit it yourself.`
+          ? fill('Opening the {ats} form with your details filled in. Check every field, '
+                 + 'then submit it yourself.', {ats: r.ats})
           : 'Opened in your own browser, where you are already signed in. The tailored PDF opened too.', 9000);
         // the application happens outside the app from here, so ask - otherwise the history
         // never learns about it and the job keeps asking to be dealt with
@@ -2107,7 +2133,8 @@ $('#list').addEventListener('click', async e => {
       const where = jj.source || 'the board';
       if(!confirm([
         'Send a real application to:', '', title, '',
-        `It is sent as your ${where} profile — the CV stored on ${where}, not the tailored PDF.`,
+        fill('It is sent as your {where} profile — the CV stored on {where}, not the '
+             + 'tailored PDF.', {where: where}),
         'Your salary expectation and profile answers go with it.',
         jj.far ? 'This one is outside the county you said you can work in.' : '',
         'It cannot be taken back.',
@@ -2115,8 +2142,9 @@ $('#list').addEventListener('click', async e => {
       const r = await api('/api/apply', {url, submit:true});
       toast(r.already ? 'You had already applied — moved to Applied.'
             : r.submitted ? 'Application sent — moved to Applied.'
-            : r.needs_you ? `This one has a mini interviu (${(r.questions||[]).length} question(s)). `
-                          + 'Opening it with your answers filled in — read it and press Trimite.'
+            : r.needs_you ? fill('This one has a mini interviu ({n} question(s)). Opening it '
+                                 + 'with your answers filled in — read it and press Trimite.',
+                                 {n: (r.questions||[]).length})
             : 'Clicked, but the board did not confirm. Open the posting and check.', 10000);
     }
     // These three change one row, so update that row rather than fetching the whole list again

@@ -869,6 +869,80 @@ RO = {
         "Asta ți-ar fi golit tot profilul, așa că nu s-a salvat nimic. Dacă un CV încărcat a revenit aproape gol, fișierul probabil nu are text lizibil - încearcă PDF-ul sau lipește textul aici.",
     "Your profile file is on disk but could not be read, so this page came up blank and the save was refused rather than writing that blank page over it. Check profile.json is valid JSON - your data is still in there.":
         "Fișierul de profil este pe disc dar nu a putut fi citit, așa că pagina a apărut goală iar salvarea a fost refuzată în loc să scrie pagina goală peste el. Verifică dacă profile.json este JSON valid - datele tale sunt încă acolo.",
+    " — across {n} scored jobs":
+        " — din {n} joburi punctate",
+    "({n} more are ticked; one run sends {cap}, the rest stay selected.)":
+        "({n} în plus sunt bifate; o rulare trimite {cap}, restul rămân selectate.)",
+    ", answered {n} question(s)":
+        ", a răspuns la {n} întrebare/întrebări",
+    ", left {n} for you":
+        ", a lăsat {n} pentru tine",
+    ", {n} dropped as over two weeks old":
+        ", {n} eliminate ca fiind mai vechi de două săptămâni",
+    ". <b>{n}</b> waiting at {floor}+.":
+        ". <b>{n}</b> în așteptare la {floor}+.",
+    "About to send {n} real application(s):":
+        "Pe punctul de a trimite {n} candidatură/candidaturi reale:",
+    "Added {n} to your Applied history: {which}":
+        "S-au adăugat {n} în istoricul aplicărilor: {which}",
+    "Cancel = not yet.":
+        "Anulează = încă nu.",
+    "Delete {n} result(s) you have not acted on?":
+        "Ștergi {n} rezultat(e) pe care nu le-ai atins?",
+    "Did you send your application for:":
+        "Ai trimis candidatura pentru:",
+    "Dry run on {ats}: filled {n} field(s)":
+        "Test pe {ats}: a completat {n} câmp(uri)",
+    "Hipo lists {n} application(s), and none of them are jobs in your list ({old} were sent before this app knew about them).":
+        "Hipo listează {n} candidatură/candidaturi, și niciuna nu este un job din lista ta ({old} au fost trimise înainte ca aplicația să știe de ele).",
+    "It is sent as your {where} profile — the CV stored on {where}, not the tailored PDF.":
+        "Se trimite ca profilul tău de {where} — CV-ul salvat pe {where}, nu PDF-ul adaptat.",
+    "Last run {when}: ":
+        "Ultima rulare {when}: ",
+    "Nothing scores {floor}+ right now, so it would send nothing.":
+        "Nimic nu are {floor}+ acum, așa că nu ar trimite nimic.",
+    "OK = yes, add it to my Applied history.":
+        "OK = da, adaug-o în istoricul aplicărilor.",
+    "Opening the {ats} form with your details filled in. Check every field, then submit it yourself.":
+        "Se deschide formularul {ats} cu datele tale completate. Verifică fiecare câmp, apoi trimite-l tu.",
+    "Scheduled with Windows.":
+        "Programată în Windows.",
+    "Scheduled — next run <b>{when}</b>.":
+        "Programată — următoarea rulare <b>{when}</b>.",
+    "Signed in to {board}.":
+        "Autentificat pe {board}.",
+    "Still not signed in to {board}. Sign in inside the window this app opened — a session in your normal Chrome is not shared with it.":
+        "Încă nu ești autentificat pe {board}. Autentifică-te în fereastra deschisă de aplicație — o sesiune din Chrome-ul tău obișnuit nu este partajată cu ea.",
+    "This one has a mini interviu ({n} question(s)). Opening it with your answers filled in — read it and press Trimite.":
+        "Acesta are un mini interviu ({n} întrebare/întrebări). Se deschide cu răspunsurile tale completate — citește-l și apasă Trimite.",
+    "With your settings (score {floor}+, at most {cap} a run), THESE would have":
+        "Cu setările tale (punctaj {floor}+, cel mult {cap} pe rulare), ACESTEA ar fi fost",
+    "You are not signed in to {who}, so nothing would be sent":
+        "Nu ești autentificat pe {who}, așa că nu s-ar trimite nimic",
+    "You are signed out of {who}":
+        "Ești deconectat de la {who}",
+    "been sent, with nobody reading them first:":
+        "trimise, fără ca nimeni să le citească înainte:",
+    "until you are.":
+        "până când o faci.",
+    "{found} ads seen, {fresh} new, {scored} scored":
+        "{found} anunțuri văzute, {fresh} noi, {scored} punctate",
+    "{found} ads seen, {fresh} new. Scored {scored}.":
+        "{found} anunțuri văzute, {fresh} noi. Punctate {scored}.",
+    "{kept} stay: everything applied, opened, tailored or skipped. Skipped rows are kept on purpose so a job you rejected does not come straight back on the next search.":
+        "{kept} rămân: tot ce e aplicat, deschis, adaptat sau refuzat. Rândurile refuzate sunt păstrate intenționat, ca un job pe care l-ai respins să nu revină imediat la următoarea căutare.",
+    "{n} dropped as over two weeks old.":
+        "{n} eliminate ca fiind mai vechi de două săptămâni.",
+    "{n} failed — search again to retry them.":
+        "{n} au eșuat — caută din nou pentru a le reîncerca.",
+    "{n} job(s) queued — press Search & score to re-run them.":
+        "{n} job(uri) în coadă — apasă Caută și punctează pentru a le relua.",
+    "{n} match, selected the first {cap} — that is the most one run will send.":
+        "{n} se potrivesc, s-au selectat primele {cap} — atât trimite o rulare.",
+    "{n} re-opened by the language check.":
+        "{n} redeschise de verificarea limbii.",
+    "{n} skipped on language.":
+        "{n} sărite din cauza limbii.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":
