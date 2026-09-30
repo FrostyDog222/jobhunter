@@ -142,6 +142,16 @@ def touch():
     import prefill
     before = _cookie_hours()
     out = prefill.verify_boards()
+    # A session that lapsed while the PC was off is the exact thing this task exists to prevent,
+    # and it could do nothing about it: the saved sign-in was only ever used by the applying step,
+    # so with applying off - the ordinary case - nothing used it at all. Hipo's session is a
+    # rolling six hours, so one night with the machine off outlives it, and it then stayed signed
+    # out until somebody noticed by hand. Now the worst case is two hours.
+    down = [b for b, ok in out.items() if not ok]
+    if down:
+        for board in auto_apply.sign_back_in(prefill, down, log):
+            out[board] = True
+    # sampled after the sign-in, so the 'after' column shows the session that is actually there
     after = _cookie_hours()
     log("keep-alive: " + ", ".join(f"{b}={'ok' if v else 'SIGNED OUT'}"
                                    for b, v in sorted(out.items())))

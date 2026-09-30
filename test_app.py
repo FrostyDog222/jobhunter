@@ -2013,16 +2013,23 @@ finally:
 assert ".creds.json" in _sh2.PRIVATE, "the credentials file could be shipped in the zip"
 assert ".creds.json" in (app.HERE / ".gitignore").read_text(encoding="utf-8")
 
-# 5k. The saved sign-in is used in exactly one place: the weekly run, for a board a LIVE check
-# has just called signed out. Not on page load, not when applying by hand - you are at the
+# 5k. The saved sign-in is used only by the two unattended tasks, and only for a board a LIVE
+# check has just called signed out. Not on page load, not when applying by hand - you are at the
 # keyboard for those and can sign in yourself.
 _aasrc = (app.HERE / "auto_apply.py").read_text(encoding="utf-8")
 assert "creds.get(board)" in _aasrc and "auto_signin" in _aasrc
-assert _aasrc.index("live = prefill.verify_boards") < _aasrc.index("creds.get(board)"), \
-    "a saved password is being used before anything checked whether it is needed"
+# The attempt is one shared function now, called by the applying step and by the keep-alive, so
+# the guards cannot drift apart. It never chooses the boards: it is handed them, which is what
+# lets every caller be checked separately for probing first.
+_sbi = _iK.getsource(_aa.sign_back_in)
+assert "verify_boards" not in _sbi and "session_for" not in _sbi,     "sign_back_in decides for itself which boards are signed out"
+for _who, _src in (("the applying step", _iK.getsource(_aa.run)),
+                   ("the keep-alive", _iK.getsource(_auto.touch))):
+    assert _src.index("verify_boards") < _src.index("sign_back_in("),         f"{_who} uses a saved password before anything checked whether it is needed"
+assert "if not ok]" in _iK.getsource(_auto.touch),     "the keep-alive hands sign_back_in boards it has not established are signed out"
 for _f in ("app.py", "templates/dashboard.html", "templates/profile.html"):
     _t = (app.HERE / _f).read_text(encoding="utf-8")
-    assert "auto_signin" not in _t, f"{_f} can trigger an unattended sign-in"
+    assert "auto_signin" not in _t and "sign_back_in" not in _t,         f"{_f} can trigger an unattended sign-in"
 # one attempt, never a loop
 _assrc = _iK.getsource(_pfm.auto_signin)
 assert "for " not in _assrc.split("btn.click()")[0].split("query_selector_all")[-1] or True
@@ -2304,9 +2311,12 @@ assert '"denied"' in _tail6 and "/candidat/aplica/" in _tail6,     "Hipo calls a
 # 6e. Only the board rejecting the password may spend a strike. auto_signin fails six ways and
 # five of them - no form, no button, a timeout, a 502 - say nothing about the password; counting
 # those meant two runs during a wifi outage disabled the saved sign-in for good.
-_ru6 = _iK.getsource(_aa6.run)
+# The attempt itself lives in sign_back_in now, shared with the keep-alive - one copy of these
+# guards, so the two callers cannot drift apart on how many strikes a failure costs.
+_ru6 = _iK.getsource(_aa6.sign_back_in)
 assert "elif ok is False:" in _ru6,     "every sign-in failure counts towards giving up on the saved password again"
 assert "stopped" in _ru6, "a switched-off saved sign-in goes back to failing in silence"
+assert _iK.getsource(_aa6.run).count("auto_signin") == 0,     "the applying step kept its own copy of the attempt, which is how the guards drift"
 
 # 6f. Task Scheduler does not retry a run that returned success, so the search giving up the
 # moment a keep-alive holds the lock cost a whole day. The search waits; the keep-alive does not.
@@ -2427,5 +2437,54 @@ finally:
 assert app.TASK == "jobhunter scheduled search" and "jobhunter weekly search" in app.OLD_TASKS,     "the old task name was dropped from OLD_TASKS, so upgraders keep a second task for ever"
 # ...and switching the run off has to switch off the old name too, or erase-everything leaves it
 assert "_drop_old_tasks()" in _iK.getsource(app.schedule)
+
+
+# 6k. The keep-alive's whole job is stopping a session from lapsing. This morning it detected
+# hipo=SIGNED OUT, had the saved password sitting right there, and wrote a log line - because the
+# attempt lived only in the applying step, behind a switch that was off. Ten hours with the PC off
+# outlives Hipo's six-hour session, so this happens on any night the machine is not on.
+# Run, not read: the code that did nothing was perfectly well-formed, it just called nothing.
+_ka6, _kalog = pathlib.Path(_tf.mkdtemp()), []
+_keep6k = (_auto.LOG, _auto.log, _pfm.verify_boards, _aa6.creds, _pfm.auto_signin,
+           _auto._cookie_hours)
+try:
+    _auto.LOG = _ka6 / "auto.log"
+    _auto.log = lambda m: _kalog.append(m)
+    _auto._cookie_hours = lambda: {}
+    _asked = []
+
+    class _Creds6k:
+        MAX_FAILS = 2
+        def get(self, board): return ("u", "p") if board == "hipo" else None
+        def status(self): return {}
+        def note_success(self, board): _asked.append(f"success {board}")
+        def note_failure(self, board): return 1
+
+    _aa6.creds = _Creds6k()
+    # the probe says hipo is out; the other two are fine and must not be touched
+    _pfm.verify_boards = lambda *a, **k: {"ejobs": True, "bestjobs": True, "hipo": False}
+    _pfm.auto_signin = lambda b, u, pw, **k: (_asked.append(f"tried {b}"), (True, "signed in"))[1]
+
+    _out6 = _auto.touch()
+    assert _asked == ["tried hipo", "success hipo"], f"the keep-alive did not sign hipo back in: {_asked}"
+    assert _out6["hipo"] is True, "it signed back in but still reports the board as signed out"
+    assert "SIGNED OUT" not in " ".join(_kalog), f"the log still calls it signed out: {_kalog}"
+
+    # a board the probe called fine is never handed a password, however many are saved
+    _asked.clear()
+    _pfm.verify_boards = lambda *a, **k: {"ejobs": True, "bestjobs": True, "hipo": True}
+    _auto.touch()
+    assert _asked == [], f"a password was used on a board that was already signed in: {_asked}"
+
+    # and a sign-in that fails leaves the report honest rather than optimistic
+    _asked.clear()
+    _pfm.verify_boards = lambda *a, **k: {"hipo": False}
+    _pfm.auto_signin = lambda b, u, pw, **k: (None, "TimeoutError: boom")
+    _out6 = _auto.touch()
+    assert _out6["hipo"] is False, "a failed sign-in was reported as signed in"
+finally:
+    (_auto.LOG, _auto.log, _pfm.verify_boards, _aa6.creds, _pfm.auto_signin,
+     _auto._cookie_hours) = _keep6k
+    _sh6.rmtree(_ka6, ignore_errors=True)
 
 print("ok")

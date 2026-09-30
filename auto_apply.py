@@ -50,6 +50,51 @@ def candidates(app, prefill, min_fit, cap, boards=None):
             and EXTERNAL_NOTE not in (r.get("note") or "")][:max(0, int(cap))]
 
 
+def sign_back_in(prefill, out, log):
+    """Try the saved sign-in for each board in `out`. -> the boards that came back.
+
+    ONE attempt per board, never a loop: an unattended retry posting a wrong password is how an
+    account gets locked, which is far worse than being signed out for another two hours. Two
+    failures that were the board rejecting the password and creds stops handing it over until you
+    save it again.
+
+    Shared by the keep-alive and the applying step, in one function so those guards cannot drift
+    apart. It used to live only in the applying step, which meant a saved password was used only
+    when "Also apply for me" was on - so saving a sign-in and leaving applying off, which is the
+    ordinary combination, got you no automatic sign-in at all. The keep-alive would report
+    "hipo=SIGNED OUT" every two hours and never do the one thing it had the means to do.
+    """
+    back = []
+    for board in list(out):
+        try:
+            saved = creds.get(board)
+        except Exception as e:                   # a credentials file we cannot read is not fatal
+            log(f"could not read the saved sign-in for {board}: {type(e).__name__}")
+            continue
+        if not saved:
+            if creds.status().get(board, {}).get("stopped"):
+                # get() returns None for ever once the budget is spent, and said nothing about
+                # it - so the whole symptom was runs that quietly sent nothing
+                log(f"{board}: the saved sign-in is switched off after {creds.MAX_FAILS} "
+                    f"failures - save it again under Settings to re-enable it")
+            continue
+        log(f"{board}: signed out, trying the sign-in you saved")
+        ok, why = prefill.auto_signin(board, *saved)
+        log(f"{board}: {'signed in again' if ok else 'could not sign in - ' + why}")
+        if ok:
+            creds.note_success(board)
+            back.append(board)
+        elif ok is False:
+            # False is the board rejecting the password. None is everything else auto_signin can
+            # fail on - no form, no button, a timeout, a 502 - and none of that is evidence about
+            # the password, so it must not spend a strike. Two runs during a wifi outage used to
+            # disable the saved sign-in permanently.
+            left = creds.MAX_FAILS - creds.note_failure(board)
+            if left <= 0:
+                log(f"{board}: not trying the saved sign-in again until you save it afresh")
+    return back
+
+
 def run(app, prefill, settings, log):
     """Apply to this week's best matches. -> a report dict for auto_last.json.
 
@@ -73,39 +118,11 @@ def run(app, prefill, settings, log):
     usable = [b for b in prefill.AUTO_APPLY if live.get(b, prefill.session_for(b))]
     out = [b for b in prefill.AUTO_APPLY if b not in usable]
 
-    # A board that is out, and whose sign-in you chose to save, gets ONE attempt - here, and
-    # nowhere else in the app. This is the moment the feature exists for: nobody is at the
-    # keyboard, and without it the week sends nothing. One attempt, never a loop; two failures
-    # and creds stops handing the password over at all, because an unattended retry loop is how
-    # an account gets locked.
-    for board in list(out):
-        try:
-            saved = creds.get(board)
-        except Exception as e:                   # a credentials file we cannot read is not fatal
-            log(f"could not read the saved sign-in for {board}: {type(e).__name__}")
-            continue
-        if not saved:
-            if creds.status().get(board, {}).get("stopped"):
-                # get() returns None for ever once the budget is spent, and said nothing about
-                # it - so the whole symptom was weeks that quietly sent nothing
-                log(f"{board}: the saved sign-in is switched off after {creds.MAX_FAILS} "
-                    f"failures - save it again under Settings to re-enable it")
-            continue
-        log(f"{board}: signed out, trying the sign-in you saved")
-        ok, why = prefill.auto_signin(board, *saved)
-        log(f"{board}: {'signed in again' if ok else 'could not sign in - ' + why}")
-        if ok:
-            creds.note_success(board)
-            usable.append(board)
-            out.remove(board)
-        elif ok is False:
-            # False is the board rejecting the password. None is everything else auto_signin
-            # can fail on - no form, no button, a timeout, a 502 - and none of that is evidence
-            # about the password, so it must not spend a strike. Two runs during a wifi outage
-            # used to disable the saved sign-in permanently.
-            left = creds.MAX_FAILS - creds.note_failure(board)
-            if left <= 0:
-                log(f"{board}: not trying the saved sign-in again until you save it afresh")
+    # A board that is out, and whose sign-in you chose to save, gets one attempt. The keep-alive
+    # does this too, every two hours, which is where it matters most - see sign_back_in.
+    for board in sign_back_in(prefill, out, log):
+        usable.append(board)
+        out.remove(board)
     if out:
         log(f"not signed in to {', '.join(out)} - applying on {', '.join(usable) or 'nothing'}")
     if not usable:
