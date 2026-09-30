@@ -2864,4 +2864,140 @@ finally:
     _L9._BLOWN.update(_k9[1])
     _sh6.rmtree(_d9, ignore_errors=True)
 
+
+# 7a. A retired model is not an empty wallet, and this app used to say it was: _call raised
+# QuotaError for 404 and 410 and folded 403 in with 401 and 402. So a model name gone stale under us
+# reported the one thing that could not be true - the key is fine - and pointed at the one fix that
+# cannot work, a new key, while the actual repair was one string.
+_L7 = app.llm
+for _st, _txt, _why in ((403, "tier_not_allowed", "paid-only model on a free plan"),
+                        (410, "Model has reached its end of life", "retired on a published date"),
+                        (404, "unavailable for free. The paid version", "free tier withdrawn"),
+                        (400, "model_unavailable", "dropped from the catalogue"),
+                        (404, "Not found for account", "listed publicly, not on this key")):
+    assert _L7.is_model_misconfigured(_txt, _st), f"{_why} is not being recognised"
+# the exclusions matter as much: no model name fixes an empty account or a rate limit, and hunting a
+# catalogue to escape a billing problem would work through the catalogue AND spend money doing it
+for _st, _txt, _why in ((402, "Insufficient Balance", "billing"),
+                        (429, "Rate limit exceeded", "rate limit"),
+                        (400, "context_length_exceeded: prompt too long", "an over-long prompt"),
+                        (403, "Forbidden", "a bare 403 with no phrase"),
+                        (503, "upstream unavailable", "their outage")):
+    assert not _L7.is_model_misconfigured(_txt, _st),         f"{_why} would take a working provider out of the chain"
+_src7 = _iK.getsource(_L7._call)
+assert "402" in _src7 and "is_model_misconfigured" in _src7
+assert _src7.index("is_model_misconfigured") < _src7.index("spent ="),     "the wallet is checked before the model, so a 403 about a model still reports as spent"
+
+# 7b. A catalogue is not a menu of chat models. The embedding model fails loudly on a chat endpoint;
+# the VISION model answers text prompts plausibly enough that only the scores get worse - which is
+# why it has to be excluded even though it is both the largest and the closest name here.
+_cat7 = ["nvidia/llama-3.2-90b-vision-instruct", "nvidia/nv-embedqa-e5-v5",
+         "meta/llama-3.3-70b-instruct", "openai/whisper-large-v3", "nvidia/llama-guard-3-8b",
+         "black-forest/flux-diffusion", "google/gemma-2-27b-it"]
+_ranked7 = _L7.rank_chat(_cat7)
+assert "vision" not in " ".join(_ranked7) and "embed" not in " ".join(_ranked7)
+assert "whisper" not in " ".join(_ranked7) and "guard" not in " ".join(_ranked7)
+assert _ranked7[0] == "meta/llama-3.3-70b-instruct", f"size does not lead: {_ranked7}"
+assert _L7.model_size_b("nemotron-3-ultra-550b-a55b") == 550.0
+assert _L7.model_size_b("gpt-4.1") == 0.0, "a name with no size must not read as one"
+# similarity breaks ties and does not filter. The design this came from filtered by similarity and
+# then took the best survivor, which answered a dead mistral model with ministral-8b while
+# ministral-14b sat in the list unconsidered. Staying in the family is not worth 6b of model.
+_tie7 = ["ministral-14b-2512", "ministral-8b-latest", "ministral-14b-latest"]
+assert _L7.rank_chat(_tie7, near=["ministral-8b-latest"])[0].startswith("ministral-14b"),     "a similar smaller model still beats a bigger one"
+assert _L7.rank_chat(_tie7, near=["ministral-14b-latest"])[0] == "ministral-14b-latest",     "similarity does not break a tie between equals"
+
+# 7c. A repair must never change what something costs. OpenRouter's own refusal names a PAID
+# replacement, and taking it at its word turns restoring service into spending money.
+_keep7 = _L7.models
+try:
+    _L7.models = lambda p=None: ["openai/gpt-oss-120b", "qwen/qwen3-32b:free",
+                                 "google/gemma-2-27b-it:free"]
+    _free7 = _L7.replacement_for("openrouter", "deepseek/deepseek-r1:free")
+    assert _free7 and _free7.endswith(":free"),         f"a free slug was replaced with a paid one: {_free7}"
+    # and nothing to move to is its own answer, not a wrong one
+    _L7.models = lambda p=None: ["text-embedding-3-large"]
+    assert _L7.replacement_for("openai", "gpt-4.1") is None,         "a catalogue of embeddings produced a chat replacement"
+    _L7.models = lambda p=None: (_ for _ in ()).throw(RuntimeError("no listing"))
+    assert _L7.replacement_for("openai", "gpt-4.1") is None,         "a provider that will not list its models must simply yield nothing"
+finally:
+    _L7.models = _keep7
+
+
+# 7d. The repair end to end, without calling anybody: ask() must move the provider off the dead
+# model, retry ONCE with the new one, and write the choice where the chain reads it next time - so
+# the fix outlives this process, which is the only way a scheduled run benefits.
+_e7 = pathlib.Path(_tf.mkdtemp())
+_k7 = (_L7.DOWN, dict(_L7._BLOWN), list(_L7._NOTES), _L7.models, _L7._call, _L7.chain,
+       _L7.set_cfg, _L7.cfg)
+try:
+    _L7.DOWN = _e7 / ".llm_down.json"
+    _L7._BLOWN.clear(); _L7._NOTES.clear()
+    _wrote7 = {}
+    _L7.set_cfg = lambda **kv: _wrote7.update(kv)
+    # stubbed, or this test passes or fails depending on which provider the person running it
+    # happens to have selected. Here the selected one is groq, so nvidia is a plain chain member.
+    _L7.cfg = lambda name, default=None: "groq" if name == "LLM_PROVIDER" else (default or "")
+    _L7.chain = lambda: [("nvidia", "meta/llama-3.3-70b-instruct", "k")]
+    _L7.models = lambda p=None: ["meta/llama-3.1-8b-instruct", "nvidia/nemotron-4-340b-instruct",
+                                 "nvidia/nv-embedqa-e5-v5"]
+    _tried7 = []
+
+    def _fake_call(provider, model, key, system, user, max_tokens, tries):
+        _tried7.append(model)
+        if model == "meta/llama-3.3-70b-instruct":
+            raise _L7.ModelGone(f"nvidia/{model}: [410] Model has reached its end of life")
+        return {"ok": True}
+
+    _L7._call = _fake_call
+    assert _L7.ask("s", "u", max_tokens=100) == {"ok": True},         "the chain did not recover from a dead model it had a replacement for"
+    assert _tried7 == ["meta/llama-3.3-70b-instruct", "nvidia/nemotron-4-340b-instruct"],         f"it did not retry once with the replacement: {_tried7}"
+    # the embedding model was in the catalogue and must not have been chosen
+    assert "embed" not in _tried7[1]
+    # written per provider, because nvidia is not the selected one here
+    assert _wrote7.get("LLM_MODEL_NVIDIA") == "nvidia/nemotron-4-340b-instruct",         f"the repair went somewhere the chain will not read: {_wrote7}"
+    # ...and said out loud. Automatic is not silent: a different model is answering now.
+    assert _L7._NOTES and _L7._NOTES[0]["new"] == "nvidia/nemotron-4-340b-instruct"
+    assert "end of life" in _L7._NOTES[0]["why"], "the provider's own words were not kept"
+    assert not _L7._breaker(("nvidia", "meta/llama-3.3-70b-instruct")),         "a repaired provider was also marked down, so it sits out a window it does not need"
+
+    # nothing to switch to -> set aside, and SAY so. Better to stop than run on a model nobody chose.
+    _L7._NOTES.clear(); _L7._BLOWN.clear(); _wrote7.clear()
+    _L7.models = lambda p=None: ["nvidia/nv-embedqa-e5-v5"]
+    _tried7.clear()
+    try:
+        _L7.ask("s", "u", max_tokens=100)
+    except Exception as _e:
+        assert isinstance(_e, (_L7.QuotaError, RuntimeError)), type(_e)
+    assert _tried7 == ["meta/llama-3.3-70b-instruct"], "it retried with nothing to retry with"
+    assert _L7._NOTES and _L7._NOTES[0]["new"] == "",         "a credential with no way forward was switched off in silence"
+    assert _L7._breaker(("nvidia", "meta/llama-3.3-70b-instruct")),         "a model that cannot work is still being called every cycle"
+    assert not _wrote7, "it wrote a model choice while having nothing to choose"
+
+    # the other branch: repairing the SELECTED provider has to write LLM_MODEL, which is what
+    # chain() passes explicitly for it - writing the per-provider key would look like it worked
+    # and change nothing at all
+    _L7._NOTES.clear(); _L7._BLOWN.clear(); _wrote7.clear()
+    _L7.cfg = lambda name, default=None: "nvidia" if name == "LLM_PROVIDER" else (default or "")
+    _L7.models = lambda p=None: ["nvidia/nemotron-4-340b-instruct"]
+    assert _L7.repair("nvidia", "meta/llama-3.3-70b-instruct", "[410] end of life")
+    assert _wrote7 == {"LLM_MODEL": "nvidia/nemotron-4-340b-instruct"},         f"the selected provider's repair went to the wrong setting: {_wrote7}"
+finally:
+    (_L7.DOWN, _, _, _L7.models, _L7._call, _L7.chain, _L7.set_cfg, _L7.cfg) = _k7
+    _L7._BLOWN.clear(); _L7._BLOWN.update(_k7[1])
+    _L7._NOTES.clear(); _L7._NOTES.extend(_k7[2])
+    _sh6.rmtree(_e7, ignore_errors=True)
+
+# an unset per-provider model changes nothing, which is what makes this safe to add
+assert app.llm._entry("groq")[1] == app.llm.PROVIDERS["groq"][2],     "adding the per-provider override changed the default behaviour"
+# and the panel says the two kinds of trouble apart, because they have different fixes
+_dash7 = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "no usable model" in _dash7 and "drawNotes" in _dash7
+# joined first: these live in the source as concatenated JS strings, so "not an outage" is not a
+# contiguous substring of the file even when the sentence is there
+_flat7 = _reL.sub(r"'\s*\+\s*'", "", _dash7)
+assert "not an outage" in _flat7 and "not a new key" in _flat7,     "the panel lost the two sentences that stop someone regenerating a key that was never wrong"
+# and both of them have Romanian, or the sentence only works for half the users
+assert any("nu o pan" in v for v in _lg.RO.values()), "the 'not an outage' line has no Romanian"
+
 print("ok")

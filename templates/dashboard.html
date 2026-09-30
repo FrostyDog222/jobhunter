@@ -240,6 +240,8 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   </details>
 
   <div id="chain"></div>
+      <!-- what a repair changed, and why. Hidden until there is something to say. -->
+      <div id="llmnotes" style="display:none"></div>
 
   <b style="display:block;margin-top:18px">Job board accounts</b>
   <p class="muted">eJobs and BestJobs only let you apply while signed in. You type the password into
@@ -751,6 +753,32 @@ async function drawOllamaHelp(){
   ];
   box.innerHTML = steps.map(([ok, html]) =>
     `<li style="margin-bottom:7px">${done(ok)}${html}</li>`).join('');
+}
+
+// What a repair did, in the provider's own words. Automatic is not the same as silent: a switch
+// means a different model is answering, and every score this app produces came from whichever model
+// produced it - so it is stated, not buried.
+//
+// The two sentences about what this is NOT are the important ones. Reading that a provider refused
+// every call, the first instinct is to regenerate the key; in every case this pattern was drawn
+// from, the key was fine and the model name was one string out.
+function drawNotes(){
+  const box = $('#llmnotes');
+  if(!box) return;
+  const ns = LLM.notes || [];
+  box.style.display = ns.length ? '' : 'none';
+  box.innerHTML = ns.map(n => n.new
+    ? `<div class="muted" style="margin-top:6px">${esc(fill('{when} — {provider} could no longer '
+        + 'use {old}, so it moved to {new}.', n))}<br>${esc(t('This is a configuration problem, not '
+        + 'an outage, and not a new key: the key was accepted, that model was not. A different '
+        + 'model is answering now, so change it above if you want another one.'))}
+        <br><span style="opacity:.7">${esc(n.why)}</span></div>`
+    : `<div class="muted" style="margin-top:6px;color:var(--bad)">${esc(fill('{when} — {provider} '
+        + 'could no longer use {old}, and it lists nothing suitable to move to.', n))}<br>${esc(
+        t('It has been set aside so it stops wasting a call. Usually the fix is a different model '
+        + 'on the same key, not a new key — pick one above and press Save & test.'))}
+        <br><span style="opacity:.7">${esc(n.why)}</span></div>`).join('');
+  localiseDOM(box);
 }
 
 function drawKeyLink(){
@@ -1431,8 +1459,9 @@ async function loadLlm(){
          <span class="muted" title="${esc(c ? c.model : (p.default || ''))}"
            >${esc(c ? c.model : (p.default || ''))}</span>
          ${p.paused ? `<span class="pill">${t('paused')}</span>` : ''}
-         ${c && c.blocked ? '<span class="pill" style="border-color:var(--bad);color:var(--bad)">'
-             + t('spent') + '</span>' : ''}
+         ${c && c.blocked ? `<span class="pill" style="border-color:var(--bad);color:var(--bad)"
+             title="${esc(c.blocked)}">${/no usable model/.test(c.blocked)
+               ? t('no model') : t('spent')}</span>` : ''}
          <span class="gap"></span>
          <button class="ghost tiny" data-pause="${esc(n)}" data-to="${p.paused ? '0' : '1'}"
            title="${p.paused ? t('Start using this one again') : t('Keep the key, but stop using this one for now')}"
@@ -1441,6 +1470,7 @@ async function loadLlm(){
            title="${t('Delete this key. You will have to paste it again to use this provider.')}"
            >${t('Remove')}</button>` : ''}
        </div>`; }).join('');
+  drawNotes();
   drawKeyLink();
   steps();                 // step one of the checklist depends on the model being set
   localiseDOM();   // this panel is innerHTML, so the server pass never saw it

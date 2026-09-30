@@ -9,7 +9,7 @@ chat-completions shape, so that is two request builders, not five:
 
 Ollama needs no key: set LLM_PROVIDER=ollama and have it running locally.
 """
-import json, os, pathlib, re, tempfile, threading, time
+import difflib, json, os, pathlib, re, tempfile, threading, time
 import httpx
 
 # name: (env var, base url, default model)  - order is the auto-pick order
@@ -136,6 +136,78 @@ def models(provider=None):
     return sorted(m["id"] for m in r.json().get("data", []))
 
 
+class ModelGone(RuntimeError):
+    """The KEY is fine; the model name is not. Fixable by changing one string, and nothing else."""
+
+
+# What a provider says when the model, not the key, is the problem. Real replies, not guesses:
+# a retired NVIDIA model answers 410, a paid-only Mistral model answers 403 tier_not_allowed, a
+# withdrawn OpenRouter free slug answers 404, a dropped catalogue entry answers 400.
+CONFIG_ERROR = re.compile(
+    r"tier_not_allowed|not available in your subscription|model_not_found"
+    r"|does not exist or you do not have access|invalid_model|model_not_available"
+    r"|reached its end of life|no longer available|not found for account"
+    r"|model_unavailable|is currently unavailable|unavailable for free"
+    r"|decommissioned|deprecated", re.I)
+
+# Status AND phrase, never status alone.
+#
+# 400 is "bad request", which an over-long prompt causes just as readily as a dead model - taking a
+# working provider out of the chain over one awkward job advert would be a worse bug than the one
+# this fixes. 403 can be either a permanent plan restriction or a passing refusal. 404 may be the
+# model or the URL.
+#
+# 402 and 429 are absent on purpose and that matters as much as the rest: no model name fixes an
+# empty account or a rate limit, and searching a catalogue for a model that escapes a billing
+# problem would work through the whole catalogue and spend money doing it.
+CONFIG_STATUSES = (400, 403, 404, 410)
+
+
+def is_model_misconfigured(text, status):
+    """-> True if this failure is about the MODEL, and so is worth fixing rather than retrying."""
+    return status in CONFIG_STATUSES and bool(CONFIG_ERROR.search(text or ""))
+
+
+# Names that are not chat models. A /v1/models listing is a catalogue, not a menu: it also holds
+# embeddings, rerankers, guardrails, speech, vision and parsers.
+#
+# A denylist of names seen in the wild, and deliberately described as a floor rather than a rule -
+# a provider shipping an audio model under a new brand slips through until somebody notices. The
+# dangerous case is not the embedding model, which fails loudly on a chat endpoint: it is the
+# VISION model, which answers text prompts plausibly enough that only the scores get worse.
+NOT_CHAT = ("embed", "rerank", "guard", "reward", "safety", "parse", "vision", "translate",
+            "clip", "diffusion", "video", "ocr", "whisper", "tts", "stt", "speech", "audio",
+            "transcribe", "voxtral", "moderation", "image")
+
+
+def model_size_b(mid):
+    """Billions of parameters, read off the name. 0 when the name does not say."""
+    return max((float(x) for x in re.findall(r"(\d+(?:\.\d+)?)b(?![a-z0-9])", (mid or "").lower())),
+               default=0.0)
+
+
+def rank_chat(ids, near=()):
+    """Chat models only, best first. Size leads, then name similarity, then instruct-tuning.
+
+    Weak signals read off a name, which is all a bare model list offers. Good enough to order
+    suggestions and to pick a replacement that announces itself; never good enough to decide
+    silently, which is why every switch built on this says so afterwards.
+
+    `near` is names textually close to the one being replaced, and it breaks ties rather than
+    filtering. The design this came from used similarity as a FILTER and then took the best of what
+    survived - which, asked for a replacement for a dead mistral model, chose ministral-8b while
+    ministral-14b sat in the list unconsidered, because the 8b name happened to look more like the
+    dead one. Staying in the family is worth something; it is not worth 6b of model.
+    """
+    near = set(near)
+    def key(mid):
+        low = mid.lower()
+        tuned = any(w in low for w in ("instruct", "-it", "chat"))
+        # size first: ranking tuning first put a 7b above a 120b
+        return (-model_size_b(mid), mid not in near, not tuned, mid)
+    return sorted((i for i in ids if not any(w in i.lower() for w in NOT_CHAT)), key=key)
+
+
 class QuotaError(RuntimeError):
     """This provider is spent. Retrying it cannot help; the caller should move down the chain."""
 
@@ -172,24 +244,45 @@ MAX_QUOTA = 3600
 QUOTA_EVENTS = []
 
 
+# The last few repairs, kept so the panel can explain a switch nobody watched happen. Capped,
+# because this is an explanation and not an audit trail.
+_NOTES = []
+NOTES_KEPT = 8
+
+
+def note(provider, old_model, new_model, why):
+    _NOTES.insert(0, {"when": time.strftime("%Y-%m-%d %H:%M"), "provider": provider,
+                      "old": old_model, "new": new_model or "", "why": (why or "")[:300]})
+    del _NOTES[NOTES_KEPT:]
+    _save_down()
+
+
+def notes():
+    return list(_NOTES)
+
+
 def _load_down():
     """What other processes have learned. Every scheduled run is a fresh process, and without this
     each one rediscovers the dark provider at its own expense."""
     try:
-        for k, v in json.loads(DOWN.read_text(encoding="utf-8")).items():
+        raw = json.loads(DOWN.read_text(encoding="utf-8"))
+        for k, v in (raw.get("down") or {}).items():
             provider, _, model = k.partition("|")
             _BLOWN.setdefault((provider, model),
                               (float(v[0]), str(v[1]), bool(v[2]),
                                int(v[3]) if len(v) > 3 else 1))
-    except (OSError, ValueError, TypeError, KeyError, IndexError):
+        if not _NOTES:
+            _NOTES.extend(raw.get("notes") or [])
+    except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError):
         pass                        # a state file we cannot read is not worth failing a call over
 
 
 def _save_down():
     try:
-        DOWN.write_text(json.dumps({f"{k[0]}|{k[1]}": [v[0], v[1], v[2],
-                                                       v[3] if len(v) > 3 else 1]
-                                    for k, v in _BLOWN.items()}), encoding="utf-8")
+        DOWN.write_text(json.dumps({
+            "down": {f"{k[0]}|{k[1]}": [v[0], v[1], v[2], v[3] if len(v) > 3 else 1]
+                     for k, v in _BLOWN.items()},
+            "notes": _NOTES}), encoding="utf-8")
     except OSError:
         pass                        # remembering is an optimisation, never a requirement
 
@@ -300,7 +393,10 @@ def _content(provider, data):
 def _entry(name, model=None):
     env, _, default = PROVIDERS[name]
     key = cfg(env) if env else "-"            # ollama needs no key
-    return (name, model or default, key) if key else None
+    # LLM_MODEL_<PROVIDER> is where a repair writes, and where a per-provider choice lives. Unset,
+    # which it is until something needs it, this is exactly the behaviour it replaced: the caller's
+    # model if given, otherwise the built-in default.
+    return (name, model or cfg(f"LLM_MODEL_{name.upper()}") or default, key) if key else None
 
 
 _OLLAMA = [0.0, False]
@@ -516,15 +612,23 @@ def _call(provider, model, key, system, user, max_tokens, tries):
     for attempt in range(tries):
         r = httpx.post(url, headers={**headers, "Content-Type": "application/json"},
                        json=body, timeout=_patience(max_tokens))
-        spent = r.status_code in (401, 402, 403) or (
+        # The model, before the wallet. A 403 is either a plan restriction on this model or a
+        # passing refusal, and the phrase is the only thing that tells them apart - so ask about
+        # the model first, or every stale model name goes on being reported as no money.
+        if is_model_misconfigured(r.text, r.status_code):
+            raise ModelGone(f"{provider}/{model}: [{r.status_code}] {r.text[:200]}")
+        spent = r.status_code in (401, 402) or (
             r.status_code == 429 and any(w in r.text.lower() for w in (
                 "per day", "exceeded your current quota", "quota exceeded", "insufficient_quota")))
         if spent:
-            msg = f"{provider}/{model}: {r.text[:140]}"
+            msg = f"{provider}/{model}: [{r.status_code}] {r.text[:140]}"
             _breaker((provider, model), msg)
             raise QuotaError(msg)
-        if r.status_code in (404, 410):               # model retired or not on this plan
-            msg = f"{provider}/{model}: {r.text[:140]}"
+        if r.status_code in (403, 404, 410):
+            # The right status for it, but no phrase we recognise, so it cannot be called
+            # permanent. Cooled down rather than repaired: a provider is never taken out of the
+            # chain for good on a guess about what it meant.
+            msg = f"{provider}/{model}: [{r.status_code}] {r.text[:140]}"
             _breaker((provider, model), msg)
             raise QuotaError(msg)
         if r.status_code in (429, 500, 502, 503, 504) and attempt < tries - 1:
@@ -547,6 +651,54 @@ def _call(provider, model, key, system, user, max_tokens, tries):
     return out
 
 
+def replacement_for(provider, model):
+    """-> the best model this provider currently lists that is not the dead one, or None.
+
+    Best-effort and never raising: a provider that will not list its models simply yields no
+    replacement, and the chain carries on exactly as it did before.
+    """
+    try:
+        have = models(provider)
+    except Exception:
+        return None
+    # A free slug may only become another free slug. The provider's own refusal helpfully names a
+    # PAID replacement, and following that advice would turn a repair into a bill.
+    if model.endswith(":free"):
+        have = [m for m in have if m.endswith(":free")]
+    plain = [m for m in rank_chat(have) if m != model]
+    if not plain:
+        return None
+    # Similarity breaks ties, it does not filter: see rank_chat. Between two 14b models the one
+    # named like the old one wins; between a similar 8b and a 14b, the 14b does.
+    near = difflib.get_close_matches(model, plain, n=8, cutoff=0.6)
+    return rank_chat(plain, near=near)[0]
+
+
+def repair(provider, model, why):
+    """Move this provider off a model it can no longer call. -> the new model, or None.
+
+    Writes the choice where the chain will read it next time, so the fix outlives this process and
+    this run. Both halves are recorded either way: a switch, or the fact that there was nothing to
+    switch to, which is the more urgent of the two.
+    """
+    new = replacement_for(provider, model)
+    if not new:
+        note(provider, model, None, why)
+        # Marked down so the rest of the run stops paying for a call that cannot work. Not "slow":
+        # it answered promptly, it just answered no.
+        _breaker((provider, model), f"{provider}/{model}: no usable model - {why[:120]}")
+        return None
+    # The selected provider reads LLM_MODEL, which chain() passes explicitly; every other one reads
+    # its own. Writing the wrong one of the two would look like it worked and change nothing.
+    if provider == cfg("LLM_PROVIDER"):
+        set_cfg(LLM_MODEL=new)
+    else:
+        set_cfg(**{f"LLM_MODEL_{provider.upper()}": new})
+    note(provider, model, new, why)
+    print(f"[llm] {provider}: '{model}' is gone, moved to '{new}'", flush=True)
+    return new
+
+
 def ask(system, user, max_tokens=8000, tries=5):
     """Prompt -> parsed JSON, walking down the provider chain as keys run dry."""
     opts = chain()
@@ -559,6 +711,21 @@ def ask(system, user, max_tokens=8000, tries=5):
             continue
         try:
             return _call(provider, model, key, system, user, max_tokens, tries)
+        except ModelGone as e:
+            # The key works and the model does not, which is one string away from fixed. Repaired
+            # here and retried ONCE with the new name - one retry, because a second failure means
+            # the replacement is wrong too and guessing again would work through the catalogue.
+            fixed = repair(provider, model, str(e))
+            if fixed:
+                try:
+                    return _call(provider, fixed, key, system, user, max_tokens, tries)
+                except (QuotaError, ModelGone, RuntimeError, ValueError, httpx.HTTPError) as e2:
+                    spent.append(f"{provider}/{fixed}")
+                    print(f"[llm] {provider}/{fixed} did not work either ({type(e2).__name__})")
+                    last = e2 if not isinstance(e2, QuotaError) else last
+                    continue
+            spent.append(f"{provider}/{model} (model gone)")
+            continue
         except QuotaError as e:
             # Counted as well as logged: ask() recovers by moving down the chain, so a caller
             # never sees this unless EVERY provider is spent - yet it is exactly the signal a

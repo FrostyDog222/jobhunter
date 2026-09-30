@@ -212,6 +212,25 @@ Jobs you applied to, tailored, opened or skipped stay regardless of age, and so 
 holding a CV. When a search does drop something you would have wanted — scored at or above your
 own floor, with no closing date to go on — it now says so instead of only counting it.
 
+**When a model disappears under you.** A model name in your settings is a guess about someone
+else's catalogue, and catalogues rotate: models get retired on a published date, moved behind a paid
+plan, or dropped from a free tier. All three look identical from here — the key is fine and the call
+fails — and this app used to report all three as *"this provider is spent"*, which points at the one
+fix that cannot work (a new key) and hides the one that can (one string).
+
+It now tells them apart, and repairs the fixable kind by itself: it asks the provider what models it
+currently offers and moves to the best of those. The switch is announced in the AI panel, in the
+provider's own words, because a different model answering is a real change — every score this app
+produces came from whichever model produced it. If there is nothing suitable to move to, the
+provider is set aside and the panel says so rather than letting it waste a call on every run.
+
+Three rules it will not break. A free model can only ever become another free model, so restoring
+service never starts spending money — a provider's own error message will happily recommend its paid
+version. Embedding, vision, speech and guardrail models are never chosen, because a vision model
+answers text prompts plausibly enough that only your scores get worse. And it never does any of this
+for a rate limit or an empty account: no model name fixes either, and going looking would work
+through the whole catalogue trying.
+
 **When a provider goes quiet.** Every AI call walks your whole provider list, in order, and moves
 on the moment one refuses — that is how a free tier running dry mid-search keeps the search alive.
 What it used to do badly was walk into the same wall each time: a provider that accepts the

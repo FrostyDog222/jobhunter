@@ -1229,6 +1229,10 @@ def get_llm():
             "chain": [{"provider": p, "model": m, "live": (p, m) == live,
                        "blocked": llm._breaker((p, m)) or ""} for p, m, _ in llm.chain()],
             "paused": sorted(llm.paused()),
+            # Automatic is not the same as silent. A switch changed which model answers, and the
+            # scores this app produces come from whichever model produced them - so it is said out
+            # loud rather than left in a log nobody opens.
+            "notes": llm.notes(),
             "providers": {n: {"env": env, "default": dflt,
                               "keyed": bool(llm.cfg(env)) if env else llm.ollama_up(),
                               "paused": n in llm.paused(),

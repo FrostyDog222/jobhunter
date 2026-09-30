@@ -967,6 +967,16 @@ RO = {
         "Încă se așteaptă furnizorul AI. Prima cerere după o pauză poate fi lentă, cât timp unul care a amuțit este scos din listă.",
     "{n} suggestion(s) left out: they were built on words that have never found you a job.":
         "{n} sugestie/sugestii lăsate deoparte: erau construite pe cuvinte care nu ți-au găsit niciodată un job.",
+    "{when} — {provider} could no longer use {old}, so it moved to {new}.":
+        "{when} — {provider} nu a mai putut folosi {old}, așa că a trecut la {new}.",
+    "This is a configuration problem, not an outage, and not a new key: the key was accepted, that model was not. A different model is answering now, so change it above if you want another one.":
+        "Aceasta este o problemă de configurare, nu o pană și nu o cheie nouă: cheia a fost acceptată, modelul acela nu. Acum răspunde un alt model, așa că schimbă-l mai sus dacă vrei altul.",
+    "{when} — {provider} could no longer use {old}, and it lists nothing suitable to move to.":
+        "{when} — {provider} nu a mai putut folosi {old} și nu listează nimic potrivit la care să treacă.",
+    "It has been set aside so it stops wasting a call. Usually the fix is a different model on the same key, not a new key — pick one above and press Save & test.":
+        "A fost pus deoparte ca să nu mai irosească un apel. De obicei soluția este un alt model pe aceeași cheie, nu o cheie nouă — alege unul mai sus și apasă Salvează și testează.",
+    "no model":
+        "fără model",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":
