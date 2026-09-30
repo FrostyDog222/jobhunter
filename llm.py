@@ -157,6 +157,16 @@ DOWN = pathlib.Path(__file__).parent / ".llm_down.json"
 # this, at the front of the chain, so every call paid it before reaching a provider that answers.
 BREAKER_SECONDS = 300
 UNREACHABLE_SECONDS = 1800
+# Each consecutive failure of the same kind doubles the wait, and one success clears it entirely.
+# A fixed window suits a provider having a bad minute and not one that is simply gone: this machine
+# had a provider dark all day, and something paid 45 seconds every half hour to rediscover it.
+#
+# The caps differ because the cost of asking does. Six hours for unreachable, where asking is
+# expensive and the answer rarely changes; one hour for a quota refusal however often it repeats,
+# because a free tier resets on its own schedule and noticing that is the entire point - and a
+# refusal arrives in under a second, so asking costs almost nothing.
+MAX_UNREACHABLE = 6 * 3600
+MAX_QUOTA = 3600
 # Every time a provider refused for quota, even when the chain recovered from it. The
 # scoring loop watches this to decide how hard to push.
 QUOTA_EVENTS = []
@@ -168,15 +178,18 @@ def _load_down():
     try:
         for k, v in json.loads(DOWN.read_text(encoding="utf-8")).items():
             provider, _, model = k.partition("|")
-            _BLOWN.setdefault((provider, model), (float(v[0]), str(v[1]), bool(v[2])))
+            _BLOWN.setdefault((provider, model),
+                              (float(v[0]), str(v[1]), bool(v[2]),
+                               int(v[3]) if len(v) > 3 else 1))
     except (OSError, ValueError, TypeError, KeyError, IndexError):
         pass                        # a state file we cannot read is not worth failing a call over
 
 
 def _save_down():
     try:
-        DOWN.write_text(json.dumps({f"{k[0]}|{k[1]}": [t, e, slow]
-                                    for k, (t, e, slow) in _BLOWN.items()}), encoding="utf-8")
+        DOWN.write_text(json.dumps({f"{k[0]}|{k[1]}": [v[0], v[1], v[2],
+                                                       v[3] if len(v) > 3 else 1]
+                                    for k, v in _BLOWN.items()}), encoding="utf-8")
     except OSError:
         pass                        # remembering is an optimisation, never a requirement
 
@@ -184,26 +197,45 @@ def _save_down():
 _load_down()
 
 
+def _rest(slow, strikes):
+    """How long to leave a provider alone after `strikes` consecutive failures of this kind."""
+    base = UNREACHABLE_SECONDS if slow else BREAKER_SECONDS
+    cap = MAX_UNREACHABLE if slow else MAX_QUOTA
+    return min(cap, base * 2 ** max(0, strikes - 1))
+
+
 def _breaker(key, err=None, slow=False):
     """-> why this provider is being skipped, or None to go ahead.
 
     `slow` says the failure was expensive to discover - a timeout rather than a refusal - which
     buys a longer rest, because the cost of asking again is the whole point.
+
+    Consecutive failures of the same kind double the rest, up to a cap. _ok() wipes the count, so
+    the doubling only ever describes a provider that has not worked since it started failing.
     """
     if err:
-        _BLOWN[key] = (time.time(), err, bool(slow))
+        was = _BLOWN.get(key)
+        # same kind of failure as last time, and we are still inside its window -> it is a streak
+        strikes = (was[3] + 1) if (was and len(was) > 3 and was[2] == bool(slow)) else 1
+        _BLOWN[key] = (time.time(), err, bool(slow), strikes)
         _save_down()
         return None
     hit = _BLOWN.get(key)
     if hit:
-        when, why = hit[0], hit[1]
-        for_ = UNREACHABLE_SECONDS if (len(hit) > 2 and hit[2]) else BREAKER_SECONDS
-        if time.time() - when < for_:
-            return why
-    if hit:
-        _BLOWN.pop(key, None)
-        _save_down()
+        slow_, strikes = (hit[2] if len(hit) > 2 else False), (hit[3] if len(hit) > 3 else 1)
+        if time.time() - hit[0] < _rest(slow_, strikes):
+            return hit[1]
+        # The window is up, so it gets asked again - but the streak is kept. Forgetting it here
+        # would mean a provider that has been gone for a week is rediscovered at full price every
+        # time its window expires, which is the whole thing this is here to stop. _ok() forgets.
+        _BLOWN[key] = (hit[0], hit[1], slow_, strikes)
     return None
+
+
+def _ok(key):
+    """It answered. Forget everything, including how many times it had failed before."""
+    if _BLOWN.pop(key, None) is not None:
+        _save_down()
 
 
 # How long to wait for one completion, scaled to the size of it.
@@ -510,7 +542,9 @@ def _call(provider, model, key, system, user, max_tokens, tries):
         body = r.json()
     except ValueError:
         raise RuntimeError(f"{provider} did not return JSON: {r.text[:300]}")
-    return _parse_reply(provider, _content(provider, body))
+    out = _parse_reply(provider, _content(provider, body))
+    _ok((provider, model))     # it works: forget that it ever did not, streak and all
+    return out
 
 
 def ask(system, user, max_tokens=8000, tries=5):

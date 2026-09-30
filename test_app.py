@@ -2810,4 +2810,58 @@ assert ".llm_down.json" in _share6x.SKIP_NAMES or ".llm_down.json" in _share6x.P
 assert not _share6x.wanted(app.HERE / ".llm_down.json"), "share.py would still ship it"
 assert ".llm_down.json" in (app.HERE / ".gitignore").read_text(encoding="utf-8")
 
+
+# 6y. A fixed window suits a provider having a bad minute and not one that is simply gone. Nvidia
+# was dark all day on this machine, and something paid 45 seconds every half hour to rediscover it:
+# an hour of waiting a week for an answer that was never coming. Each consecutive failure of the
+# same kind now doubles the rest, and one success wipes the slate - so a provider that is briefly
+# unwell is retried almost at once and a provider that is gone stops being asked, with nothing for
+# anyone to configure.
+_L9 = app.llm
+_d9 = pathlib.Path(_tf.mkdtemp())
+_k9 = (_L9.DOWN, dict(_L9._BLOWN))
+try:
+    _L9.DOWN, _ = _d9 / ".llm_down.json", _L9._BLOWN.clear()
+
+    # the doubling, and the two caps - which differ because the cost of ASKING differs
+    assert _L9._rest(True, 1) == _L9.UNREACHABLE_SECONDS
+    assert _L9._rest(True, 2) == 2 * _L9.UNREACHABLE_SECONDS
+    assert _L9._rest(True, 99) == _L9.MAX_UNREACHABLE, "an unreachable provider is never capped"
+    assert _L9._rest(False, 99) == _L9.MAX_QUOTA, "a quota refusal is never capped"
+    assert _L9.MAX_QUOTA <= 3600,         "a free tier that resets hourly would go unnoticed for longer than it is down"
+    assert _L9._rest(True, 3) > _L9._rest(False, 3),         "a 45-second timeout rests no longer than a refusal that arrives instantly"
+
+    # a streak only counts consecutive failures OF THE SAME KIND
+    _L9._breaker(("p", "m"), "timeout", slow=True)
+    _L9._breaker(("p", "m"), "timeout", slow=True)
+    assert _L9._BLOWN[("p", "m")][3] == 2, "consecutive failures are not being counted"
+    _L9._breaker(("p", "m"), "out of quota", slow=False)
+    assert _L9._BLOWN[("p", "m")][3] == 1,         "a different kind of failure inherited the previous streak"
+
+    # ...and one success forgets all of it, so recovery is never punished
+    _L9._breaker(("p", "m"), "timeout", slow=True)
+    _L9._breaker(("p", "m"), "timeout", slow=True)
+    _L9._ok(("p", "m"))
+    assert not _L9._breaker(("p", "m")), "a provider that answered is still being skipped"
+    _L9._breaker(("p", "m"), "timeout", slow=True)
+    assert _L9._BLOWN[("p", "m")][3] == 1,         "the streak survived a success, so a recovered provider is punished for its past"
+    # _call clears it on the way out, which is the only place that can know it worked
+    assert "_ok((provider, model))" in _iK.getsource(_L9._call)
+
+    # the streak survives the window expiring, or a provider gone for a week is rediscovered at
+    # full price every time its window runs out - which is the whole point of this
+    _L9._BLOWN[("q", "m")] = (_tm.time() - _L9.MAX_UNREACHABLE - 10, "timeout", True, 4)
+    assert not _L9._breaker(("q", "m")), "the window never expires, so it is never retried"
+    assert _L9._BLOWN[("q", "m")][3] == 4, "the streak was forgotten when the window expired"
+    # and through a restart
+    _L9._save_down()
+    _L9._BLOWN.clear()
+    _L9._load_down()
+    assert _L9._BLOWN[("q", "m")][3] == 4, "the streak does not survive a restart"
+finally:
+    _L9.DOWN = _k9[0]
+    _L9._BLOWN.clear()
+    _L9._BLOWN.update(_k9[1])
+    _sh6.rmtree(_d9, ignore_errors=True)
+
 print("ok")

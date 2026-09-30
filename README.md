@@ -218,11 +218,17 @@ What it used to do badly was walk into the same wall each time: a provider that 
 connection and then answers nothing costs its full timeout, and only the process that discovered
 that remembered it. Every scheduled run is a fresh process, so every run paid it again.
 
-Two things changed. What is down is written to a file all of them read, so one run's 45 seconds is
-not every run's. And a provider is left alone for longer when finding out was expensive — half an
-hour after a timeout, five minutes after a plain refusal, because asking again is cheap in the
-second case and asking often is how a quota that has reset gets noticed. The list is still walked in
-full; nothing is pinned or dropped. Changing a key or a provider in the panel clears it immediately.
+Three things changed. What is down is written to a file all of them read, so one run's 45 seconds is
+not every run's. A provider is left alone for longer when finding out was expensive — half an hour
+after a timeout, five minutes after a plain refusal, because a refusal arrives in under a second and
+asking often is how a quota that has reset gets noticed. And each consecutive failure doubles that
+wait, up to six hours for one that cannot be reached and one hour for one that is out of quota, so a
+provider that is briefly unwell is retried almost at once while one that is simply gone stops being
+asked at all.
+
+A single successful answer wipes all of it, streak included, so nothing is ever punished for having
+been down. The list is still walked in full; nothing is pinned or dropped, and changing a key or a
+provider in the panel clears it immediately.
 
 ## Tailored CVs
 
