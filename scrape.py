@@ -589,6 +589,36 @@ _NAMES = [(re.compile(rf"(^|-){re.escape(_n)}($|-)"), len(_n), _slug_key)
 
 
 @functools.lru_cache(maxsize=4096)
+# Folding diacritics so "clienți" and "clienti" are one word: Romanian ads spell it both ways,
+# and a skip list that only matches one of them is a skip list with holes in it.
+def _fold(s):
+    return "".join(c for c in unicodedata.normalize("NFKD", (s or "").lower())
+                   if not unicodedata.combining(c))
+
+
+def off_target(title, skip_families, my_terms):
+    """-> True if this ad is in a job family you do not work in, so it need not be read or scored.
+
+    `skip_families` is the user's own list and is empty by default, so this returns False for
+    everybody who has not filled it in. It holds job FAMILIES - welder, developer, accountant -
+    and never attributes: a list built from what has scored well instead picks up cities,
+    languages and seniority, and measured on real data it wanted to drop every Bucharest ad
+    because no Bucharest ad had scored well YET. Leave-one-out put that idea's cost at five good
+    jobs in thirty-four, which is not a saving.
+
+    An ad whose title contains one of your own search terms is never off target, whatever else it
+    says. That is the safety net, and it costs nothing to maintain because you wrote those terms
+    anyway: "Analist Servicii Clienti" is yours if you searched for "Servicii Clienti", while
+    "Technical Support Engineer" is not, because nothing you asked for is in it.
+    """
+    t = _fold(title)
+    if not t:
+        return False                       # no title to judge - let the scorer decide
+    if any(m in t for m in (_fold(q) for q in my_terms) if m):
+        return False
+    return any(re.search(r"\b" + re.escape(w), t) for w in (_fold(w) for w in skip_families) if w)
+
+
 def in_county(text, county):
     """Does this ad's location sit in that county? Diacritics are folded on both sides, because
     half the boards write "Timisoara" and half write "Timișoara", and people type either.

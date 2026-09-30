@@ -2589,4 +2589,43 @@ finally:
 assert "expired_good" in _iK.getsource(app._search),     "the run no longer counts the swept rows you would have applied to"
 assert "expired_good" in (app.HERE / "auto.py").read_text(encoding="utf-8"),     "the scheduled run stopped mentioning it in the log"
 
+
+# 6r. Skipping whole job families before an ad is read or scored. Two thirds of every scoring bill
+# went on ads that came in under 25, and fixing the search terms does not stop it: "support"
+# matches "Technical Support Engineer" as readily as "Customer Support Officer", and only 6% of
+# what this skips looks like it came from a bad term.
+#
+# Three properties, each of which was the version I tried and rejected first.
+_TERMS6R = ["Customer Service", "Customer Support", "Servicii Clienti", "Call Center", "Trainer"]
+_FAMS6R = ["engineer", "developer", "accountant", "sudor", "sofer", "product owner", "analist"]
+
+# 1. Empty by default, so nobody else's app changes behaviour. A hardcoded "engineer = junk" is
+#    right for one person and hides the whole point of the app from a friend who is an engineer.
+assert app.DEFAULTS["skip_families"] == [], "the skip list ships with someone's opinion in it"
+for _t in ("Senior DevOps Engineer", "Sudor MIG/MAG", "Customer Support Officer"):
+    assert not scrape.off_target(_t, [], _TERMS6R), "an empty skip list skipped something"
+
+# 2. An ad whose title holds one of YOUR OWN terms is never skipped, whatever else it says. This
+#    is the entire safety net, and without it the one casualty on real data was a job titled
+#    "Analist Servicii Clienti" - lost to the word "analist".
+assert not scrape.off_target("Analist Servicii Clienți - PPC", _FAMS6R, _TERMS6R),     "a job matching your own search term was skipped"
+assert not scrape.off_target("Customer Support Engineer", _FAMS6R, _TERMS6R),     "diacritics or casing broke the rescue rule"
+# ...and the rescue is not so loose that it saves everything with 'support' in it
+assert scrape.off_target("Technical Support Engineer (Tier 2)", _FAMS6R, _TERMS6R),     "the rescue rule now keeps every engineering job too"
+
+# 3. Diacritics folded both ways, because Romanian ads spell it clienti AND clienți and a skip
+#    list that matches one spelling is a skip list with holes in it.
+assert scrape.off_target("Șofer categoria C", _FAMS6R, _TERMS6R)
+assert scrape.off_target("Sofer categoria C", _FAMS6R, _TERMS6R)
+assert not scrape.off_target("", _FAMS6R, _TERMS6R), "an ad with no title was judged anyway"
+
+# and the measurement that decided it: every job that scored 75+ survives the list. Run against
+# whatever is really in the database, so it keeps being true rather than having been true once.
+with app.db() as _c6r:
+    _scored6r = [(r["title"] or "", r["fit"]) for r in
+                 _c6r.execute("SELECT title, fit FROM jobs WHERE fit IS NOT NULL")]
+if sum(1 for _, f in _scored6r if f >= 75) >= 10:      # only meaningful with some history
+    _lost6r = [t for t, f in _scored6r if f >= 75 and scrape.off_target(t, _FAMS6R, _TERMS6R)]
+    assert not _lost6r, f"the skip list would have cost you these: {[t[:44] for t in _lost6r]}"
+
 print("ok")

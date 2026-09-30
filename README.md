@@ -151,6 +151,22 @@ applicants to 21.
 ads that state no pay, and that estimate used to be shown as fact. It now appears as `~ 900 - 1000
 EUR/month (est.)` — dimmer, and marked. Do not quote an estimate back to an employer.
 
+**Job families you do not work in.** A search term is a blunt instrument: *Customer Support* finds
+*Customer Support Officer* and *Technical Support Engineer* equally well, and the second one costs
+a page fetch and an AI call to learn what its title already said. Under *Settings* you can list
+families to skip — `engineer`, `sudor`, `contabil`, `sofer` — and ads whose title names one are
+never read or scored. It starts **empty**, deliberately: "engineer" is noise for one person and the
+whole point of the app for the next.
+
+Two rules keep it from hiding work you want. An ad whose title contains one of **your own search
+terms** is never skipped, whatever else it says — so if you search *Servicii Clienti*, an *Analist
+Servicii Clienti* is yours despite `analist` being on the list. And it takes job families only,
+never a city, a language or a seniority word: those turn up in ads worth reading as often as in
+ads that are not. Measured on 894 scored ads with one real list: 28% of the wasted AI calls gone,
+and not one of the 34 jobs that had scored 75+ would have been dropped.
+
+Every run says how many it skipped, so you can see what the list is doing rather than trust it.
+
 Lists show 20 jobs to a page. The filter box narrows what is already found by title, company or
 city as you type, and ignores diacritics — `iasi` finds `Iași`.
 
