@@ -219,7 +219,17 @@ fails — and this app used to report all three as *"this provider is spent"*, w
 fix that cannot work (a new key) and hides the one that can (one string).
 
 It now tells them apart, and repairs the fixable kind by itself: it asks the provider what models it
-currently offers and moves to the best of those. The switch is announced in the AI panel, in the
+currently offers and works down that list, best first, until one actually answers. Walking rather
+than picking matters, because a provider's list is what EXISTS, not what your key may CALL — nvidia
+publishes 81 models and serves a subset of them to any given key without saying which, so two of its
+top four refuse a free key outright. Whichever model answers is the one kept, because it has just
+demonstrably done the work rather than merely ranked first.
+
+**Find one that works** does the same walk on demand, next to the model box, for when nothing is
+broken and you simply want the best one your key can have. This is the difference between reading a
+list and knowing: a model id typed as `nemotron-3-ultra-550b` instead of
+`nvidia/nemotron-3-ultra-550b-a55b` answers "404 page not found", which is indistinguishable from
+"your key cannot have this one". The switch is announced in the AI panel, in the
 provider's own words, because a different model answering is a real change — every score this app
 produces came from whichever model produced it. If there is nothing suitable to move to, the
 provider is set aside and the panel says so rather than letting it waste a call on every run.

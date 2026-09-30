@@ -150,22 +150,34 @@ CONFIG_ERROR = re.compile(
     r"|model_unavailable|is currently unavailable|unavailable for free"
     r"|decommissioned|deprecated", re.I)
 
-# Status AND phrase, never status alone.
+# Status AND phrase for 400 and 403; status alone for 404 and 410.
 #
-# 400 is "bad request", which an over-long prompt causes just as readily as a dead model - taking a
-# working provider out of the chain over one awkward job advert would be a worse bug than the one
-# this fixes. 403 can be either a permanent plan restriction or a passing refusal. 404 may be the
-# model or the URL.
+# 400 is "bad request", which an over-long job advert causes just as readily as a dead model, and
+# taking a working provider out of the chain over one awkward posting would be a worse bug than the
+# one this fixes. 403 is either a permanent plan restriction or a passing refusal, and only the
+# wording tells them apart.
 #
-# 402 and 429 are absent on purpose and that matters as much as the rest: no model name fixes an
-# empty account or a rate limit, and searching a catalogue for a model that escapes a billing
-# problem would work through the whole catalogue and spend money doing it.
+# 404 and 410 need no phrase HERE, and that is a departure from the design this came from, which
+# required one because "the model may be gone - or the URL wrong". In this app the base URLs are
+# constants in PROVIDERS - nobody can mistype one - so a 404 from a correct base URL is about what
+# was asked for, and the only variable in the request is the model. Measured: nvidia answers a
+# nonexistent model with a bare "404 page not found" and no phrase at all, so requiring one meant
+# the single most common real failure - a model name typed slightly wrong - was filed as "this
+# provider is spent" and never repaired.
+NEEDS_PHRASE = (400, 403)
 CONFIG_STATUSES = (400, 403, 404, 410)
 
 
 def is_model_misconfigured(text, status):
-    """-> True if this failure is about the MODEL, and so is worth fixing rather than retrying."""
-    return status in CONFIG_STATUSES and bool(CONFIG_ERROR.search(text or ""))
+    """-> True if this failure is about the MODEL, and so is worth fixing rather than retrying.
+
+    402 and 429 are absent on purpose and that matters as much as the rest: no model name fixes an
+    empty account or a rate limit, and searching a catalogue to escape a billing problem would work
+    through the whole catalogue and spend money doing it.
+    """
+    if status not in CONFIG_STATUSES:
+        return False
+    return status not in NEEDS_PHRASE or bool(CONFIG_ERROR.search(text or ""))
 
 
 # Names that are not chat models. A /v1/models listing is a catalogue, not a menu: it also holds
@@ -248,6 +260,15 @@ QUOTA_EVENTS = []
 # because this is an explanation and not an audit trail.
 _NOTES = []
 NOTES_KEPT = 8
+# How many models to try before giving up on a provider whose model has gone, budgeted by what the
+# attempts COST rather than by how many there are.
+#
+# A refusal comes back instantly; a timeout costs its whole patience. Counting them the same made
+# the walk give up on nvidia after two instant 404s while a model that works sat two places further
+# down - nvidia publishes 81 models and serves a subset of them to any given key, so stepping past
+# several is the normal case, not the exceptional one.
+REPAIR_TRIES = 6          # at most this many attempts in one walk, cheap or not
+REPAIR_SLOW_TRIES = 2     # ...but stop after this many that actually cost us a wait
 
 
 def note(provider, old_model, new_model, why):
@@ -258,21 +279,45 @@ def note(provider, old_model, new_model, why):
 
 
 def notes():
+    _refresh_down()
     return list(_NOTES)
 
 
-def _load_down():
+_DOWN_READ = [0.0]
+
+
+def _refresh_down():
+    """Re-read the file when another process has written it since we last looked.
+
+    Loading once at import is enough for the scheduled runs, which are fresh processes each time.
+    It is not enough for the web app, which stays up for hours: without this the panel goes on
+    showing what was true when the page's server started, and a provider the 11:30 run found dead
+    at 11:31 still reads as healthy at teatime.
+    """
+    try:
+        stamp = DOWN.stat().st_mtime
+    except OSError:
+        return
+    if stamp > _DOWN_READ[0]:
+        _DOWN_READ[0] = stamp
+        _load_down(merge=True)
+
+
+def _load_down(merge=False):
     """What other processes have learned. Every scheduled run is a fresh process, and without this
     each one rediscovers the dark provider at its own expense."""
     try:
         raw = json.loads(DOWN.read_text(encoding="utf-8"))
         for k, v in (raw.get("down") or {}).items():
             provider, _, model = k.partition("|")
-            _BLOWN.setdefault((provider, model),
-                              (float(v[0]), str(v[1]), bool(v[2]),
-                               int(v[3]) if len(v) > 3 else 1))
-        if not _NOTES:
-            _NOTES.extend(raw.get("notes") or [])
+            entry = (float(v[0]), str(v[1]), bool(v[2]), int(v[3]) if len(v) > 3 else 1)
+            if merge:
+                # a later read is newer news than what this process happens to hold
+                _BLOWN[(provider, model)] = entry
+            else:
+                _BLOWN.setdefault((provider, model), entry)
+        if merge or not _NOTES:
+            _NOTES[:] = raw.get("notes") or _NOTES
     except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError):
         pass                        # a state file we cannot read is not worth failing a call over
 
@@ -283,6 +328,7 @@ def _save_down():
             "down": {f"{k[0]}|{k[1]}": [v[0], v[1], v[2], v[3] if len(v) > 3 else 1]
                      for k, v in _BLOWN.items()},
             "notes": _NOTES}), encoding="utf-8")
+        _DOWN_READ[0] = DOWN.stat().st_mtime     # our own write is not news to re-read
     except OSError:
         pass                        # remembering is an optimisation, never a requirement
 
@@ -313,6 +359,7 @@ def _breaker(key, err=None, slow=False):
         _BLOWN[key] = (time.time(), err, bool(slow), strikes)
         _save_down()
         return None
+    _refresh_down()
     hit = _BLOWN.get(key)
     if hit:
         slow_, strikes = (hit[2] if len(hit) > 2 else False), (hit[3] if len(hit) > 3 else 1)
@@ -651,51 +698,105 @@ def _call(provider, model, key, system, user, max_tokens, tries):
     return out
 
 
-def replacement_for(provider, model):
-    """-> the best model this provider currently lists that is not the dead one, or None.
+def candidates_for(provider, model=""):
+    """-> this provider's chat models, best first, minus the one that just failed.
 
-    Best-effort and never raising: a provider that will not list its models simply yields no
-    replacement, and the chain carries on exactly as it did before.
+    Best-effort and never raising: a provider that will not list its models simply yields nothing,
+    and the chain carries on exactly as it did before.
     """
     try:
         have = models(provider)
     except Exception:
-        return None
+        return []
     # A free slug may only become another free slug. The provider's own refusal helpfully names a
     # PAID replacement, and following that advice would turn a repair into a bill.
-    if model.endswith(":free"):
+    if (model or "").endswith(":free"):
         have = [m for m in have if m.endswith(":free")]
     plain = [m for m in rank_chat(have) if m != model]
-    if not plain:
-        return None
     # Similarity breaks ties, it does not filter: see rank_chat. Between two 14b models the one
     # named like the old one wins; between a similar 8b and a 14b, the 14b does.
-    near = difflib.get_close_matches(model, plain, n=8, cutoff=0.6)
-    return rank_chat(plain, near=near)[0]
+    near = difflib.get_close_matches(model, plain, n=8, cutoff=0.6) if model else ()
+    return rank_chat(plain, near=near)
 
 
-def repair(provider, model, why):
-    """Move this provider off a model it can no longer call. -> the new model, or None.
+def replacement_for(provider, model):
+    """-> the single best candidate, unverified. Kept for callers that only want a suggestion."""
+    got = candidates_for(provider, model)
+    return got[0] if got else None
 
-    Writes the choice where the chain will read it next time, so the fix outlives this process and
-    this run. Both halves are recorded either way: a switch, or the fact that there was nothing to
-    switch to, which is the more urgent of the two.
+
+def best_working(provider, key, model="", limit=2):
+    """Call candidates best-first until one answers. -> (model that answered or None, [what failed])
+
+    A model list says what exists, not what this key may call: nvidia lists 81 and entitles a free
+    key to a subset it never names. So the choice is verified rather than guessed - one real call
+    each, first answer wins.
+
+    `limit` bounds the cost, because a model that does not answer costs its whole timeout. Two while
+    a search is waiting; more when somebody pressed a button and is watching it work.
+
+    Models the breaker already knows about are skipped on the way past - it keys on provider AND
+    model, so this needs no new bookkeeping to avoid re-offering what failed ten minutes ago.
     """
-    new = replacement_for(provider, model)
-    if not new:
-        note(provider, model, None, why)
-        # Marked down so the rest of the run stops paying for a call that cannot work. Not "slow":
-        # it answered promptly, it just answered no.
-        _breaker((provider, model), f"{provider}/{model}: no usable model - {why[:120]}")
-        return None
-    # The selected provider reads LLM_MODEL, which chain() passes explicitly; every other one reads
-    # its own. Writing the wrong one of the two would look like it worked and change nothing.
+    tried, waited = [], 0
+    for cand in candidates_for(provider, model):
+        if len(tried) >= max(1, limit) or waited >= REPAIR_SLOW_TRIES:
+            break
+        if _breaker((provider, cand)):
+            continue                       # already known not to work; do not pay for it again
+        try:
+            _call(provider, cand, key, "Reply with JSON only.", 'Return {"ok": true}', 100, 1)
+            return cand, tried
+        except (QuotaError, ModelGone, RuntimeError, ValueError, httpx.HTTPError) as e:
+            tried.append(f"{cand} ({type(e).__name__})")
+            slow = isinstance(e, httpx.HTTPError)
+            waited += 1 if slow else 0     # a refusal is instant; only a wait spends the budget
+            # remembered so neither this walk nor the next one offers it again
+            _breaker((provider, cand), f"{provider}/{cand}: {str(e)[:120]}", slow=slow)
+    return None, tried
+
+
+def keep_model(provider, model, old, why):
+    """Write down a model that has just been PROVEN to work, and say so.
+
+    The selected provider reads LLM_MODEL, which chain() passes explicitly; every other one reads
+    its own LLM_MODEL_<PROVIDER>. Writing the wrong one of the two looks like it worked and changes
+    nothing at all.
+    """
     if provider == cfg("LLM_PROVIDER"):
-        set_cfg(LLM_MODEL=new)
+        set_cfg(LLM_MODEL=model)
     else:
-        set_cfg(**{f"LLM_MODEL_{provider.upper()}": new})
-    note(provider, model, new, why)
-    print(f"[llm] {provider}: '{model}' is gone, moved to '{new}'", flush=True)
+        set_cfg(**{f"LLM_MODEL_{provider.upper()}": model})
+    note(provider, old, model, why)
+    print(f"[llm] {provider}: '{old}' is gone, moved to '{model}'", flush=True)
+
+
+def give_up(provider, model, why):
+    """Nothing this provider lists will answer for this key. Set it aside and say so.
+
+    Better to stop and explain than to keep spending a call and its latency on every cycle for a
+    model that cannot work - which is how one bad model name became a hundred failed calls in the
+    setup this pattern came from.
+    """
+    note(provider, model, None, why)
+    # Not "slow": it answered promptly, it just answered no.
+    _breaker((provider, model), f"{provider}/{model}: no usable model - {why[:120]}")
+
+
+def repair(provider, model, why, key=None, limit=2):
+    """Kept for callers that want the old one-shot behaviour: pick the best name and write it down.
+
+    ask() no longer uses this - it walks the candidates with the real prompt, so the model it keeps
+    is one that has demonstrably answered rather than one that ranked first and looked plausible.
+    """
+    new, failed = (best_working(provider, key, model, limit) if key
+                   else (replacement_for(provider, model), []))
+    if failed:
+        why = f"{why} (also tried: {', '.join(failed)})"
+    if not new:
+        give_up(provider, model, why)
+        return None
+    keep_model(provider, new, model, why)
     return new
 
 
@@ -712,18 +813,32 @@ def ask(system, user, max_tokens=8000, tries=5):
         try:
             return _call(provider, model, key, system, user, max_tokens, tries)
         except ModelGone as e:
-            # The key works and the model does not, which is one string away from fixed. Repaired
-            # here and retried ONCE with the new name - one retry, because a second failure means
-            # the replacement is wrong too and guessing again would work through the catalogue.
-            fixed = repair(provider, model, str(e))
-            if fixed:
+            # The key works and the model does not, which is one string away from fixed. So walk
+            # this provider's own list, best first, WITH THIS PROMPT: the first model that answers
+            # has already done the work, and is written down because it demonstrably works rather
+            # than because it ranked first and looked plausible.
+            #
+            # Bounded, because a model that does not answer costs its timeout. Anything skipped here
+            # is still available to the next call, which starts from a list this one has pruned.
+            failed, waited = [], 0
+            for cand in candidates_for(provider, model):
+                if len(failed) >= REPAIR_TRIES or waited >= REPAIR_SLOW_TRIES:
+                    break
+                if _breaker((provider, cand)):
+                    continue               # already known not to answer; do not pay again
                 try:
-                    return _call(provider, fixed, key, system, user, max_tokens, tries)
+                    out = _call(provider, cand, key, system, user, max_tokens, tries)
                 except (QuotaError, ModelGone, RuntimeError, ValueError, httpx.HTTPError) as e2:
-                    spent.append(f"{provider}/{fixed}")
-                    print(f"[llm] {provider}/{fixed} did not work either ({type(e2).__name__})")
-                    last = e2 if not isinstance(e2, QuotaError) else last
+                    failed.append(f"{cand} ({type(e2).__name__})")
+                    slow = isinstance(e2, httpx.HTTPError)
+                    waited += 1 if slow else 0      # only a real wait spends the tighter budget
+                    _breaker((provider, cand), f"{provider}/{cand}: {str(e2)[:120]}", slow=slow)
                     continue
+                keep_model(provider, cand, model,
+                           str(e) + (f" (also tried: {', '.join(failed)})" if failed else ""))
+                return out
+            give_up(provider, model,
+                    str(e) + (f" (also tried: {', '.join(failed)})" if failed else ""))
             spent.append(f"{provider}/{model} (model gone)")
             continue
         except QuotaError as e:

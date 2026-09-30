@@ -977,6 +977,20 @@ RO = {
         "A fost pus deoparte ca să nu mai irosească un apel. De obicei soluția este un alt model pe aceeași cheie, nu o cheie nouă — alege unul mai sus și apasă Salvează și testează.",
     "no model":
         "fără model",
+    "Still trying. A model that does not answer has to time out before the next one can be tried.":
+        "Încearcă în continuare. Un model care nu răspunde trebuie să expire înainte să fie încercat următorul.",
+    "trying models...":
+        "încerc modele...",
+    "{model} answers — the best one {p} lists for this key.":
+        "{model} răspunde — cel mai bun pe care {p} îl listează pentru această cheie.",
+    "{model} answers. {n} above it did not, and will not be offered again.":
+        "{model} răspunde. {n} de deasupra nu au răspuns și nu vor mai fi propuse.",
+    "Find one that works":
+        "Găsește unul care funcționează",
+    "Try this provider's models, best first, and fill in the first one that actually answers on your key.":
+        "Încearcă modelele acestui furnizor, de la cel mai bun, și completează primul care răspunde cu cheia ta.",
+    "Pick a provider first.":
+        "Alege mai întâi un furnizor.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

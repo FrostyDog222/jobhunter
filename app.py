@@ -1326,6 +1326,32 @@ def forget_llm(body: dict = Body(...)):
     return get_llm()
 
 
+@app.post("/api/llm/bestmodel")
+async def llm_best_model(body: dict = Body(default={})):
+    """Try this provider's models, best first, and return the first that actually answers.
+
+    A listing says what EXISTS, not what this key may CALL, and nothing in it distinguishes the two -
+    so the only honest way to choose is to ask. Saves nothing: the answer goes in the box and the
+    person presses Save & test, because this is their model choice and every score the app produces
+    comes from whichever model produced it.
+    """
+    provider = (body.get("provider") or "").strip()
+    if provider not in llm.PROVIDERS:
+        raise HTTPException(400, "Pick a provider first.")
+    entry = llm._entry(provider)
+    if not entry:
+        raise HTTPException(400, f"No key saved for {provider}. Paste one and save it first.")
+    _, current, key = entry
+    # Tries more than an automatic repair would: somebody is watching this one, and the wait is the
+    # point rather than an interruption to a search.
+    found, tried = await off(lambda: llm.best_working(provider, key, body.get("model") or "",
+                                                      limit=8))
+    if not found:
+        raise HTTPException(400, "None of the models {p} lists would answer for this key. "
+                                 "Tried: {t}".format(p=provider, t=", ".join(tried) or "none"))
+    return {"model": found, "tried": tried}
+
+
 @app.get("/api/llm/models")
 async def llm_models(provider: str = ""):
     """Models for the provider the dropdown is showing, not whichever one the chain picked."""

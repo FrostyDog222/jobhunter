@@ -201,6 +201,8 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <datalist id="modellist"></datalist></div>
     <div style="flex:0 0 auto;display:flex;align-items:flex-end;gap:8px">
       <button class="ghost" id="listmodels">List models</button>
+      <button class="ghost" id="findmodel"
+        title="Try this provider's models, best first, and fill in the first one that actually answers on your key.">Find one that works</button>
       <button id="savellm">Save &amp; test</button></div>
   </div>
   <p class="muted" id="llmnote"></p>
@@ -1651,6 +1653,24 @@ document.addEventListener('click', async e => {
     toast(`${gone} ${t('removed. Its key is deleted.')}`);
   }, t('removing...'));
 });
+
+// A provider's list says what EXISTS, not what your key may CALL - nvidia publishes 81 models and
+// serves a subset to any given key, without saying which. So this asks: best first, one real call
+// each, stopping at the first that answers. It fills the box and nothing more; Save & test is still
+// yours to press, because every score this app produces comes from whichever model produced it.
+$('#findmodel').onclick = e => busy(e.target, async () => {
+  const p = $('#prov').value;
+  const slow = setTimeout(() => toast(t('Still trying. A model that does not answer has to time out '
+    + 'before the next one can be tried.'), 9000), 20000);
+  try {
+    const r = await api('/api/llm/bestmodel', {provider: p, model: $('#model').value});
+    $('#model').value = r.model;
+    toast((r.tried || []).length
+      ? fill('{model} answers. {n} above it did not, and will not be offered again.',
+             {model: r.model, n: r.tried.length})
+      : fill('{model} answers — the best one {p} lists for this key.', {model: r.model, p: p}), 9000);
+  } finally { clearTimeout(slow); }
+}, t('trying models...'));
 
 $('#prov').addEventListener('change', drawKeyLink);
 $('#prov').onchange = async () => {

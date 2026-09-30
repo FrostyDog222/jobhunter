@@ -2951,7 +2951,9 @@ try:
 
     _L7._call = _fake_call
     assert _L7.ask("s", "u", max_tokens=100) == {"ok": True},         "the chain did not recover from a dead model it had a replacement for"
-    assert _tried7 == ["meta/llama-3.3-70b-instruct", "nvidia/nemotron-4-340b-instruct"],         f"it did not retry once with the replacement: {_tried7}"
+    # the replacement is called with the REAL prompt, so the call that proves it works is the same
+    # call that does the work - an earlier version probed first and then repeated itself
+    assert _tried7 == ["meta/llama-3.3-70b-instruct", "nvidia/nemotron-4-340b-instruct"],         f"the replacement was called more than once, or not at all: {_tried7}"
     # the embedding model was in the catalogue and must not have been chosen
     assert "embed" not in _tried7[1]
     # written per provider, because nvidia is not the selected one here
@@ -2999,5 +3001,73 @@ _flat7 = _reL.sub(r"'\s*\+\s*'", "", _dash7)
 assert "not an outage" in _flat7 and "not a new key" in _flat7,     "the panel lost the two sentences that stop someone regenerating a key that was never wrong"
 # and both of them have Romanian, or the sentence only works for half the users
 assert any("nu o pan" in v for v in _lg.RO.values()), "the 'not an outage' line has no Romanian"
+
+
+# 7e. Walk the models best first and keep the first that ANSWERS. A listing says what exists, not
+# what a key may call - nvidia publishes 81 and serves a subset to any given key without saying
+# which - so choosing by rank alone is a guess, and it was measured failing: two of nvidia's top
+# four answer ModelGone on a real key.
+_e5 = pathlib.Path(_tf.mkdtemp())
+_k5 = (_L7.DOWN, dict(_L7._BLOWN), list(_L7._NOTES), _L7.models, _L7._call, _L7.chain,
+       _L7.set_cfg, _L7.cfg)
+try:
+    _L7.DOWN = _e5 / ".llm_down.json"
+    _L7._BLOWN.clear(); _L7._NOTES.clear()
+    _L7.cfg = lambda name, default=None: "groq" if name == "LLM_PROVIDER" else (default or "")
+    _L7.set_cfg = lambda **kv: None
+    _L7.chain = lambda: [("nvidia", "dead-model", "k")]
+    # four listed, the first two refuse for this key, the third answers
+    _L7.models = lambda p=None: ["a-500b-instruct", "b-400b-instruct", "c-300b-instruct",
+                                 "d-200b-instruct"]
+    _seen5 = []
+
+    def _c5(provider, model, key, system, user, max_tokens, tries):
+        _seen5.append(model)
+        if model == "dead-model":
+            raise _L7.ModelGone("nvidia/dead-model: [404] 404 page not found")
+        if model in ("a-500b-instruct", "b-400b-instruct"):
+            raise _L7.ModelGone(f"nvidia/{model}: [403] tier_not_allowed")
+        return {"ok": True}
+
+    _L7._call = _c5
+    assert _L7.ask("s", "u", max_tokens=100) == {"ok": True},         "it gave up while a model further down the list would have answered"
+    assert _seen5 == ["dead-model", "a-500b-instruct", "b-400b-instruct", "c-300b-instruct"],         f"it did not walk the list best-first: {_seen5}"
+    # two instant refusals must NOT exhaust the budget - they cost nothing, unlike a timeout, and
+    # counting them the same made it give up on nvidia two places above a model that works
+    assert _L7.REPAIR_TRIES > _L7.REPAIR_SLOW_TRIES,         "a refusal and a timeout share one budget again"
+
+    # ...but a wait does spend the tight budget, because a wait is what actually hurts
+    _L7._BLOWN.clear(); _seen5.clear()
+    def _c5slow(provider, model, key, system, user, max_tokens, tries):
+        _seen5.append(model)
+        if model == "dead-model":
+            raise _L7.ModelGone("nvidia/dead-model: [410] gone")
+        raise _httpx5.ReadTimeout("timed out")
+    import httpx as _httpx5
+    _L7._call = _c5slow
+    try:
+        _L7.ask("s", "u", max_tokens=100)
+    except Exception:
+        pass
+    assert len(_seen5) - 1 <= _L7.REPAIR_SLOW_TRIES,         f"it kept waiting past the slow budget: tried {_seen5}"
+
+    # a model already known not to answer is never offered again, and that needs no new state:
+    # the breaker keys on provider AND model
+    _L7._BLOWN.clear(); _seen5.clear()
+    _L7._call = _c5
+    _L7._breaker(("nvidia", "a-500b-instruct"), "nvidia/a-500b-instruct: [403] tier_not_allowed")
+    _L7.ask("s", "u", max_tokens=100)
+    assert "a-500b-instruct" not in _seen5,         f"it paid again for a model it already knew would refuse: {_seen5}"
+finally:
+    (_L7.DOWN, _, _, _L7.models, _L7._call, _L7.chain, _L7.set_cfg, _L7.cfg) = _k5
+    _L7._BLOWN.clear(); _L7._BLOWN.update(_k5[1])
+    _L7._NOTES.clear(); _L7._NOTES.extend(_k5[2])
+    _sh6.rmtree(_e5, ignore_errors=True)
+
+# the button that does this on demand, for when nothing has broken and you just want the best one
+assert "bestmodel" in (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert hasattr(app, "llm_best_model")
+_r5 = _cl.post("/api/llm/bestmodel", json={"provider": "not-a-provider"})
+assert _r5.status_code == 400, "an unknown provider is accepted"
 
 print("ok")
