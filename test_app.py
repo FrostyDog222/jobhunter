@@ -2731,4 +2731,36 @@ assert 'id="cvterms"' in _dash6u and "data-term=" in _dash6u
 assert "auto_query" in _dash6u.split("$('#cvterms').onclick")[1][:400],     "clicking a suggestion does not put it in the box"
 assert "$('#auto_query').value =" not in _dash6u.split("$('#auto_cv_ideas')")[1].split("</script")[0][:1200],     "the CV suggestions overwrite what the person typed instead of offering"
 
+
+# 6v. The dead-word advice was only advice. The model obeyed it on one run and on the next returned
+# "Customer Engagement Specialist" - built on the single word this person's own results show has
+# never once produced a job they wanted. Suggestions are ours to filter, because dropping one hides
+# nothing from SEARCH: type the term and it is searched exactly as typed.
+_keep6v = (app.llm.search_terms, app.profile, app.dead_words)
+try:
+    app.dead_words = lambda floor=75, seen=6: ["engagement", "consultant"]
+    app.profile = lambda: {"title": "Client Advisor"}
+    app.llm.search_terms = lambda prof, already=(), never_worked=(): {"terms": [
+        {"term": "Customer Engagement Specialist", "why": "x", "lang": "en"},
+        {"term": "Consultant tehnic", "why": "x", "lang": "ro"},
+        {"term": "Agent suport clienti", "why": "x", "lang": "ro"}]}
+    _j6v = _cl.post("/api/terms/from_cv", json={}).json()
+    assert [t["term"] for t in _j6v["terms"]] == ["Agent suport clienti"],         f"a term built on a word that has never worked still reached the page: {_j6v}"
+    assert _j6v["dropped"] == 2, "the page is not told how many were left out"
+finally:
+    app.llm.search_terms, app.profile, app.dead_words = _keep6v
+_dash6v = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "r.dropped" in _dash6v, "the dropped count is fetched and never shown"
+
+# 6w. A provider that accepts the connection and then says nothing used to cost the first caller
+# after a lull three minutes: one flat timeout=180 on every request, whatever was asked for.
+# Measured in the browser once - the CV button span for four minutes. The breaker skips a provider
+# that has already failed, so only the first victim pays, but somebody always is the first victim.
+assert app.llm._patience(2000) < 90, "a small request still waits as long as a full scoring call"
+assert app.llm._patience(8000) == 180, "the big scoring calls lost the budget they had"
+assert app.llm._patience(0) >= 45, "the floor is gone, so a slow round trip now fails"
+assert app.llm._patience(99999) <= 180, "the ceiling is gone"
+assert "timeout=180" not in _iK.getsource(app.llm._call),     "the flat three-minute timeout is back"
+assert "_patience(max_tokens)" in _iK.getsource(app.llm._call)
+
 print("ok")

@@ -1050,7 +1050,15 @@ $('#autocopy2').onclick = () => $('#autocopy').click();
 // that came from nowhere is visible as such, and clicking is the only way anything reaches the box.
 $('#auto_cv_ideas').onclick = e => busy(e.target, async () => {
   const box = $('#cvterms');
-  const r = await api('/api/terms/from_cv', {already: $('#auto_query').value});
+  // A spinner that has been spinning for two minutes looks broken rather than busy. It happens
+  // for a real reason - a provider that accepts the connection and then says nothing costs the
+  // first caller after a lull its whole timeout before the chain moves on - so say that instead
+  // of leaving someone to guess. Cleared the moment the answer lands.
+  const slow = setTimeout(() => toast(t('Still waiting on the AI provider. The first request '
+    + 'after a quiet spell can be slow while one that has gone quiet is dropped.'), 9000), 20000);
+  let r;
+  try { r = await api('/api/terms/from_cv', {already: $('#auto_query').value}); }
+  finally { clearTimeout(slow); }
   const terms = (r.terms || []);
   if(!terms.length){
     box.style.display = 'none';
@@ -1058,6 +1066,10 @@ $('#auto_cv_ideas').onclick = e => busy(e.target, async () => {
                  + 'first.'), 8000);
   }
   box.style.display = '';
+  // Dropped ones are named as dropped. A filter you cannot see the effect of is one you cannot
+  // trust, and this one throws away work the model did.
+  if(r.dropped) toast(fill('{n} suggestion(s) left out: they were built on words that have never '
+                         + 'found you a job.', {n: r.dropped}), 8000);
   box.innerHTML = `<div class="muted" style="margin-bottom:6px">${esc(t('Click any of these to add '
       + 'it. Each one says what in your CV it came from.'))}</div>`
     + terms.map(x => `<button type="button" class="ghost tiny cvterm"

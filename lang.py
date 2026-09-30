@@ -963,6 +963,10 @@ RO = {
         "citesc CV-ul tău...",
     "Fill in your profile first - there is nothing here to read yet.":
         "Completează mai întâi profilul - deocamdată nu este nimic de citit aici.",
+    "Still waiting on the AI provider. The first request after a quiet spell can be slow while one that has gone quiet is dropped.":
+        "Încă se așteaptă furnizorul AI. Prima cerere după o pauză poate fi lentă, cât timp unul care a amuțit este scos din listă.",
+    "{n} suggestion(s) left out: they were built on words that have never found you a job.":
+        "{n} sugestie/sugestii lăsate deoparte: erau construite pe cuvinte care nu ți-au găsit niciodată un job.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

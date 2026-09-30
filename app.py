@@ -1368,9 +1368,17 @@ def terms_from_cv(body: dict = Body(default={})):
     if not any((p.get(k) or "") for k in ("title", "summary", "skills")) and not p.get("experience"):
         raise HTTPException(400, "Fill in your profile first - there is nothing here to read yet.")
     already = [q.strip() for q in re.split(r"[,;]", body.get("already") or "") if q.strip()]
-    out = llm.search_terms(p, already, dead_words(int(settings().get("auto_min_fit", 75))))
+    dead = dead_words(int(settings().get("auto_min_fit", 75)))
+    out = llm.search_terms(p, already, dead)
     terms = [t for t in (out.get("terms") or []) if (t.get("term") or "").strip()]
-    return {"terms": terms[:12]}
+    # The prompt asks the model to avoid these, and it obeyed on one run and ignored it on the
+    # next - returning "Customer Engagement Specialist", built on the one word this person's own
+    # results show has never once produced a job they wanted. So it is enforced here rather than
+    # requested. Safe to enforce because nothing is hidden from SEARCH by dropping a suggestion:
+    # type the term yourself and it is searched exactly as typed.
+    lower = [w for w in dead if w]
+    kept = [t for t in terms if not any(w in (t["term"] or "").lower() for w in lower)]
+    return {"terms": kept[:12], "dropped": len(terms) - len(kept)}
 
 
 @app.post("/api/suggest")

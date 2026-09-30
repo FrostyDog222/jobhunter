@@ -164,6 +164,20 @@ def _breaker(key, err=None):
     return None
 
 
+# How long to wait for one completion, scaled to the size of it.
+#
+# This was a flat 180 seconds, which is right for a scoring call asking for 8000 tokens and wrong
+# for everything else: a provider that accepted the connection and then went quiet cost the first
+# caller after a lull a full three minutes before the chain moved on. Measured that way once -
+# "Suggest terms from my CV" took four minutes in the browser. The breaker skips a provider that
+# has already failed, so only the first victim pays, but somebody always is the first victim.
+#
+# Proportional because the time a model needs tracks what it was asked to produce, with a floor for
+# the round trip and a ceiling so the old budget is unchanged where it was deserved.
+def _patience(max_tokens):
+    return max(45, min(180, 30 + int(max_tokens or 0) // 50))
+
+
 def _wait_for(r, attempt):
     """How long to hold off after a rate limit. Providers say exactly how long - listen to them,
     because guessing short (Groq's per-minute token limit wants ~30s) just burns the retries."""
@@ -427,7 +441,7 @@ def _call(provider, model, key, system, user, max_tokens, tries):
     r = None
     for attempt in range(tries):
         r = httpx.post(url, headers={**headers, "Content-Type": "application/json"},
-                       json=body, timeout=180)
+                       json=body, timeout=_patience(max_tokens))
         spent = r.status_code in (401, 402, 403) or (
             r.status_code == 429 and any(w in r.text.lower() for w in (
                 "per day", "exceeded your current quota", "quota exceeded", "insufficient_quota")))
