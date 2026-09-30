@@ -306,8 +306,8 @@ RO = {
         "Încarcă un PDF/DOCX/TXT și profilul de mai jos se completează automat. Nu se inventează nimic — ce lipsește rămâne gol.",
     "Delete results you never acted on, so a new search starts from a clean list. Applied, opened, tailored and skipped jobs stay.":
         "Șterge rezultatele pe care nu le-ai atins, ca o căutare nouă să pornească de la o listă curată. Joburile aplicate, deschise, adaptate și refuzate rămân.",
-    "Read each job ad first — these go straight to the employer with the salary from your profile. Up to 20 per run.":
-        "Citește mai întâi fiecare anunț — acestea ajung direct la angajator, cu salariul din profilul tău. Cel mult 20 pe rulare.",
+    "Read each job ad first — these go straight to the employer with the salary from your profile. Up to 50 per run.":
+        "Citește mai întâi fiecare anunț — acestea ajung direct la angajator, cu salariul din profilul tău. Cel mult 50 pe rulare.",
     "Boards notice patterns. Searches are ordinary traffic; a burst of applications at 09:00 every Sunday is not.":
         "Site-urile observă tiparele. Căutările sunt trafic obișnuit; un val de aplicări la 09:00 în fiecare duminică nu este.",
     "Every tailored CV is rendered in one of these. All four are plain text underneath — no tables, no columns — so applicant tracking systems read them correctly.":

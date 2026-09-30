@@ -2517,4 +2517,16 @@ assert not _leaked, ("these reach a person untranslated - a template literal in 
 # ...and the scan has to be able to SEE those sinks, or it passes by finding nothing
 assert _reL.search(_SINK6, "toast(`hello ${x} there is prose here`)"),     "the scan no longer matches a toast, so it would pass on anything"
 
+
+# 6n. The dashboard's batch cap and the server's have to be the same number. They were not - the
+# page sliced at 20 while the server took 50 - and the README was then written from the server
+# constant, so the documentation promised something the button would not do. Nothing failed
+# loudly; you just silently sent fewer than you ticked.
+_dash6n = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+_m6n = _reL.search(r"const BATCH = (\d+);", _dash6n)
+assert _m6n, "the dashboard no longer spells its batch cap once"
+assert int(_m6n.group(1)) == app.BATCH_CAP,     f"the page sends {_m6n.group(1)} but the server accepts {app.BATCH_CAP}"
+# ...and the help text under the button has to say that number too
+assert f"Up to {app.BATCH_CAP} per run." in _dash6n,     "the line under the batch button promises a different number from the one it sends"
+
 print("ok")

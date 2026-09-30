@@ -174,7 +174,7 @@ invented: no employer, date, degree, tool or achievement that is not in your pro
 
 | where the job is | what the app does |
 |---|---|
-| eJobs, BestJobs | Applies for you, after you confirm. Tick several and send up to 20 in one run — separate from the scheduled run's own cap, which you set between 1 and 50. |
+| eJobs, BestJobs | Applies for you, after you confirm. Tick several and send up to 50 in one run — separate from the scheduled run's own cap, which you also set between 1 and 50. |
 | Hipo | Applies for you, after you confirm — see the note below on what it does and does not tell you. Some Hipo ads redirect to the employer's own site instead; those are marked and opened, never submitted. |
 | **You apply yourself** | One tile gathers everything you have to send by hand — employer forms, ads that redirect to the employer's own site, and anything on a board this app cannot apply on. None of them are ever picked up by batch apply or by the scheduled run, so they never take a slot and are never reported as a failure. |
 | Employer forms (Greenhouse, Lever, Ashby, Workable, Workday and others) | Opens the form with your details filled in and the CV attached, then stops. You read it and press submit. |

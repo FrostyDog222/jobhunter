@@ -630,7 +630,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   <div class="row" style="align-items:center">
     <b id="pickedn" style="flex:0 0 auto"></b>
     <span class="warn" style="flex:1;font-size:13px">Read each job ad first — these go straight to
-      the employer with the salary from your profile. Up to 20 per run.</span>
+      the employer with the salary from your profile. Up to 50 per run.</span>
     <button id="sendpicked" style="flex:0 0 auto">Apply to selected</button>
     <button id="clearpicked" class="ghost" style="flex:0 0 auto">Clear</button>
   </div>
@@ -1908,10 +1908,11 @@ $('#rescore').onclick = e => busy(e.target, async () => {
   $('#filter').value = ''; await load();
 }, 'queueing...');
 
-// What one apply_batch call accepts, server side (app.BATCH_CAP). Spelled once: the dialog
-// used to promise "one run sends 20" next to a slice of 20 while the server had moved to 50,
-// and a sentence that disagrees with the code it describes is worse than no sentence.
-const BATCH = 20;
+// What one apply_batch call accepts. Must equal app.BATCH_CAP, and the suite asserts it does:
+// this said 20 while the server took 50 for long enough that the README was written from the
+// wrong one of the two. Spelled once here, so the slice, the select-all cap and the sentence in
+// the dialog cannot disagree with each other either.
+const BATCH = 50;
 
 // which fit bands "Select all shown" should pick up
 const bandOf = f => (f ?? 0) >= 75 ? 'strong' : (f ?? 0) >= 50 ? 'medium' : 'weak';
