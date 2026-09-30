@@ -64,6 +64,7 @@ def set_cfg(**kv):
 
 def _set_cfg(**kv):
     _BLOWN.clear()          # the user just changed provider or key; give it a fresh chance
+    _save_down()            # ...including for the scheduled run, which reads this from disk
     if kv.get("LLM_PROVIDER"):
         kv.setdefault("LLM_CHAIN", None)   # an explicit pick beats a previously pinned chain
     cur = _dotenv()
@@ -144,23 +145,64 @@ class NoModel(RuntimeError):
     app should say so in those words rather than show a traceback."""
 
 
-# Once a provider says it is out of budget, every other call would say the same. Remember it
-# briefly so a 100-job search fails over in milliseconds instead of retrying 100 times.
+# Once a provider says it is out of budget, every other call would say the same. Remember it so a
+# 100-job search fails over in milliseconds instead of retrying 100 times.
 _BLOWN = {}
+DOWN = pathlib.Path(__file__).parent / ".llm_down.json"
+# How long to leave a provider alone, by what finding out COST rather than by what caused it.
+#
+# A provider that answered "out of quota" in 0.6s is cheap to ask again, and asking often is how a
+# quota that has reset gets noticed. One that accepted the connection and then said nothing for 45
+# seconds is not cheap, and asking it often is just paying the bill twice - nvidia does exactly
+# this, at the front of the chain, so every call paid it before reaching a provider that answers.
 BREAKER_SECONDS = 300
+UNREACHABLE_SECONDS = 1800
 # Every time a provider refused for quota, even when the chain recovered from it. The
 # scoring loop watches this to decide how hard to push.
 QUOTA_EVENTS = []
 
 
-def _breaker(key, err=None):
+def _load_down():
+    """What other processes have learned. Every scheduled run is a fresh process, and without this
+    each one rediscovers the dark provider at its own expense."""
+    try:
+        for k, v in json.loads(DOWN.read_text(encoding="utf-8")).items():
+            provider, _, model = k.partition("|")
+            _BLOWN.setdefault((provider, model), (float(v[0]), str(v[1]), bool(v[2])))
+    except (OSError, ValueError, TypeError, KeyError, IndexError):
+        pass                        # a state file we cannot read is not worth failing a call over
+
+
+def _save_down():
+    try:
+        DOWN.write_text(json.dumps({f"{k[0]}|{k[1]}": [t, e, slow]
+                                    for k, (t, e, slow) in _BLOWN.items()}), encoding="utf-8")
+    except OSError:
+        pass                        # remembering is an optimisation, never a requirement
+
+
+_load_down()
+
+
+def _breaker(key, err=None, slow=False):
+    """-> why this provider is being skipped, or None to go ahead.
+
+    `slow` says the failure was expensive to discover - a timeout rather than a refusal - which
+    buys a longer rest, because the cost of asking again is the whole point.
+    """
     if err:
-        _BLOWN[key] = (time.time(), err)
+        _BLOWN[key] = (time.time(), err, bool(slow))
+        _save_down()
         return None
     hit = _BLOWN.get(key)
-    if hit and time.time() - hit[0] < BREAKER_SECONDS:
-        return hit[1]
-    _BLOWN.pop(key, None)
+    if hit:
+        when, why = hit[0], hit[1]
+        for_ = UNREACHABLE_SECONDS if (len(hit) > 2 and hit[2]) else BREAKER_SECONDS
+        if time.time() - when < for_:
+            return why
+    if hit:
+        _BLOWN.pop(key, None)
+        _save_down()
     return None
 
 
@@ -502,7 +544,8 @@ def ask(system, user, max_tokens=8000, tries=5):
             # a timeout or dropped connection is this provider's problem, not the prompt's,
             # so move down the chain rather than failing the whole call
             spent.append(f"{provider}/{model} ({type(e).__name__})")
-            _breaker((provider, model), f"{provider}/{model}: {type(e).__name__}")
+            # slow=True: this one cost us its whole timeout to discover, so leave it longer
+            _breaker((provider, model), f"{provider}/{model}: {type(e).__name__}", slow=True)
             print(f"[llm] {provider}/{model} unreachable ({type(e).__name__}), trying next")
             continue
     if last is not None and not isinstance(last, QuotaError):

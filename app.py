@@ -1266,6 +1266,7 @@ async def set_llm(body: dict = Body(...)):
             # five minutes - taking the WORKING saved key out of the chain with it, while this
             # message promised the opposite.
             llm._BLOWN.pop((p, model or llm.PROVIDERS[p][2]), None)
+            llm._save_down()     # the scheduled run reads this from disk, so it must hear it too
             raise HTTPException(400, f"{p} would not accept that key: {e}.{had}")
 
     # Choosing a provider you have no key for, and leaving the key box blank, skipped the

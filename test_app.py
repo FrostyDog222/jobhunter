@@ -2763,4 +2763,51 @@ assert app.llm._patience(99999) <= 180, "the ceiling is gone"
 assert "timeout=180" not in _iK.getsource(app.llm._call),     "the flat three-minute timeout is back"
 assert "_patience(max_tokens)" in _iK.getsource(app.llm._call)
 
+
+# 6x. The chain is walked in full every time, and that is right - but it kept walking into the same
+# wall at the front of it. Measured: nvidia accepts the connection and says nothing for 45s, and it
+# leads the chain because it is the dropdown choice, so every call paid that before reaching mistral
+# which answers in 0.6s. The breaker knew, in one process, for five minutes - and every scheduled
+# run is a fresh process that had never heard of it, so each one paid again.
+_L = app.llm
+_downdir = pathlib.Path(_tf.mkdtemp())
+_keep6x = (_L.DOWN, dict(_L._BLOWN))
+try:
+    _L.DOWN = _downdir / ".llm_down.json"
+    _L._BLOWN.clear()
+    # an expensive failure is written down...
+    _L._breaker(("nvidia", "m"), "nvidia/m: ReadTimeout", slow=True)
+    assert _L.DOWN.exists(), "the breaker state was not written, so the next process relearns it"
+    # ...and a process that starts fresh inherits it
+    _L._BLOWN.clear()
+    _L._load_down()
+    assert _L._breaker(("nvidia", "m")), "a fresh process does not inherit what the last one paid for"
+
+    # the back-off is by what finding out COST, not by what caused it: asking a provider that
+    # refused in 0.6s again is how a reset quota gets noticed; asking the 45-second one is the bill
+    assert _L.UNREACHABLE_SECONDS > _L.BREAKER_SECONDS
+    _now = _tm.time()
+    _L._BLOWN[("slowone", "m")] = (_now - _L.BREAKER_SECONDS - 30, "timed out", True)
+    _L._BLOWN[("quotaone", "m")] = (_now - _L.BREAKER_SECONDS - 30, "out of quota", False)
+    assert _L._breaker(("slowone", "m")),         "the expensive one is retried on the short window, so its timeout is paid again"
+    assert not _L._breaker(("quotaone", "m")),         "a cheap refusal is held past its window, so a reset quota goes unnoticed"
+
+    # and clearing after a key change has to reach the file, or the scheduled run keeps skipping it
+    _L._breaker(("nvidia", "m"), "down", slow=True)
+    _L._BLOWN.clear()
+    _L._save_down()
+    _L._load_down()
+    assert not _L._breaker(("nvidia", "m")),         "fixing a key does not reach the scheduled run, which reads this from disk"
+finally:
+    _L.DOWN, _ = _keep6x
+    _L._BLOWN.clear()
+    _L._BLOWN.update(_keep6x[1])
+    _sh6.rmtree(_downdir, ignore_errors=True)
+
+# local, momentary, and wrong on anyone else's machine
+import share as _share6x
+assert ".llm_down.json" in _share6x.SKIP_NAMES or ".llm_down.json" in _share6x.PRIVATE,     "the shared zip would carry which provider was down on this PC"
+assert not _share6x.wanted(app.HERE / ".llm_down.json"), "share.py would still ship it"
+assert ".llm_down.json" in (app.HERE / ".gitignore").read_text(encoding="utf-8")
+
 print("ok")

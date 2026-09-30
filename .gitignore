@@ -26,3 +26,4 @@ auto.log
 .auto.lock
 auto_last.json
 backup/
+.llm_down.json

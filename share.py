@@ -27,7 +27,10 @@ PRIVATE_DIRS = {".venv", "__pycache__", ".browser", "out", ".claude", ".git", "g
 SKIP_SUFFIX = {".pyc", ".tmp", ".bak", ".zip", ".log", ".db"}
 # working files that are not part of the app
 SKIP_NAMES = {"audit.json", "research_ux.json", ".profile.test.json",
-              ".profile.test.prev.json", ".auto.lock"}
+              ".profile.test.prev.json", ".auto.lock",
+              # which provider was last found to be down HERE. Local, momentary and wrong on
+              # anyone else's machine, where their keys and their luck are different.
+              ".llm_down.json"}
 NAME = "jobhunter"
 
 

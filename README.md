@@ -212,6 +212,18 @@ Jobs you applied to, tailored, opened or skipped stay regardless of age, and so 
 holding a CV. When a search does drop something you would have wanted — scored at or above your
 own floor, with no closing date to go on — it now says so instead of only counting it.
 
+**When a provider goes quiet.** Every AI call walks your whole provider list, in order, and moves
+on the moment one refuses — that is how a free tier running dry mid-search keeps the search alive.
+What it used to do badly was walk into the same wall each time: a provider that accepts the
+connection and then answers nothing costs its full timeout, and only the process that discovered
+that remembered it. Every scheduled run is a fresh process, so every run paid it again.
+
+Two things changed. What is down is written to a file all of them read, so one run's 45 seconds is
+not every run's. And a provider is left alone for longer when finding out was expensive — half an
+hour after a timeout, five minutes after a plain refusal, because asking again is cheap in the
+second case and asking often is how a quota that has reset gets noticed. The list is still walked in
+full; nothing is pinned or dropped. Changing a key or a provider in the panel clears it immediately.
+
 ## Tailored CVs
 
 *Tailor CV* rewrites and reorders **your own** facts for that one ad and saves a PDF. Nothing is
