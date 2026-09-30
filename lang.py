@@ -809,7 +809,7 @@ RO = {
         "Joburile la care ai aplicat rămân în istoric și nu pot fi modificate.",
     "Applied jobs stay in the history and cannot be deleted.":
         "Joburile la care ai aplicat rămân în istoric și nu pot fi șterse.",
-    "Applying happens during the weekly run, so switch that on too.":
+    "Applying happens during the scheduled run, so switch that on too.":
         "Aplicarea are loc în timpul rulării programate, deci pornește-o și pe aceea.",
     "Could not read text from that file (scanned image PDF?). Paste the text instead.":
         "Nu am putut citi text din acel fișier (PDF scanat ca imagine?). Lipește textul în loc.",
@@ -835,7 +835,7 @@ RO = {
         "Nu există încă o copie anterioară la care să revii.",
     "Too late to undo - applied jobs stay in the history.":
         "Prea târziu pentru anulare - joburile la care ai aplicat rămân în istoric.",
-    "Type what the weekly run should search for.":
+    "Type what the scheduled run should search for.":
         "Scrie ce ar trebui să caute rularea programată.",
     "lang must be auto, en or ro":
         "lang trebuie să fie auto, en sau ro",

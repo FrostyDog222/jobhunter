@@ -1,8 +1,8 @@
 """Board passwords, encrypted to this Windows account.
 
 Optional and off until you switch it on. What it buys: when a board session lapses at a moment
-nobody is at the keyboard - the weekly run at 09:00 on a Sunday - the app can sign in again by
-itself instead of sending nothing that week.
+nobody is at the keyboard - the scheduled run, or the keep-alive every two hours - the app can
+sign in again by itself instead of staying signed out until somebody notices.
 
 What it is honest about:
 

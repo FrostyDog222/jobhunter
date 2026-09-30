@@ -450,7 +450,7 @@ def get_auto():
     # app's back - a purge, a failed registration, a tidy-up in Task Scheduler - left the
     # checkbox ticked over nothing at all, and the first symptom was sign-ins expiring again.
     drift = [name for name, want, got in
-             (("the weekly run", bool(s.get("auto_enabled")), task.get("exists")),
+             (("the scheduled run", bool(s.get("auto_enabled")), task.get("exists")),
               ("keep me signed in", bool(s.get("keep_signed_in")), keep.get("exists")))
              if want and not got]
     return {"settings": {k: v for k, v in s.items()
@@ -498,9 +498,9 @@ def _set_auto(body):
     except (TypeError, ValueError):
         raise HTTPException(400, "the score and the cap must be numbers")
     if cur["auto_apply"] and not cur["auto_enabled"]:
-        raise HTTPException(400, "Applying happens during the weekly run, so switch that on too.")
+        raise HTTPException(400, "Applying happens during the scheduled run, so switch that on too.")
     if cur["auto_enabled"] and not (cur["auto_query"] or "").strip():
-        raise HTTPException(400, "Type what the weekly run should search for.")
+        raise HTTPException(400, "Type what the scheduled run should search for.")
     save_settings_file(cur)
     problem = schedule(cur["auto_enabled"], cur["auto_days"], cur["auto_time"])
     if problem:
@@ -583,7 +583,7 @@ _RUNNING = []                         # the last process this button started, if
 
 @app.post("/api/auto/run")
 def run_auto():
-    """Run the weekly search now, in the same way Windows will run it."""
+    """Run the scheduled search now, in the same way Windows will run it."""
     # auto.py holds the real guard - it has to, because Task Scheduler starts it without asking
     # the app. This is only so a second click can say so, rather than starting a process that
     # takes the lock's word for it and exits a second later looking like it worked.

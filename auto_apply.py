@@ -1,4 +1,4 @@
-"""The part of the weekly run that sends applications.
+"""The part of the scheduled run that sends applications.
 
 Its own file because it is the only code in this project that acts on a real employer without a
 person present. Everything it is allowed to do is narrowed here, in one place you can read in a

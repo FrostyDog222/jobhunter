@@ -1,4 +1,4 @@
-"""The weekly run, started by Windows Task Scheduler rather than by you opening the app.
+"""The scheduled run, started by Windows Task Scheduler rather than by you opening the app.
 
 It does the part of a Sunday morning that is pure legwork: run your saved search across all four
 boards, score everything new against your profile, and leave the result waiting on the dashboard.
@@ -54,15 +54,15 @@ def run():
               "searched": None, "waiting": 0, "applied": None, "note": None, "error": None}
 
     if not s.get("auto_enabled"):
-        log("the weekly run is switched off - nothing to do")
+        log("the scheduled run is switched off - nothing to do")
         return report
     if not (s.get("auto_query") or "").strip():
-        report["note"] = "No search terms saved for the weekly run."
+        report["note"] = "No search terms saved for the scheduled run."
         log(report["note"])
         _write(report)
         return report
 
-    log(f"weekly run starting: {s['auto_query']!r}")
+    log(f"scheduled run starting: {s['auto_query']!r}")
     try:
         found = asyncio.run(app.search({
             "query": s["auto_query"], "location": s.get("auto_location", ""),
