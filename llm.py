@@ -700,6 +700,52 @@ def parse_cv(text):
     return {**EMPTY, **_obj(p, "parse_cv")}
 
 
+def search_terms(profile, already=(), never_worked=()):
+    """Read the CV and propose job titles to search for. -> {"terms": [{term, why, lang}]}
+
+    The dashboard already offers the titles this person has HELD, which is a substring of the
+    profile rather than a reading of it. The point of this is the term they would never think to
+    type: a CV describing sixty calls a day and billing disputes settled in two languages implies
+    "call center" and "suport clienti", and neither phrase appears in it.
+
+    Board-shaped output, not career advice. A Romanian board indexes the Romanian wording, so a
+    candidate who can work in both languages needs both spellings or half the ads never surface.
+
+    `already` is what they are searching now, so the model spends its answer on what is missing
+    instead of returning the four terms already in the box. `never_worked` is words this person has
+    been shown repeatedly and never scored highly on - their own results, not an opinion about
+    those words - which is what stops a CV mentioning supervision producing "Customer Engagement
+    Manager" for somebody who has seen dozens of those and wanted none of them.
+    """
+    have = ""
+    if already:
+        have = ("\n\nThey are ALREADY searching for these, so do not repeat them or a trivial "
+                "rewording of them - propose what is missing:\n"
+                + "\n".join(f"- {t}" for t in list(already)[:12]))
+    dead = ""
+    if never_worked:
+        dead = ("\n\nThese words appear again and again in adverts this candidate has already been "
+                "shown, and NOT ONCE in one they scored highly. Do not build terms around them "
+                "unless the CV makes the case overwhelming:\n" + ", ".join(never_worked))
+    return ask(
+        "You turn a CV into job-board search terms for the Romanian market. You are not writing "
+        "career advice and not describing the person: every term must be something a person would "
+        "actually type into eJobs, BestJobs or Hipo and that a real advert would be titled. "
+        "Rules: "
+        "(1) NEVER propose a field the CV does not support. A term nobody with this CV could be "
+        "hired for is worse than no term: it sends them applying for work they cannot do. Each "
+        "term must be justified by something specific in the profile, quoted in 'why'; "
+        "(2) these are JOB TITLES, not skills, not industries, not sentences - 'call center "
+        "agent', never 'good with people' and never 'telecommunications'; "
+        "(3) Romanian boards index Romanian wording, so give the Romanian phrasing as well as the "
+        "English wherever both are used in real adverts, as separate entries; "
+        "(4) 6 to 12 terms, the ones most likely to find work first; "
+        "(5) 'lang' is 'ro' or 'en' for the wording of the term itself. "
+        'Reply with JSON only: {"terms": [{"term": "...", "why": "...", "lang": "ro"}]}',
+        "CANDIDATE PROFILE:\n" + json.dumps(profile, ensure_ascii=False, indent=1) + have + dead,
+        max_tokens=2000)
+
+
 def suggest(profile, market=None):
     """Review the profile and propose concrete improvements the user can accept one by one.
 

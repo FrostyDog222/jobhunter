@@ -947,6 +947,22 @@ RO = {
         "{n} redeschise de verificarea limbii.",
     "{n} skipped on language.":
         "{n} sărite din cauza limbii.",
+    "Added {term}. Save the schedule when you are done.":
+        "S-a adăugat {term}. Salvează programarea când ai terminat.",
+    "Click any of these to add it. Each one says what in your CV it came from.":
+        "Apasă pe oricare pentru a o adăuga. Fiecare spune din ce parte a CV-ului tău provine.",
+    "Nothing to suggest from your profile yet - fill in your experience and skills first.":
+        "Nu este nimic de sugerat din profilul tău încă - completează mai întâi experiența și competențele.",
+    "{term} is already in the box.":
+        "{term} este deja în casetă.",
+    "Suggest terms from my CV":
+        "Sugerează termeni din CV-ul meu",
+    "Read the CV and propose titles you might not think of. Nothing is filled in until you click one.":
+        "Citește CV-ul și propune titluri la care poate nu te-ai gândi. Nu se completează nimic până nu apeși pe una.",
+    "reading your CV...":
+        "citesc CV-ul tău...",
+    "Fill in your profile first - there is nothing here to read yet.":
+        "Completează mai întâi profilul - deocamdată nu este nimic de citit aici.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

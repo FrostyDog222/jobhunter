@@ -428,9 +428,16 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
         <button class="ghost" id="auto_from_cv" title="Fill this with the job titles on your profile">Use my job titles</button>
       </div>
       <div style="flex:0 0 auto">
+        <button class="ghost" id="auto_cv_ideas"
+          title="Read the CV and propose titles you might not think of. Nothing is filled in until you click one.">Suggest terms from my CV</button>
+      </div>
+      <div style="flex:0 0 auto">
         <button class="ghost" id="autocopy2" title="Copy whatever is in the search bar at the top of the page">Copy the search above</button>
       </div>
     </div>
+    <!-- filled by the button above. Every chip is a click away from being added and nothing is
+         added without one: a CV says what someone has done, not what they want to do next. -->
+    <div id="cvterms" style="display:none;margin-top:8px"></div>
     <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
       font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="auto_apply"
       style="width:auto"> <b style="color:var(--mid)">Also apply for me, without asking</b></label>
@@ -1033,6 +1040,44 @@ $('#auto_from_cv').onclick = () => {
   toast('Filled from your CV. Edit it, then Save the schedule.', 6000);
 };
 $('#autocopy2').onclick = () => $('#autocopy').click();
+
+// Titles read OUT of the CV, as opposed to copied off it. "Use my job titles" above takes the
+// roles already written in the profile; this asks what those roles imply that the person would
+// never think to type - a CV describing sixty calls a day and billing disputes settled in two
+// languages implies "call center" and "suport clienti", and neither phrase is anywhere in it.
+//
+// Suggestions, never an answer. Each one carries the line from the CV that justifies it, so a term
+// that came from nowhere is visible as such, and clicking is the only way anything reaches the box.
+$('#auto_cv_ideas').onclick = e => busy(e.target, async () => {
+  const box = $('#cvterms');
+  const r = await api('/api/terms/from_cv', {already: $('#auto_query').value});
+  const terms = (r.terms || []);
+  if(!terms.length){
+    box.style.display = 'none';
+    return toast(t('Nothing to suggest from your profile yet - fill in your experience and skills '
+                 + 'first.'), 8000);
+  }
+  box.style.display = '';
+  box.innerHTML = `<div class="muted" style="margin-bottom:6px">${esc(t('Click any of these to add '
+      + 'it. Each one says what in your CV it came from.'))}</div>`
+    + terms.map(x => `<button type="button" class="ghost tiny cvterm"
+         data-term="${esc(x.term)}" title="${esc(x.why || '')}"
+         style="margin:0 6px 6px 0">${esc(x.term)}${x.lang === 'ro' ? ' 🇷🇴' : ''}</button>`).join('');
+  localiseDOM(box);
+}, 'reading your CV...');
+
+// One handler for the row, so chips added later work without rebinding
+$('#cvterms').onclick = e => {
+  const term = e.target.dataset && e.target.dataset.term;
+  if(!term) return;
+  const box = $('#auto_query');
+  const have = box.value.split(',').map(x => x.trim()).filter(Boolean);
+  if(have.some(x => x.toLowerCase() === term.toLowerCase()))
+    return toast(fill('{term} is already in the box.', {term: term}));
+  box.value = have.concat(term).join(', ');
+  e.target.disabled = true;                 // so it is obvious which ones you have taken
+  toast(fill('Added {term}. Save the schedule when you are done.', {term: term}), 5000);
+};
 
 $('#autonow').onclick = e => busy(e.target, async () => {
   if(!$('#auto_query').value.trim())

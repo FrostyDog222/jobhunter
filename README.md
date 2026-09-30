@@ -170,6 +170,19 @@ and not one of the 34 jobs that had scored 75+ would have been dropped.
 
 Every run says how many it skipped, so you can see what the list is doing rather than trust it.
 
+**Terms read out of your CV.** *Settings → Suggest terms from my CV* reads the profile and
+proposes job titles, including ones you would not think to type: a CV describing sixty calls a day
+and billing disputes settled in two languages implies *Suport clienti multicanal* and *Call Center*,
+and neither phrase is anywhere in it. Each suggestion carries the line from your CV it came from,
+and **nothing is filled in until you click it** — a CV says what you have done, not what you want
+to do next, so someone moving into training needs to keep asking for training.
+
+It is also told what your own results say has never worked: words that keep appearing in ads you
+have been shown and never once in one that scored well. That is what stops it proposing *Customer
+Engagement Manager* to someone who has seen dozens of those and wanted none. It can still invent a
+title that sounds plausible and does not exist, which is the other reason you pick rather than it
+filling the box.
+
 **Nothing here is a menu.** The search box suggests as you type — titles that have actually scored
 well for you first, then the job titles from your profile, then a dozen example role families in
 Romanian and English — but it never restricts. Type a job nobody thought of and it is searched

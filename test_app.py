@@ -2686,4 +2686,49 @@ assert _dt6t.index("worked") < _dt6t.index("examples"),     "the example familie
 assert "list=\"qterms\"" in _dash6t and '<datalist id="qterms">' in _dash6t,     "a datalist is what keeps this a suggestion rather than a menu"
 assert "drawTerms();" in _dash6t.split("JOBS = await api('/api/jobs'")[1][:600],     "the suggestions are not redrawn after the jobs land, so the evidence is always a page stale"
 
+
+# 6u. Terms read OUT of the CV, as opposed to copied off it. "Use my job titles" takes the roles
+# already written in the profile; this asks what they imply that nobody would think to type.
+# Nothing is applied: the endpoint returns suggestions and the page turns them into buttons.
+_llm6u = app.llm
+_llmkeep = _llm6u.search_terms
+_pkeep6u = app.profile
+try:
+    _seen6u = {}
+    _llm6u.search_terms = lambda prof, already=(), never_worked=(): (
+        _seen6u.update(prof=prof, already=list(already), dead=list(never_worked)),
+        {"terms": [{"term": "Suport clienti multicanal", "why": "handled chat and phone", "lang": "ro"},
+                   {"term": "", "why": "blank, must be dropped", "lang": "en"}]})[1]
+    app.profile = lambda: {"title": "Client Advisor", "experience": [{"role": "Trainer"}]}
+    _r6u = _cl.post("/api/terms/from_cv", json={"already": "Customer Support, Trainer"})
+    assert _r6u.status_code == 200, _r6u.text
+    _t6u = _r6u.json()["terms"]
+    assert [x["term"] for x in _t6u] == ["Suport clienti multicanal"],         f"a blank term reached the page: {_t6u}"
+    assert _seen6u["already"] == ["Customer Support", "Trainer"],         "the model was not told what is already being searched, so it repeats it"
+    # an empty profile must not cost a model call at all
+    app.profile = lambda: {}
+    assert _cl.post("/api/terms/from_cv", json={}).status_code == 400,         "an empty profile still spends a model call"
+finally:
+    _llm6u.search_terms, app.profile = _llmkeep, _pkeep6u
+
+# the advice handed to the model is this person's OWN results: words seen often in ads and never
+# once in one they scored well on. The same count that made a dangerous skip list makes safe
+# advice, because nothing is hidden on the strength of it - it only shapes what gets suggested.
+_dead6u = app.dead_words(75)
+assert isinstance(_dead6u, list) and len(_dead6u) <= 20
+with app.db() as _c6u:
+    _good6u = " ".join((r[0] or "").lower() for r in
+                       _c6u.execute("SELECT title FROM jobs WHERE fit >= 75"))
+# substring, matching how dead_words judges: "lead" must not be called dead while "Team Leader"
+# is an 85, because advising a model away from "lead" advises it away from Team Leader
+for _w in _dead6u:
+    assert _w not in _good6u,         f"{_w!r} is called dead but appears in a job that scored 75+"
+assert "dead_words" in _iK.getsource(app.terms_from_cv),     "the suggestion prompt no longer sees what has never worked"
+
+# ...and the UI adds nothing on its own: a chip has to be clicked
+_dash6u = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert 'id="cvterms"' in _dash6u and "data-term=" in _dash6u
+assert "auto_query" in _dash6u.split("$('#cvterms').onclick")[1][:400],     "clicking a suggestion does not put it in the box"
+assert "$('#auto_query').value =" not in _dash6u.split("$('#auto_cv_ideas')")[1].split("</script")[0][:1200],     "the CV suggestions overwrite what the person typed instead of offering"
+
 print("ok")

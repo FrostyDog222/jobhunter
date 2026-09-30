@@ -1330,6 +1330,49 @@ async def llm_models(provider: str = ""):
         raise HTTPException(400, str(e))
 
 
+def dead_words(floor=75, seen=6):
+    """Words that keep turning up in ads and have NEVER turned up in one that scored well.
+
+    The same count that made a terrible skip list makes good advice. Silently dropping an ad
+    because a word in its title has no good hits yet is a 34-sample accident deciding someone's
+    week; telling a model "this person has seen 41 ads saying consultant and wanted none of them"
+    is just handing over what the evidence says, for a human to overrule by typing anyway.
+
+    Nothing is hidden on the strength of this - it only shapes what gets SUGGESTED.
+    """
+    bad, kept = collections.Counter(), []
+    with db() as c:
+        for title, fit in c.execute("SELECT title, fit FROM jobs WHERE fit IS NOT NULL"):
+            if fit >= floor:
+                kept.append((title or "").lower())
+            else:
+                bad.update({w for w in re.findall(r"[A-Za-zÀ-ɏ]{4,}",
+                                                  (title or "").lower())})
+    # Substring, not whole word, and deliberately generous. Tokenising called "lead" unseen while
+    # "Team Leader (Sibiu)" was scored 85 - and advising a model away from "lead" is advising it
+    # away from Team Leader. When the evidence is this thin the error worth avoiding is
+    # discouraging a direction that has already worked.
+    return sorted((w for w, n in bad.items()
+                   if n >= seen and not any(w in t for t in kept)),
+                  key=lambda w: -bad[w])[:20]
+
+
+@app.post("/api/terms/from_cv")
+def terms_from_cv(body: dict = Body(default={})):
+    """Job titles read out of the CV, for the person to pick from. Nothing is applied here.
+
+    Deliberately a separate button rather than part of loading the page: it costs a model call, and
+    a suggestion nobody asked for is not worth spending someone's quota on.
+    """
+    p = profile()
+    if not any((p.get(k) or "") for k in ("title", "summary", "skills")) and not p.get("experience"):
+        raise HTTPException(400, "Fill in your profile first - there is nothing here to read yet.")
+    already = [q.strip() for q in re.split(r"[,;]", body.get("already") or "") if q.strip()]
+    out = llm.search_terms(p, already, dead_words(int(settings().get("auto_min_fit", 75))))
+    terms = [t for t in (out.get("terms") or []) if (t.get("term") or "").strip()]
+    return {"terms": terms[:12]}
+
+
 @app.post("/api/suggest")
 async def suggestions():
     # What employers actually asked for, from the jobs already scored. Counted locally, so this
