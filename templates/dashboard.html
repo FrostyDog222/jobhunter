@@ -895,7 +895,9 @@ async function loadAuto(){
       l.error ? `<span style="color:var(--bad)">${esc(friendly(l.error))}</span>`
       : s ? fill('{found} ads seen, {fresh} new, {scored} scored',
                  {found: s.found, fresh: s.new, scored: s.scored})
-            + (s.expired ? fill(', {n} dropped as over two weeks old', {n: s.expired}) : '')
+            + (s.expired ? fill(', {n} closed or aged out', {n: s.expired}) : '')
+            + (s.expired_good ? fill(' (<b>{n}</b> of them you would have applied to)',
+                                     {n: s.expired_good}) : '')
             + fill('. <b>{n}</b> waiting at {floor}+.',
                    {n: l.waiting, floor: esc(String(a.settings.auto_min_fit))})
       : esc(l.note || 'nothing to do')));
@@ -2046,7 +2048,9 @@ $('#go').onclick = e => busy(e.target, async () => {
                {found: r.found, fresh: r.new, scored: r.scored}) +
           (r.vetoed ? ' ' + fill('{n} skipped on language.', {n: r.vetoed}) : '') +
           (r.freed ? ' ' + fill('{n} re-opened by the language check.', {n: r.freed}) : '') +
-          (r.expired ? ' ' + fill('{n} dropped as over two weeks old.', {n: r.expired}) : '') +
+          (r.expired ? ' ' + fill('{n} closed or aged out.', {n: r.expired}) : '') +
+          (r.expired_good ? ' ' + fill('{n} of those you would have applied to.',
+                                       {n: r.expired_good}) : '') +
           ((r.warnings || []).length ? ' ⚠ ' + r.warnings.map(friendly).join('; ') : '') +
           (r.failed ? ' ' + fill('{n} failed — search again to retry them.',
                                  {n: r.failed}) : ''), 8000);

@@ -2529,4 +2529,64 @@ assert int(_m6n.group(1)) == app.BATCH_CAP,     f"the page sends {_m6n.group(1)}
 # ...and the help text under the button has to say that number too
 assert f"Up to {app.BATCH_CAP} per run." in _dash6n,     "the line under the batch button promises a different number from the one it sends"
 
+
+# 6p. The sweep used to be `too old OR past its expiry`, so age deleted an ad even when the
+# employer had stated in writing that it was still open. Measured on the real database: of 175
+# stored eJobs ads carrying a closing date, 172 say 30 DAYS after posting - so the sweep was
+# destroying more than half of every eJobs ad's life, and one of the rows it took was scored 85 and
+# still live. eJobs is the only board here that publishes the date; for the other three there is
+# nothing to consult and fourteen days is all there is.
+# Rows go through sweep_stale itself. Pasting the WHERE in here would pass whatever app.py said,
+# and the whole reason the bug survived is that the SQL reads fine.
+_sweepdir = pathlib.Path(_tf.mkdtemp())
+_keepdb6p = app.DB
+#  url,              posted,      expires,     fit, survives?
+_ROWS6P = [("keep-open",      "-40 days",  "+20 days",  85, True),
+           ("go-closed",      "-3 days",   "-1 days",   90, False),
+           ("keep-young",     "-3 days",   "",          80, True),
+           ("go-old",         "-40 days",  "",          85, False),
+           ("keep-no-posted", "",          "",          70, True)]
+try:
+    app.DB, app._SCHEMA_DONE = _sweepdir / "db.sqlite", False
+    with app.db() as _c:
+        for _u, _post, _exp, _fit, _ in _ROWS6P:
+            _c.execute("INSERT INTO jobs(url, source, status, fit, posted, expires, found) "
+                       "VALUES(?, 'ejobs', 'new', ?, ?, ?, date('now'))",
+                       (_u, _fit,
+                        _c.execute("SELECT date('now', ?)", (_post,)).fetchone()[0] if _post else "",
+                        _c.execute("SELECT date('now', ?)", (_exp,)).fetchone()[0] if _exp else ""))
+        # a row holding a tailored CV is protected however old, same promise as Clear results
+        _c.execute("INSERT INTO jobs(url,source,status,fit,posted,expires,found,cv) VALUES("
+                   "'keep-has-cv','ejobs','new',85,date('now','-90 days'),'',"
+                   "date('now','-90 days'),'cv.pdf')")
+        # and so is anything you have acted on, whatever its dates say
+        _c.execute("INSERT INTO jobs(url,source,status,fit,posted,expires,found) VALUES("
+                   "'keep-applied','ejobs','applied',85,date('now','-90 days'),"
+                   "date('now','-30 days'),date('now','-90 days'))")
+
+    _n6p, _good6p = app.sweep_stale(75)
+
+    with app.db() as _c:
+        _left6p = {r[0] for r in _c.execute("SELECT url FROM jobs")}
+    for _u, _, _, _, _stays in _ROWS6P:
+        if _stays:
+            assert _u in _left6p, f"{_u} was swept but the employer had not closed it"
+        else:
+            assert _u not in _left6p, f"{_u} survived a sweep it should not have"
+    assert "keep-has-cv" in _left6p, "a row holding a tailored CV was swept"
+    assert "keep-applied" in _left6p, "an application you had already sent was deleted"
+    assert _n6p == 2, f"swept {_n6p}, expected the two that were genuinely over"
+    # ...and the part you can act on. go-closed scored 90 but the EMPLOYER shut it, so it is not
+    # a job you could have applied to and must not be counted as one lost. go-old is the real
+    # case: high enough to want, no closing date to go on, gone on a guess.
+    assert _good6p == 1, f"counted {_good6p}; a job the employer closed is not one you lost"
+finally:
+    app.DB, app._SCHEMA_DONE = _keepdb6p, False
+    with app.db():
+        pass
+    _sh6.rmtree(_sweepdir, ignore_errors=True)
+
+assert "expired_good" in _iK.getsource(app._search),     "the run no longer counts the swept rows you would have applied to"
+assert "expired_good" in (app.HERE / "auto.py").read_text(encoding="utf-8"),     "the scheduled run stopped mentioning it in the log"
+
 print("ok")

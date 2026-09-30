@@ -155,9 +155,23 @@ Lists show 20 jobs to a page. The filter box narrows what is already found by ti
 city as you type, and ignores diacritics — `iasi` finds `Iași`.
 
 **Ad age.** Each job carries a green **new** badge for the first week after it was posted and an
-amber **old** one after that. Anything past two weeks is dropped on every search: those ads are
-filled or abandoned, and scoring them wastes a call. Jobs you applied to, tailored, opened or
-skipped stay regardless of age.
+amber **old** one after that.
+
+Old ads are cleared out on every search, but **the ad's own closing date decides** — not its age.
+eJobs states one on most postings, and it is almost always 30 days after posting; where it exists
+it is believed in both directions, so an ad stays until the day it closes however old it looks,
+and goes the moment it has closed however new it looks. Only ads that state no closing date fall
+back to being dropped at two weeks, which is every BestJobs, Hipo and freehire posting — there is
+nothing to consult, so a guess is all there is.
+
+This used to be age *or* closing date, whichever came first, which meant an eJobs ad was deleted
+at day 14 while eJobs went on accepting applications for another 16. Measured on one real
+database: 171 of 173 stored ads with a closing date were being cut short, by 16 days on average,
+and one of them was scored 85 and still live.
+
+Jobs you applied to, tailored, opened or skipped stay regardless of age, and so does anything
+holding a CV. When a search does drop something you would have wanted — scored at or above your
+own floor, with no closing date to go on — it now says so instead of only counting it.
 
 ## Tailored CVs
 

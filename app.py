@@ -1593,6 +1593,44 @@ def _gate_pass(p, judged, todo):
     return [t for t in todo if t["url"] not in dropped], vetoed, freed
 
 
+def sweep_stale(floor):
+    """Delete ads that have stopped being worth keeping. -> (how many, how many at `floor`+).
+
+    The ad's own closing date decides, and MAX_AGE_DAYS is only for ads that give none.
+
+    This used to be `too old OR past its expiry`, which meant age deleted an ad even when the
+    employer had stated in writing that it was still open. Measured on this database: of 175
+    stored eJobs ads carrying a closing date, 172 say 30 days after posting - so the sweep was
+    destroying more than half of every eJobs ad's life, and one of the rows it took was scored 85
+    and still live. eJobs is the only board here that publishes the date at all; for BestJobs,
+    Hipo and freehire there is nothing to consult and the guess is all there is.
+
+    Only rows nobody has touched: applied, opened, tailored and skipped all stay, and so does
+    anything holding a CV, exactly as with Clear results.
+    """
+    stale = ("status IN ('new','vetoed') AND (cv IS NULL OR cv = '') AND "
+             "CASE WHEN COALESCE(expires, '') <> '' "
+             #    the employer's own answer, in both directions: gone once it is behind us, and
+             #    kept until then however old the posting is
+             "     THEN expires < date('now') "
+             #    nothing stated, so fall back to age. bestjobs publishes no posted date either,
+             #    so falling back again to when we first saw it is the difference between those
+             #    rows expiring and living for ever
+             "     ELSE COALESCE(NULLIF(posted, ''), found) < date('now', ?) END")
+    age = (f"-{scrape.MAX_AGE_DAYS} days",)
+    with db() as c:
+        # One WHERE for both statements, so the count cannot disagree with the delete.
+        #
+        # And only the ones OUR OWN guess killed. A job the employer has closed is not a job you
+        # would have applied to - you could not have, it is shut - so counting it as a loss would
+        # inflate the number with housekeeping and make the real losses easy to ignore. What is
+        # left is exactly the regrettable case: scored high enough for you to want it, no closing
+        # date to go on, and deleted because fourteen days is the best this app can guess.
+        good = c.execute(f"SELECT COUNT(*) FROM jobs WHERE {stale} AND fit >= ? "
+                         f"AND COALESCE(expires, '') = ''", age + (int(floor),)).fetchone()[0]
+        return c.execute(f"DELETE FROM jobs WHERE {stale}", age).rowcount, good
+
+
 async def _search(body, p):
     queries = [q.strip() for q in re.split(r"[,;]", body.get("query", "")) if q.strip()] or [""]
     loc = body.get("location", "")
@@ -1702,19 +1740,9 @@ async def _search(body, p):
         if complaint:
             warnings.append(complaint)
 
-    # Two weeks is the shelf life of a job ad. Clear out what has aged past it - but only rows
-    # nobody has touched: applied, opened, tailored and skipped all stay, and so does anything
-    # holding a CV, exactly as with Clear results.
-    with db() as c:
-        expired = c.execute(
-            # bestjobs publishes no posted date at all, so falling back to when we first saw
-            # the ad is the difference between those rows expiring and living for ever
-            "DELETE FROM jobs WHERE status IN ('new','vetoed') AND (cv IS NULL OR cv = '') "
-            "AND (COALESCE(NULLIF(posted, ''), found) < date('now', ?) "
-            #    the employer's own closing date, once it is behind us: an ad that stopped
-            #    accepting people is not a stale ad, it is not an ad
-            "     OR (expires IS NOT NULL AND expires != '' AND expires < date('now')))",
-            (f"-{scrape.MAX_AGE_DAYS} days",)).rowcount
+    # Two weeks is the shelf life of an ad that does not say when it closes; one that does say is
+    # believed. sweep_stale holds the rule, so the suite can put rows through the real thing.
+    expired, expired_good = sweep_stale(settings().get("auto_min_fit", 75))
 
     with db() as c:
         for j in fresh:
@@ -1865,7 +1893,9 @@ async def _search(body, p):
         warnings.append(f"{stuck} ad(s) could not be scored after {SCORE_TRIES} attempts and "
                         f"are no longer retried. Open one from the board to read it yourself.")
     return {"found": len(found), "new": len(fresh), "freed": len(freed), "expired": expired,
-            "scored": len(todo) - failed,
+            # how many of those you would have applied to - the only part of `expired` that
+            # anybody can do anything about
+            "expired_good": expired_good, "scored": len(todo) - failed,
             "failed": failed, "vetoed": newly_vetoed, "queries": len(queries),
             "warnings": warnings}
 

@@ -877,8 +877,10 @@ RO = {
         ", a răspuns la {n} întrebare/întrebări",
     ", left {n} for you":
         ", a lăsat {n} pentru tine",
-    ", {n} dropped as over two weeks old":
-        ", {n} eliminate ca fiind mai vechi de două săptămâni",
+    ", {n} closed or aged out":
+        ", {n} închise sau expirate",
+    " (<b>{n}</b> of them you would have applied to)":
+        " (<b>{n}</b> dintre ele la care ai fi aplicat)",
     ". <b>{n}</b> waiting at {floor}+.":
         ". <b>{n}</b> în așteptare la {floor}+.",
     "About to send {n} real application(s):":
@@ -931,8 +933,10 @@ RO = {
         "{found} anunțuri văzute, {fresh} noi. Punctate {scored}.",
     "{kept} stay: everything applied, opened, tailored or skipped. Skipped rows are kept on purpose so a job you rejected does not come straight back on the next search.":
         "{kept} rămân: tot ce e aplicat, deschis, adaptat sau refuzat. Rândurile refuzate sunt păstrate intenționat, ca un job pe care l-ai respins să nu revină imediat la următoarea căutare.",
-    "{n} dropped as over two weeks old.":
-        "{n} eliminate ca fiind mai vechi de două săptămâni.",
+    "{n} closed or aged out.":
+        "{n} închise sau expirate.",
+    "{n} of those you would have applied to.":
+        "{n} dintre acelea la care ai fi aplicat.",
     "{n} failed — search again to retry them.":
         "{n} au eșuat — caută din nou pentru a le reîncerca.",
     "{n} job(s) queued — press Search & score to re-run them.":

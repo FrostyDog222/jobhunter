@@ -71,6 +71,13 @@ def run():
         report["searched"] = found
         log(f"search: {found['found']} ads seen, {found['new']} new, {found['scored']} scored"
             + (f", {found['vetoed']} skipped on language" if found.get("vetoed") else "")
+            # A closed ad going is housekeeping and not worth a line. One you would have APPLIED
+            # to going is the only part of that number you can act on, and it used to be folded
+            # into "27 dropped as over two weeks old" with nothing to say an 85 was among them.
+            + (f", {found['expired']} closed or aged out"
+               + (f" - {found['expired_good']} of them at "
+                  f"{s.get('auto_min_fit', 75)}+" if found.get("expired_good") else "")
+               if found.get("expired") else "")
             + (f"  warnings: {'; '.join(found['warnings'])}" if found.get("warnings") else ""))
     except Exception as e:
         report["error"] = f"the search failed: {type(e).__name__}: {e}"
