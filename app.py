@@ -102,7 +102,12 @@ def _connect():
                 # when we last asked. Not the outcome tracker that was removed: nobody maintains
                 # these, they come from the employer's side, and the date means an old answer
                 # cannot pose as a current one.
-                "board_state TEXT", "board_state_at TEXT"):                      # added later
+                "board_state TEXT", "board_state_at TEXT",
+                # Which model produced `fit`. A score only means something beside scores from the
+                # same model - measured, the same advert is 85 to one and 35 to another - and the
+                # chain falls through silently, so without this a list can hold several scales with
+                # nothing to say which row is on which.
+                "scored_by TEXT"):                                               # added later
         try:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
             fresh_col = True
@@ -1551,7 +1556,7 @@ FRESH_DAYS, STALE_DAYS = 3, 14
 
 LIST_COLS = ("url, source, title, company, location, posted, fit, why, gaps, untapped, "
              "status, cv, found, note, salary, expires, terms, lang, applied_at, "
-             "applicants, pay_est, responsive, board_state, board_state_at, "
+             "applicants, pay_est, responsive, board_state, board_state_at, scored_by, "
              "LENGTH(description) AS desc_len")
 
 
@@ -2116,6 +2121,27 @@ async def _search(body, p):
             # imports rows with no score, and paying a model to rate a job you applied to
             # three weeks ago buys nothing - the card shows what you did, not a number.
             "AND status NOT IN ('applied','opened','skipped')", (SCORE_TRIES,))]
+        # Scores from a model that is not the one in charge now go FIRST, before anything new.
+        #
+        # The chain falls through when a provider is out of quota or unwell, so a score can come
+        # from whoever could answer - and the same advert measured 85 from one model and 35 from
+        # another, which is either side of a 75 floor. Nothing is lost by that fallthrough as long
+        # as it is temporary, and putting these at the front is what makes it temporary: the list
+        # converges back to one scale on its own, without anybody noticing it had drifted.
+        #
+        # Only when there IS a model in charge to compare against, and only rows still waiting -
+        # applied, opened and skipped keep whatever scored them, because their number is history.
+        # Rows with no stamp at all are left alone: every score that predates this column has one,
+        # and re-scoring nine hundred adverts to learn what they would say now is not a migration,
+        # it is a bill. They stay on whatever scale they were on, and say nothing about it.
+        here = f"{llm.cfg('LLM_PROVIDER')}/{llm.cfg('LLM_MODEL') or ''}".rstrip("/")
+        stale_scale = []
+        if llm.cfg("LLM_PROVIDER"):
+            stale_scale = [dict(r) for r in c.execute(
+                "SELECT * FROM jobs WHERE fit IS NOT NULL AND COALESCE(scored_by,'') <> '' "
+                "AND scored_by <> ? AND COALESCE(tries,0) < ? "
+                "AND status IN ('new','ready','vetoed')", (here, SCORE_TRIES))]
+            todo = stale_scale + todo
         stuck = c.execute("SELECT COUNT(*) FROM jobs WHERE fit IS NULL "
                           "AND COALESCE(tries,0) >= ? "
                           "AND status NOT IN ('applied','opened','skipped')",
@@ -2215,10 +2241,15 @@ async def _search(body, p):
                                     f"(keys: {sorted(s)[:6]}) - the model is probably too small "
                                     f"to follow the format")
                 s["fit"] = max(0, min(100, fit))
-                c.execute("UPDATE jobs SET fit=?,why=?,gaps=?,untapped=? WHERE url=?",
+                c.execute("UPDATE jobs SET fit=?,why=?,gaps=?,untapped=?,scored_by=? "
+                          "WHERE url=?",
                           (s.get("fit"), _tidy(s.get("why") or ""),
                            json.dumps(_tidy(s.get("gaps", [])), ensure_ascii=False),
-                           json.dumps(_tidy(s.get("untapped", [])), ensure_ascii=False), j["url"]))
+                           json.dumps(_tidy(s.get("untapped", [])), ensure_ascii=False),
+                           # which model's scale this number is on. The chain falls through
+                           # silently, so without it a list holds several scales and cannot say
+                           # which row is on which - measured, 85 from one model is 35 from another.
+                           (s.get("_by") or "")[:80], j["url"]))
             except (TypeError, ValueError, AttributeError) as e:
                 # one malformed reply must cost one job, not the whole transaction - every score
                 # already written in this loop would otherwise be rolled back with it
@@ -2237,6 +2268,9 @@ async def _search(body, p):
             # how many of those you would have applied to - the only part of `expired` that
             # anybody can do anything about
             "expired_good": expired_good, "scored": len(todo) - failed,
+            # re-scored because a different model had produced their number, so the list is back on
+            # one scale. Named, since a score changing under somebody is otherwise inexplicable.
+            "rescaled": len(stale_scale),
             # ads never read or scored because they are in a job family you do not work in. Shown,
             # not silent: a filter you cannot see the effect of is a filter you cannot trust.
             "off_family": off_family,

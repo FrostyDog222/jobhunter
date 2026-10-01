@@ -800,8 +800,25 @@ def repair(provider, model, why, key=None, limit=2):
     return new
 
 
+# Who answered, as "provider/model", per THREAD. Scoring runs several adverts at once through a
+# thread pool, so a single shared slot would be overwritten by whichever call finished last and every
+# score would be stamped with the same wrong model - which is precisely the silent mislabelling this
+# is here to end.
+_ANSWERED = threading.local()
+
+
+def who_answered():
+    """-> "provider/model" for the last ask() on THIS thread, or ""."""
+    return getattr(_ANSWERED, "by", "")
+
+
 def ask(system, user, max_tokens=8000, tries=5):
-    """Prompt -> parsed JSON, walking down the provider chain as keys run dry."""
+    """Prompt -> parsed JSON, walking down the provider chain as keys run dry.
+
+    who_answered() then names the provider/model that answered, on this thread. Scoring records it,
+    because a score only means something beside other scores from the same model: measured, the same
+    advert is 85 to one model and 35 to another.
+    """
     opts = chain()
     if not opts:
         active()                                       # raises the "nothing configured" message
@@ -811,7 +828,9 @@ def ask(system, user, max_tokens=8000, tries=5):
             spent.append(f"{provider}/{model}")
             continue
         try:
-            return _call(provider, model, key, system, user, max_tokens, tries)
+            got = _call(provider, model, key, system, user, max_tokens, tries)
+            _ANSWERED.by = f"{provider}/{model}"
+            return got
         except ModelGone as e:
             # The key works and the model does not, which is one string away from fixed. So walk
             # this provider's own list, best first, WITH THIS PROMPT: the first model that answers
@@ -836,6 +855,7 @@ def ask(system, user, max_tokens=8000, tries=5):
                     continue
                 keep_model(provider, cand, model,
                            str(e) + (f" (also tried: {', '.join(failed)})" if failed else ""))
+                _ANSWERED.by = f"{provider}/{cand}"
                 return out
             give_up(provider, model,
                     str(e) + (f" (also tried: {', '.join(failed)})" if failed else ""))
@@ -1497,10 +1517,15 @@ NEW_TO_WORK = (
 
 
 def score(profile, job):
-    """Fit 0-100 for one job, plus what the CV is missing that the profile could actually back."""
+    """Fit 0-100 for one job, plus what the CV is missing that the profile could actually back.
+
+    The answer carries "_by": which model produced it. Kept in THIS function rather than split out,
+    because the prompt-injection boundary is asserted against score() itself - a refactor that moves
+    the fence somewhere the suite is not looking is how a boundary quietly stops being checked.
+    """
     starting_out = bool(profile.get("new_to_work"))
     profile = {k: v for k, v in profile.items() if k in SCORE_KEYS and k != "new_to_work"}
-    return ask(
+    out = ask(
         TRUST + (NEW_TO_WORK if starting_out else "") +
         "You match candidates to jobs. Be strict and realistic - most jobs are not a great fit. "
         "Where the work happens counts. Compare the posting's location with the candidate's: a "
@@ -1522,7 +1547,12 @@ def score(profile, job):
         max_tokens=1500,
     )
 
-
+    # which model's scale this number is on. A score only means something beside scores from
+    # the same model: measured, the same advert came back 85 from one and 35 from another, and
+    # the chain falls through silently whenever a provider is spent or unwell.
+    if isinstance(out, dict):
+        out["_by"] = who_answered()
+    return out
 def _pin(written, real, fields):
     """Model-written entries with their facts taken back from the profile.
 

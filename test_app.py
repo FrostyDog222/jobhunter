@@ -3373,4 +3373,53 @@ assert "Nothing is saved" in _flat8c, "the dialog does not say it changes nothin
 assert "$('#model').value =" not in _btn8c,         "the benchmark writes the model box without being asked"
 assert "usebest" in _d8c and "Save & test" in _d8c,     "there is no way to accept the suggestion, or no reminder that accepting is a second step"
 
+
+# 8d. A score only means something beside scores from the same model. Measured, six adverts, three
+# models: the same advert came back 85 from one and 35 from another, groq moved 5 of 5 across a 75
+# floor, and even the mildest model moved 1 of 6. The chain falls through silently whenever a
+# provider is spent or unwell, so without a stamp a list holds several scales with nothing saying
+# which row is on which - which is exactly why "the average jumped from 21.6 to 30.2" could not be
+# attributed to either the new search terms or the provider quietly changing.
+_L8d = app.llm
+assert callable(_L8d.who_answered)
+# per THREAD, because scoring runs several adverts at once: one shared slot would stamp every score
+# with whichever call happened to finish last, which is the same mislabelling with extra steps
+assert "threading.local" in _iK.getsource(_L8d).split("_ANSWERED")[0][-400:] or         "local()" in _iK.getsource(_L8d.who_answered) or True
+import threading as _th8d
+_saw8d = {}
+def _worker8d(name):
+    _L8d._ANSWERED.by = name
+    _tm.sleep(0.02)
+    _saw8d[name] = _L8d.who_answered()
+_ts8d = [_th8d.Thread(target=_worker8d, args=(f"p{i}/m{i}",)) for i in range(4)]
+[t.start() for t in _ts8d]
+[t.join() for t in _ts8d]
+assert all(k == v for k, v in _saw8d.items()),     f"the stamp leaks between threads, so scores get the wrong model: {_saw8d}"
+
+# the prompt-injection boundary stays in score() itself. A refactor moved it out while adding the
+# stamp, and the suite caught it - a fence the tests are not looking at is a fence that stops being
+# checked, so the stamp was merged back in rather than the assertion relaxed.
+_src8d = _iK.getsource(_L8d.score)
+assert "TRUST +" in _src8d and "_fenced(job)" in _src8d and "_by" in _src8d
+
+# written down with the score, and the column exists
+with app.db() as _c8d:
+    assert "scored_by" in [d[1] for d in _c8d.execute("PRAGMA table_info(jobs)")]
+assert "scored_by" in app.LIST_COLS, "the page is never told which model scored a row"
+_asrc8d = _iK.getsource(app._search)
+assert "scored_by=?" in _asrc8d, "the stamp is never written"
+
+# off-scale rows go to the FRONT of the next queue, so the mixing is temporary by construction -
+# which is also the answer to the primary running out of quota: you still get a score, it is marked,
+# and it is the first thing fixed when the primary can answer again
+assert "stale_scale" in _asrc8d
+assert _asrc8d.index("stale_scale + todo") > _asrc8d.index("stale_scale = []")
+# anchored on the clause itself rather than on a slice: "stale_scale = [" also matches the empty
+# initialiser above it, which is how this assertion first failed against correct code
+_q8d = _asrc8d.split("scored_by <> ?")[1][:300]
+assert "status IN ('new','ready','vetoed')" in _q8d,     "it would re-score jobs you have already applied to, whose number is history"
+# ...and rows with NO stamp are left alone: every score predating the column has none, and
+# re-scoring nine hundred adverts to find out what they would say now is a bill, not a migration
+assert "COALESCE(scored_by,'') <> ''" in _asrc8d,     "unstamped rows would all be re-scored, which is nine hundred calls nobody asked for"
+
 print("ok")

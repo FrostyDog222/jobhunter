@@ -235,6 +235,20 @@ Jobs you applied to, tailored, opened or skipped stay regardless of age, and so 
 holding a CV. When a search does drop something you would have wanted — scored at or above your
 own floor, with no closing date to go on — it now says so instead of only counting it.
 
+**Which model scored what.** Every score records the model that produced it, because a score is only
+comparable with scores from the same model. Measured on six adverts across three models: the same
+advert came back **85 from one and 35 from another**, and one model moved *every* advert tested across
+a 75 floor. The provider chain falls through whenever one is out of quota or unwell, so without this
+a list can hold several scales with nothing saying which row is on which.
+
+That also settles what happens when your main model runs out of quota. You still get a score — the
+chain still falls through, so nothing is ever left unscored — but it is stamped with whoever gave it,
+and those rows go to the **front of the next run's queue** to be scored again on the model in charge.
+The mixing is temporary by construction and clears itself without you doing anything.
+
+Scores that predate this are left alone. Re-scoring nine hundred adverts to learn what they would say
+today is a bill, not a migration.
+
 **When a model disappears under you.** A model name in your settings is a guess about someone
 else's catalogue, and catalogues rotate: models get retired on a published date, moved behind a paid
 plan, or dropped from a free tier. All three look identical from here — the key is fine and the call
