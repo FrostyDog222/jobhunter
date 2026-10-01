@@ -971,6 +971,33 @@ def board_of(url):
     return ""
 
 
+# Which advert a url points at, as the BOARD identifies it. "" when it cannot be read.
+#
+# A board writes the same advert's url differently in different places, so two urls for one posting
+# are normal and an exact comparison quietly misses them. Measured on the real database: of 15
+# applied jobs only 10 could be matched to the board's own application list by url.
+#
+#   eJobs    the id is the last segment, and a saved url carries a /user/ prefix the list does not:
+#            /user/locuri-de-munca/agent-customer-support/1987491
+#   Hipo     the id follows /locuri_de_munca/, and the company and title after it differ by
+#            diacritics and punctuation between the list and the search results
+#   BestJobs publishes no numeric id at all - the slug IS the identity, trailing counter included
+#
+# Always compared within one board, never across them, so an id cannot match another site's advert.
+def posting_id(url):
+    path = urlsplit(url or "").path.rstrip("/")
+    board = board_of(url)
+    if board == "hipo":
+        m = re.search(r"/locuri_de_munca/(\d+)", path)
+        return m.group(1) if m else ""
+    if board == "ejobs":
+        m = re.search(r"/(\d+)$", path)
+        return m.group(1) if m else ""
+    if board == "bestjobs":
+        return path.rsplit("/", 1)[-1].lower() if "/" in path else ""
+    return ""
+
+
 def signed_in_to(page, board):
     """-> True/False, or None when the page gives no signal either way."""
     ui = BOARD_UI[board]

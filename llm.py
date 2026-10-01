@@ -12,6 +12,8 @@ Ollama needs no key: set LLM_PROVIDER=ollama and have it running locally.
 import difflib, json, os, pathlib, re, tempfile, threading, time
 import httpx
 
+import share                      # one definition of what an API key looks like; see _no_secrets
+
 # name: (env var, base url, default model)  - order is the auto-pick order
 PROVIDERS = {
     "anthropic":  ("ANTHROPIC_API_KEY",  "https://api.anthropic.com/v1",  "claude-sonnet-5"),
@@ -377,6 +379,15 @@ def _rest(slow, strikes):
     return min(cap, base * 2 ** max(0, strikes - 1))
 
 
+# A provider's own words are written to .llm_down.json and shown in the AI panel, and some
+# providers echo the key back inside a refusal. The file never leaves this PC - share.py keeps it out
+# of the zip, .gitignore out of the repository - but a screenshot of that panel does leave, so the
+# text is scrubbed with the same pattern share.py uses to refuse to build a zip. One definition of
+# "this looks like a key", so a new provider's format is only ever added in one place.
+def _no_secrets(text):
+    return share.SECRET.sub("[key removed]", str(text))[:400]
+
+
 def _breaker(key, err=None, slow=False):
     """-> why this provider is being skipped, or None to go ahead.
 
@@ -390,7 +401,7 @@ def _breaker(key, err=None, slow=False):
         was = _BLOWN.get(key)
         # same kind of failure as last time, and we are still inside its window -> it is a streak
         strikes = (was[3] + 1) if (was and len(was) > 3 and was[2] == bool(slow)) else 1
-        _BLOWN[key] = (time.time(), err, bool(slow), strikes)
+        _BLOWN[key] = (time.time(), _no_secrets(err), bool(slow), strikes)
         _save_down()
         return None
     _refresh_down()

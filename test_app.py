@@ -3609,4 +3609,108 @@ _gone9 = sorted(x for x in _lit9 if x and x not in app.lang.RO
                 and not _re9.fullmatch(r"[\s\W\d]*|\{\w+\}", x))
 assert not _gone9, f"handed to t() with no Romanian: {_gone9}"
 
+
+# 9d. One advert, several urls - and one url is not one advert either.
+#
+# A board writes the same posting's url differently in different places, so refresh_board_states
+# matching on `url =` missed a third of them: measured on the real database, 10 of 15 applied jobs
+# carried a board status, eJobs only 4 of 8, because a saved eJobs url carries a /user/ prefix its
+# application list does not use. The Hipo import already matched on the board's own posting id and
+# explained why in its own comment - the same knowledge, used in one of the two places.
+assert "posting_id" in _iK.getsource(app.refresh_board_states),     "the status refresh is back to comparing whole urls, which loses a third of them"
+assert app.prefill.posting_id(
+    "https://www.ejobs.ro/user/locuri-de-munca/agent-customer-support/1987491") == "1987491"
+assert app.prefill.posting_id(
+    "https://www.ejobs.ro/locuri-de-munca/agent-customer-support/1987491") == "1987491",     "the /user/ prefix still produces a different identity"
+assert app.prefill.posting_id(
+    "https://www.hipo.ro/locuri-de-munca/locuri_de_munca/271495/AUMOVIO/Role-(m/f/d)") == "271495"
+assert app.prefill.posting_id(
+    "https://www.bestjobs.eu/loc-de-munca/customer-success-specialist-34"
+    ) == "customer-success-specialist-34", "BestJobs publishes no id, so the slug is the identity"
+# never across boards: an id is only ever compared inside the board it came from
+assert app.prefill.posting_id("https://evil.example/locuri_de_munca/271495") == ""
+assert app.prefill.posting_id("") == "" and app.prefill.posting_id(None) == ""
+# and the Hipo import no longer carries its own copy of the same rule
+assert "jid = prefill.posting_id" in _iK.getsource(app.import_history),     "the import went back to its own private copy of the id rule"
+
+# The id is NOT unique, which is the part that would have made this fix wrong. eJobs and Hipo both
+# reuse one across different adverts from the same employer - 1988726 is two different Intesa roles,
+# 1989712 two different Licurici ones - so a dict keyed on the id keeps whichever row was read last
+# and files a board's answer about one job against another. "A wrong status is worse than none."
+_ws9 = _iK.getsource(app.refresh_board_states)
+assert "len(same) > 1" in _ws9 and "ambiguous" in _ws9,     "an ambiguous posting id is being guessed at again"
+assert 'known.get(u) == "applied"' in _ws9,     "the applied tie-break is gone, which costs a real application its status"
+
+# End to end on a COPY of the database, with the board stubbed: the real one is never written to.
+_dbreal9 = app.DB
+_tmp9 = pathlib.Path(_tf.mkdtemp()) / "copy.sqlite"
+_sh6.copy(_dbreal9, _tmp9)
+app.DB = _tmp9
+try:
+    with app.db() as _c9:
+        _c9.execute("DELETE FROM jobs WHERE source='ejobs'")
+        # two adverts from one employer sharing an id, one applied and one not
+        for _u9, _st9 in (("https://www.ejobs.ro/user/locuri-de-munca/a-role/555001", "applied"),
+                          ("https://www.ejobs.ro/user/locuri-de-munca/b-role/555001", "vetoed"),
+                          # and two sharing an id with neither applied
+                          ("https://www.ejobs.ro/user/locuri-de-munca/c-role/555002", "new"),
+                          ("https://www.ejobs.ro/user/locuri-de-munca/d-role/555002", "new"),
+                          ("https://www.ejobs.ro/user/locuri-de-munca/e-role/555003", "applied")):
+            _c9.execute("INSERT INTO jobs (url, source, title, company, status) "
+                        "VALUES (?,'ejobs',?,'Co',?)", (_u9, _st9.upper(), _st9))
+
+    def _ask9(apps):
+        _keep9 = app.prefill.board_applications
+        app.prefill.board_applications = lambda b: apps if b == "ejobs" else []
+        try:
+            return app.refresh_board_states(boards=["ejobs"])
+        finally:
+            app.prefill.board_applications = _keep9
+
+    # the board reports them WITHOUT the /user/ prefix, which is how it really writes them
+    _r9 = _ask9([{"url": "https://www.ejobs.ro/locuri-de-munca/a-role/555001",
+                  "state": "seen", "state_word": "Vizualizata", "title": "A"},
+                 {"url": "https://www.ejobs.ro/locuri-de-munca/e-role/555003",
+                  "state": "sent", "state_word": "Nevizualizat", "title": "E"}])
+    assert _r9["matched"] == 2, f"the /user/ prefix still loses applications: {_r9}"
+    with app.db() as _c9:
+        _got9 = {r["url"].rsplit("/", 2)[1]: r["board_state"] for r in _c9.execute(
+            "SELECT url, board_state FROM jobs WHERE source='ejobs' "
+            "AND COALESCE(board_state,'') <> ''")}
+    assert _got9 == {"a-role": "seen:Vizualizata", "e-role": "sent:Nevizualizat"},         f"the status landed on the wrong advert: {_got9}"
+
+    # an id shared by two adverts, NEITHER applied -> nothing written, and it is counted
+    _r9 = _ask9([{"url": "https://www.ejobs.ro/locuri-de-munca/c-role/555002",
+                  "state": "seen", "title": "C"}])
+    assert _r9["matched"] == 0 and _r9["ambiguous"] == 1,         f"a status was guessed onto one of two adverts sharing an id: {_r9}"
+
+    # an advert that is not in the list at all is never invented
+    assert _ask9([{"url": "https://www.ejobs.ro/locuri-de-munca/x/999999",
+                   "state": "seen", "title": "X"}])["matched"] == 0
+finally:
+    app.DB = _dbreal9
+    _sh6.rmtree(_tmp9.parent, ignore_errors=True)
+
+# 9e. A provider's own words go into .llm_down.json and then to the AI panel, and some providers
+# echo the key back inside a refusal. The file stays on this PC, but a screenshot of that panel does
+# not, so the text is scrubbed with the same pattern share.py uses to refuse to build a zip.
+for _leak9 in ("401 Incorrect API key provided: sk-proj-" + "A" * 24,
+               "invalid key gsk_" + "B" * 28,
+               "bad request AIza" + "C" * 30,
+               "API_KEY=" + "D" * 30):
+    _out9 = app.llm._no_secrets(_leak9)
+    assert "[key removed]" in _out9 and not any(
+        x in _out9 for x in ("sk-proj-A", "gsk_B", "AIzaC", "D" * 30)),         f"a key survived into the breaker state: {_out9}"
+assert len(app.llm._no_secrets("x" * 2000)) == 400, "a huge error body is stored whole"
+assert "_no_secrets(err)" in _iK.getsource(app.llm._breaker),     "the provider's error text is stored verbatim again"
+# ...and it is the same definition share.py uses, so a new provider's key format is added once
+import share as _share9
+assert app.llm.share.SECRET is _share9.SECRET,     "the breaker scrubs with its own pattern, which will drift from share.py's"
+
+# the recheck docstring describes the three answers the code actually acts on
+_rj9 = app.recheck_jobs.__doc__
+assert "three answers" in _rj9 and "no advert at all" in _rj9,     "the docstring is back to naming two removal reasons where the code has three"
+# and it still spares anything holding a CV, which is what makes "tailored rows stay" true
+assert "cv IS NULL OR cv = ''" in _iK.getsource(app.recheck_jobs)
+
 print("ok")

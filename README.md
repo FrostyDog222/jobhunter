@@ -473,8 +473,14 @@ There are no states to keep up to date, because none of it is yours to maintain.
 
 Three states and no more, because three is what changes what you would do: it is in, somebody
 opened it, or it is over. A board inventing a fourth shows as its own word rather than being filed
-under the nearest of ours. Applications matched on the advert's url only — matching a title would be
-guessing which application a status belongs to, and a wrong status is worse than none.
+under the nearest of ours.
+
+Matched on the board's own posting id, never on a title, which would be guessing which application a
+status belongs to — and a wrong status is worse than none. The id rather than the whole link because
+one advert has more than one: eJobs stores a link its own application list writes differently, which
+cost half of them a status. But an id is not unique either — eJobs and Hipo reuse one across several
+adverts from the same employer — so where it names more than one of your saved jobs, the one you
+applied to wins, and failing that nothing is written at all.
 
 One limit worth knowing: eJobs paginates, so a very long history reads only the recent page.
 

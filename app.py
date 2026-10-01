@@ -575,11 +575,10 @@ async def import_history(body: dict = Body(...)):
     except Exception as e:
         raise HTTPException(400, f"Could not read your {board} applications: {e}")
 
-    # match on the board's own numeric posting id: the slug after it differs between the list
-    # and the search results (diacritics, punctuation), the id does not
-    def jid(u):
-        m = re.search(r"/locuri_de_munca/(\d+)", u or "")
-        return m.group(1) if m else None
+    # prefill.posting_id: the board's own id, because the slug after it differs between the
+    # application list and the search results (diacritics, punctuation). One definition, shared
+    # with refresh_board_states, which spent a while matching on the whole url instead.
+    jid = prefill.posting_id
 
     marked, unknown = [], []
     with db() as c:
@@ -1811,11 +1810,18 @@ def refresh_board_states(boards=None):
     buttons that have to be pressed produce an empty tracker, and "3 waiting to hear" that nobody
     updated is a false claim about the world. The boards already know, and all three publish it.
 
-    Matched on the ad's url, which all three put in their own list. Matching on a title would be
-    guessing which application a status belongs to, and a wrong status is worse than none.
+    Matched on the url, then on the board's own posting id within that board - never on a title,
+    which would be guessing which application a status belongs to, and a wrong status is worse than
+    none. The id is needed because one advert has more than one url: eJobs saves a /user/ prefix its
+    application list does not use, and Hipo's company and title segments differ by diacritics.
+    Measured on url alone: 10 of 15 applied jobs matched, eJobs only 4 of 8.
+
+    But an id is not unique either - eJobs and Hipo both reuse one across different adverts from the
+    same employer (1988726 is two different Intesa roles) - so it decides only where it names exactly
+    one stored advert. Where it names several, nothing is written and `ambiguous` counts it.
     """
     when = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    out = {"read": 0, "matched": 0, "states": {}, "unknown": [], "failed": {}}
+    out = {"read": 0, "matched": 0, "ambiguous": 0, "states": {}, "unknown": [], "failed": {}}
     for board in (boards or sorted(prefill.APPLICATIONS)):
         try:
             got = prefill.board_applications(board)
@@ -1823,7 +1829,40 @@ def refresh_board_states(boards=None):
             out["failed"][board] = f"{type(e).__name__}: {str(e)[:90]}"
             continue
         out["read"] += len(got)
-        rows = [(a["state"], a.get("state_word", ""), when, a["url"]) for a in got if a.get("state")]
+        with db() as c:
+            known = {r["url"]: r["status"] for r in c.execute(
+                "SELECT url, status FROM jobs WHERE source = ?", (board,))}
+        # the board's id -> every stored advert carrying it. A list, not one url: the id is reused
+        # across different adverts from one employer, and keeping the last would file a board's
+        # answer about one job against another.
+        mine = {}
+        for u in known:
+            pid = prefill.posting_id(u)
+            if pid:
+                mine.setdefault(pid, []).append(u)
+
+        def whose(url):
+            """-> the stored url this application belongs to, or None rather than a guess."""
+            if url in known:
+                return url                      # exact: nothing to work out
+            same = mine.get(prefill.posting_id(url), ())
+            if len(same) > 1:
+                # Every row in an application list IS an application, so among adverts sharing an
+                # id the applied one is the one being reported. Measured: this is what separates
+                # eJobs 1989320, two TELUS adverts worded in opposite order, one applied one vetoed.
+                same = [u for u in same if known.get(u) == "applied"] or same
+            return same[0] if len(same) == 1 else None
+
+        rows = []
+        for a in got:
+            if not a.get("state"):
+                continue
+            url = whose(a["url"])
+            if url is None:
+                # either not a job in your list, or an id that names more than one of them
+                out["ambiguous"] += 1
+                continue
+            rows.append((a["state"], a.get("state_word", ""), when, url))
         for a in got:
             if a.get("state"):
                 out["states"][a["state"]] = out["states"].get(a["state"], 0) + 1
@@ -1851,9 +1890,11 @@ def recheck_jobs(on_progress=None):
 
     -> {"asked": n, "gone": n, "gone_good": n, "why": {reason: n}}
 
-    The honest version of the age rule: it asks instead of guessing, and removes a row only on a 404
-    or 410 from the board, or a closing date the employer has let pass. Anything it could not read
-    is kept, so a bad connection costs nothing but time.
+    The honest version of the age rule: it asks instead of guessing, and removes a row on exactly
+    three answers - a 404 or 410 from the board, a closing date the employer has let pass, or a page
+    that carries no advert at all. That last one is the only signal that works on eJobs and Hipo,
+    which answer 200 for an advert that is not there. Anything it could not read is kept, so a bad
+    connection costs nothing but time.
 
     Rows nobody has touched, exactly like the sweep: applied, opened, tailored and skipped all stay
     whatever a board now says, because that list is a record of what you did.
