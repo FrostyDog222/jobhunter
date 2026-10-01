@@ -1119,6 +1119,60 @@ def search_terms(profile, already=(), never_worked=()):
         max_tokens=2000)
 
 
+def shortlist(profile, jobs, pick=3):
+    """Rank these jobs against each other and name the few worth doing today.
+
+    -> {"order": [id, ...], "picks": [{"id": n, "why": "..."}], "note": "..."}
+
+    A comparison, deliberately, and not another score. The scorer rates each ad on its own and lands
+    almost everything on a multiple of five - 923 ads produced 23 distinct values and never one
+    above 85 - so within the band worth applying to there is no order at all. Models are bad at
+    absolute scales and good at "which of these two", which is the question asked here.
+
+    Advisory. Nothing it says is written back to `fit`: a ranking that silently rewrote the score
+    would make tomorrow's ranking a ranking of its own opinion.
+    """
+    if not jobs:
+        return {"order": [], "picks": [], "note": ""}
+    lines = []
+    for j in jobs:
+        bits = [f'id={j["id"]}', f'title={j.get("title", "")!r}',
+                f'company={j.get("company", "") or "not stated"!r}',
+                f'score={j.get("fit")}']
+        if j.get("applicants") is not None:
+            bits.append(f'applicants_so_far={j["applicants"]}')
+        if j.get("salary"):
+            bits.append(f'pay_stated={j["salary"]!r}')
+        if j.get("tailored"):
+            bits.append("a tailored CV is already written for this one")
+        if j.get("why"):
+            bits.append(f'scorer_said={str(j["why"])[:300]!r}')
+        if j.get("gaps"):
+            bits.append(f'gaps={str(j["gaps"])[:200]!r}')
+        lines.append("- " + ", ".join(bits))
+    return ask(
+        "You are helping someone decide which job applications to send TODAY. They have already "
+        "been scored individually and almost all scored the same, which is why you are being asked "
+        "to compare them with each other instead. "
+        "Rules: "
+        "(1) Rank by where this person's effort is best spent - how likely THIS candidate is to be "
+        "taken seriously for THIS job, and whether the job is worth their time. Not by the score "
+        "you were given: you can see it, and it has already failed to separate them; "
+        "(2) use only what is below. Never invent a requirement, a salary, a location or a fact "
+        "about the candidate. If two jobs are genuinely indistinguishable on the evidence, say so "
+        "in 'note' rather than inventing a reason to split them; "
+        "(3) 'why' is one sentence naming the specific thing that puts this job above the others - "
+        "a skill the candidate has that the ad asks for, a short queue, stated pay, work already "
+        "done on it. 'A good match' is not a reason and will be ignored; "
+        f"(4) 'order' lists EVERY id given, best first. 'picks' is the {pick} to do today, in order; "
+        "(5) 'note' is at most one sentence, and only if there is something the ranking cannot "
+        "express - otherwise leave it empty. "
+        'Reply with JSON only: {"order": [1,2,3], "picks": [{"id": 1, "why": "..."}], "note": ""}',
+        "CANDIDATE:\n" + json.dumps(profile, ensure_ascii=False, indent=1)[:6000]
+        + "\n\nJOBS TO RANK:\n" + "\n".join(lines),
+        max_tokens=2000)
+
+
 def suggest(profile, market=None):
     """Review the profile and propose concrete improvements the user can accept one by one.
 

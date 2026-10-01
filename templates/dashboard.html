@@ -633,6 +633,8 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   <span class="gap"></span>
   <span class="muted" id="count"></span>
   <button id="rescore" class="ghost" style="display:none">Score these again</button>
+  <button id="pickthree" class="ghost"
+    title="Compare the jobs waiting and say which few are worth doing today, and why.">What should I do today?</button>
   <button id="askboards" class="ghost" style="display:none"
     title="Read each board's own list of your applications and show where they stand. Sends nothing.">Ask the boards what happened</button>
   <span class="bands">
@@ -681,6 +683,9 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       the next thing to learn — or something you have and forgot to write down.</p>
     <div id="gapslist"></div>
   </details>
+<!-- filled by #pickthree. Hidden until there is something to say, because an empty panel
+     promising advice is worse than no panel. -->
+<div id="today" style="display:none"></div>
 <div id="list"></div>
 <div class="pager" id="pager"></div>
 {% endblock %}
@@ -1317,6 +1322,56 @@ function boardState(j){
     title="${esc((word ? word + ' — ' : '') + t('what the board said when last asked') + ' '
                  + (j.board_state_at || ''))}">${esc(t(look[1]))}</span>`;
 }
+
+// Three jobs and the reason each is there.
+//
+// The scorer rates every ad on its own and lands almost all of them on the same value - 923 ads
+// produced 23 distinct scores and never one above 85, and the ten jobs this is asked about are
+// routinely all 85. So the score cannot order the shortlist, and this asks the question it cannot
+// answer: of these, which today.
+//
+// Advisory and visibly so. The list below is unchanged, nothing is filtered, and no score is
+// rewritten - a ranking that edited `fit` would make the next ranking a ranking of its own opinion.
+function drawToday(r){
+  const box = $('#today');
+  const picks = (r && r.picks) || [];
+  box.style.display = picks.length ? '' : 'none';
+  if(!picks.length) return;
+  box.innerHTML = `<div class="panel-ish" style="border:1px solid var(--line);border-radius:10px;
+      padding:12px 14px;margin-bottom:12px;background:var(--card)">
+      <b>${esc(t('Worth doing today'))}</b>
+      <span class="muted" style="font-size:12px;margin-left:8px">${esc(
+        fill('ranked against each other, because {n} of them scored the same',
+             {n: (r.order || picks).length}))}${r.cached ? '' : ''}</span>
+      ${picks.map((p, i) => `<div style="display:flex;gap:10px;margin-top:8px;align-items:baseline">
+          <b style="color:var(--accent);min-width:14px">${i + 1}</b>
+          <div><a href="#" data-goto="${esc(p.url)}"><b>${esc(p.title || '')}</b></a>
+            ${p.company ? `<span class="muted"> · ${esc(p.company)}</span>` : ''}
+            <div class="muted" style="font-size:12.5px">${esc(p.why || '')}</div></div>
+        </div>`).join('')}
+      ${r.note ? `<div class="muted" style="margin-top:8px;font-size:12.5px">${esc(r.note)}</div>` : ''}
+    </div>`;
+  localiseDOM(box);
+}
+
+// clicking a pick scrolls to that job's own card - the panel advises, the card is where you act
+$('#today').onclick = e => {
+  const a = e.target.closest('[data-goto]');
+  if(!a) return;
+  e.preventDefault();
+  const card = document.querySelector(`.job[data-url="${CSS.escape(a.dataset.goto)}"]`);
+  if(card){ card.scrollIntoView({behavior: 'smooth', block: 'center'});
+            card.style.outline = '2px solid var(--accent)';
+            setTimeout(() => card.style.outline = '', 1800); }
+  else toast(t('That job is not in the view you are looking at - switch to Best for you.'));
+};
+
+$('#pickthree').onclick = e => busy(e.target, async () => {
+  const slow = setTimeout(() => toast(t('Still comparing. This asks the model once, and the answer '
+    + 'is kept until the list changes.'), 8000), 20000);
+  try { drawToday(await api('/api/shortlist', {refresh: true})); }
+  finally { clearTimeout(slow); }
+}, t('comparing...'));
 
 function followLine(j){
   const d = waitingDays(j);

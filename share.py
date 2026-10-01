@@ -30,7 +30,10 @@ SKIP_NAMES = {"audit.json", "research_ux.json", ".profile.test.json",
               ".profile.test.prev.json", ".auto.lock",
               # which provider was last found to be down HERE. Local, momentary and wrong on
               # anyone else's machine, where their keys and their luck are different.
-              ".llm_down.json"}
+              ".llm_down.json",
+              # one ranking of one person's shortlist. Meaningless to anyone else, and stale the
+              # moment their list differs - which it does, being their list.
+              ".shortlist.json"}
 NAME = "jobhunter"
 
 

@@ -1782,6 +1782,77 @@ def recheck_due(s=None):
     return (datetime.datetime.now() - when).days >= max(1, int(s.get("recheck_days", 30)))
 
 
+SHORTLIST = HERE / ".shortlist.json"
+# How many of the waiting jobs go to the ranker. Ten because the question is "which of these today",
+# and a model asked to order forty produces an order nobody reads past the top of anyway.
+SHORTLIST_IN = 10
+
+
+def shortlist_rows(floor=None):
+    """The jobs a ranking would be about: waiting, at or above the floor, best first.
+
+    Same order the dashboard shows, so the ranking reorders what is in front of you rather than
+    some other list the page never displays.
+    """
+    floor = int(settings().get("auto_min_fit", 75) if floor is None else floor)
+    with db() as c:
+        return [dict(r) for r in c.execute(
+            f"SELECT url, title, company, fit, why, gaps, applicants, salary, status "
+            f"FROM jobs WHERE fit >= ? AND status IN ('new','ready') "
+            f"ORDER BY fit DESC, COALESCE(applicants, 1000000) ASC, found DESC LIMIT {SHORTLIST_IN}",
+            (floor,))]
+
+
+def _shortlist_cached(urls):
+    """The stored ranking, but only if it was computed for exactly these jobs.
+
+    Keyed on the set of urls, not on a time. A ranking is only true of the jobs it saw: apply to
+    two of them and yesterday's three are wrong, however recent they are.
+    """
+    try:
+        got = json.loads(SHORTLIST.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return got if got.get("for") == sorted(urls) else None
+
+
+@app.post("/api/shortlist")
+async def api_shortlist(body: dict = Body(default={})):
+    """Rank the waiting jobs against each other and name the few to do today.
+
+    Advisory: nothing here is written back to `fit`. The scorer rates each ad alone and lands
+    almost everything on the same handful of values - 923 ads produced 23 distinct scores and never
+    one above 85 - so this asks the question a score cannot answer, which is how they compare.
+    """
+    rows = shortlist_rows()
+    if not rows:
+        return {"picks": [], "order": [], "note": "", "jobs": []}
+    urls = [r["url"] for r in rows]
+    if not body.get("refresh"):
+        hit = _shortlist_cached(urls)
+        if hit:
+            return {**hit, "cached": True}
+    jobs = [{"id": i + 1, "title": r["title"], "company": r["company"], "fit": r["fit"],
+             "why": r["why"], "gaps": r["gaps"], "applicants": r["applicants"],
+             "salary": r["salary"], "tailored": r["status"] == "ready"}
+            for i, r in enumerate(rows)]
+    out = await off(lambda: llm.shortlist(profile(), jobs))
+    by_id = {i + 1: r for i, r in enumerate(rows)}
+    picks = [{"url": by_id[p["id"]]["url"], "title": by_id[p["id"]]["title"],
+              "company": by_id[p["id"]]["company"], "fit": by_id[p["id"]]["fit"],
+              "why": (p.get("why") or "").strip()}
+             for p in (out.get("picks") or []) if p.get("id") in by_id]
+    got = {"for": sorted(urls), "picks": picks,
+           "order": [by_id[i]["url"] for i in (out.get("order") or []) if i in by_id],
+           "note": (out.get("note") or "").strip(),
+           "when": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
+    try:
+        SHORTLIST.write_text(json.dumps(got), encoding="utf-8")
+    except OSError:
+        pass                      # a cache we could not write is not worth failing the call over
+    return {**got, "cached": False}
+
+
 @app.post("/api/recheck")
 async def api_recheck():
     """Run the recheck now, whatever the schedule says. The manual half of the same switch."""

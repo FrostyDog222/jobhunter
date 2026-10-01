@@ -3228,4 +3228,67 @@ assert "function boardState(" in _d8 and "boardState(j)" in _d8
 assert "board_state" in app.LIST_COLS, "the page is never sent the column it renders"
 assert "askboards" in _d8 and "'applied'" in _d8.split("askboards').style.display")[1][:120],     "the refresh button is offered outside the Applied view, where the question is not asked"
 
+
+# 8b. The score cannot order the shortlist, so this compares instead. Measured on the real database:
+# 923 ads produced 23 distinct scores and never one above 85, and the ten jobs this is asked about
+# are routinely ALL 85 - so "which of these today" is a question no per-ad score can answer.
+# Advisory throughout: nothing here is written back to fit, or the next ranking would be a ranking
+# of its own opinion.
+_sl8 = pathlib.Path(_tf.mkdtemp())
+_k8b = (app.DB, app.SHORTLIST, app.llm.shortlist, app.profile)
+try:
+    app.DB, app._SCHEMA_DONE = _sl8 / "db.sqlite", False
+    app.SHORTLIST = _sl8 / ".shortlist.json"
+    app.profile = lambda: {"title": "Client Advisor"}
+    with app.db() as _c8b:
+        for _i in range(12):
+            _c8b.execute("INSERT INTO jobs(url,source,status,fit,title) VALUES(?,'ejobs','new',?,?)",
+                         (f"https://x/{_i}", 85 if _i < 11 else 40, f"Job {_i}"))
+    _calls8 = []
+    app.llm.shortlist = lambda prof, jobs, pick=3: (_calls8.append(len(jobs)), {
+        "order": [j["id"] for j in jobs],
+        "picks": [{"id": jobs[0]["id"], "why": "a specific reason"}],
+        "note": ""})[1]
+
+    _r8 = _cl.post("/api/shortlist", json={}).json()
+    assert _calls8 == [10], f"the ranker was given {_calls8}, expected the top 10"
+    assert _r8["picks"] and _r8["picks"][0]["url"].startswith("https://x/"), _r8
+    assert _r8["cached"] is False
+    # the 40 must not be in it: the shortlist is what clears your own floor
+    assert len(_r8["order"]) == 10
+
+    # cached on the SET of jobs, not a clock: ranking ten and then applying to one makes
+    # yesterday's answer wrong however recent it is
+    _r8b = _cl.post("/api/shortlist", json={}).json()
+    assert _r8b["cached"] is True and len(_calls8) == 1, "it asked again for an unchanged list"
+    with app.db() as _c8b:
+        _c8b.execute("UPDATE jobs SET status='applied' WHERE url='https://x/0'")
+    _r8c = _cl.post("/api/shortlist", json={}).json()
+    assert _r8c["cached"] is False and len(_calls8) == 2,         "the ranking survived a job leaving the list, so it now recommends one you have done"
+    # and refresh forces it regardless
+    _cl.post("/api/shortlist", json={"refresh": True})
+    assert len(_calls8) == 3, "refresh did not force a fresh ranking"
+
+    # nothing it says may reach the score
+    with app.db() as _c8b:
+        assert _c8b.execute("SELECT COUNT(*) FROM jobs WHERE fit NOT IN (85,40)").fetchone()[0] == 0,             "the ranking rewrote a score"
+finally:
+    app.DB, app.SHORTLIST, app.llm.shortlist, app.profile = _k8b
+    app._SCHEMA_DONE = False
+    with app.db():
+        pass
+    _sh6.rmtree(_sl8, ignore_errors=True)
+
+# the prompt has to ask for a comparison and refuse a vacuous reason, or this is just another score
+_ps8 = _iK.getsource(app.llm.shortlist)
+assert "compare them with each other" in _ps8 and "Never invent" in _ps8
+assert "A good match" in _ps8, "the prompt no longer rejects a reason that says nothing"
+# shown above the list and not instead of it: advice, never a filter
+_d8b = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert 'id="today"' in _d8b and 'id="list"' in _d8b
+assert _d8b.index('id="today"') < _d8b.index('<div id="list">')
+assert "data-goto" in _d8b, "a pick does not link back to the job's own card"
+import share as _share8b
+assert not _share8b.wanted(app.HERE / ".shortlist.json"), "one person's ranking would be shipped"
+
 print("ok")

@@ -27,3 +27,4 @@ auto.log
 auto_last.json
 backup/
 .llm_down.json
+.shortlist.json

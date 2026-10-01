@@ -282,6 +282,20 @@ A single successful answer wipes all of it, streak included, so nothing is ever 
 been down. The list is still walked in full; nothing is pinned or dropped, and changing a key or a
 provider in the panel clears it immediately.
 
+**Which of these today.** *What should I do today?* compares the waiting jobs with each other and
+names three, each with the specific reason it is there — a tailored CV already written for it, pay
+the ad actually states, a queue of six rather than six hundred.
+
+It exists because the score cannot do this. Scoring rates each advert on its own, and on one real
+database 923 ads produced **23 distinct scores and never one above 85** — so the ten best jobs are
+routinely all 85 and the list has no order at all. Asking for a finer number would invent precision;
+asking which of these ten beats the others is a question a model can actually answer.
+
+Advisory, and visibly so. The list underneath is unchanged, nothing is hidden, and no score is
+rewritten — a ranking that edited the scores would make the next ranking a ranking of its own
+opinion. The answer is kept until the shortlist itself changes, so applying to one of the three
+earns a fresh comparison rather than stale advice.
+
 ## Tailored CVs
 
 *Tailor CV* rewrites and reorders **your own** facts for that one ad and saves a PDF. Nothing is

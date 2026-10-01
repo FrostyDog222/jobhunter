@@ -1023,6 +1023,20 @@ RO = {
         "Întreabă site-urile ce s-a întâmplat",
     "Read each board's own list of your applications and show where they stand. Sends nothing.":
         "Citește lista fiecărui site cu candidaturile tale și arată unde au ajuns. Nu trimite nimic.",
+    "Worth doing today":
+        "Merită făcute azi",
+    "ranked against each other, because {n} of them scored the same":
+        "ordonate între ele, pentru că {n} dintre ele au același punctaj",
+    "comparing...":
+        "compar...",
+    "Still comparing. This asks the model once, and the answer is kept until the list changes.":
+        "Încă se compară. Se întreabă modelul o singură dată, iar răspunsul se păstrează până se schimbă lista.",
+    "That job is not in the view you are looking at - switch to Best for you.":
+        "Jobul acela nu este în vizualizarea curentă — comută pe Cele mai bune pentru tine.",
+    "What should I do today?":
+        "Ce ar trebui să fac azi?",
+    "Compare the jobs waiting and say which few are worth doing today, and why.":
+        "Compară joburile în așteptare și spune care merită făcute azi și de ce.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":
