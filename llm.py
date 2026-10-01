@@ -649,6 +649,133 @@ def _balanced(txt, open_ch, close_ch):
     return None
 
 
+# The only values that are already legal JSON by the time the scanner is looking at one: quotes and
+# brackets are handled before this, so what is left is a number or exactly true/false/null. Matched as
+# a whole token, not by first letter - "tfn" as a set of starts meant any bare value beginning with t,
+# f or n was copied through unquoted, which in Romanian is "trimis", "nu" and "fara".
+_JSON_SCALAR = re.compile(r"(?:true|false|null|-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)(?=\s*[,}\]]|\s*$)")
+
+
+def _loosen(txt):
+    """Pseudo-JSON -> JSON, for the reply shape groq produces. "" when it is not that shape.
+
+    Captured whole from a real run:
+
+        {fit: 30, why: The candidate lacks a degree, and lives far from the office., gaps: [a, b]}
+
+    Keys, string values and array items all unquoted, with commas and full stops inside the values -
+    so quoting keys alone does not help, and a regex cannot tell the comma in "a degree, and lives"
+    from the one before "gaps". What makes it tractable is depth and quote state, so this walks the
+    string once: a bare key is a word then a colon at the start of a member, and a bare value runs
+    until the next member of the same object begins.
+
+    Runs only after every honest parse has failed, never evaluates anything, and leaves a value that
+    is already legal JSON alone - "fit" must come back an int rather than the string "30".
+    """
+    if not txt or txt[0] not in "{[":
+        return ""
+    out, i, n = [], 0, len(txt)
+    stack = []                                  # the containers we are inside: "{" or "["
+    expect = "value"                            # "key", "colon" or "value"
+
+    def bare(start, stop_at_comma):
+        """-> (the text of a bare scalar, where it ends). Stops where the next member starts."""
+        depth, j = 0, start
+        while j < n:
+            ch = txt[j]
+            if ch in "{[":
+                depth += 1
+            elif ch in "}]":
+                if depth == 0:
+                    break                        # our own container closing
+                depth -= 1
+            elif depth == 0 and ch == ",":
+                if stop_at_comma:
+                    break                        # an array item ends at the first comma
+                # in an object, only a comma that introduces another `word:` member ends the value -
+                # the ones inside a sentence do not
+                k = j + 1
+                while k < n and txt[k].isspace():
+                    k += 1
+                w = k
+                while w < n and (txt[w].isalnum() or txt[w] in "_-"):
+                    w += 1
+                after = w
+                while after < n and txt[after].isspace():
+                    after += 1
+                if w > k and after < n and txt[after] == ":":
+                    break
+            j += 1
+        return txt[start:j].strip(), j
+
+    while i < n:
+        ch = txt[i]
+        if ch == '"':                            # an already-quoted run: copy it verbatim
+            j = i + 1
+            while j < n:
+                if txt[j] == "\\":
+                    j += 2
+                    continue
+                if txt[j] == '"':
+                    break
+                j += 1
+            out.append(txt[i:j + 1])
+            i = j + 1
+            expect = "colon" if (stack and stack[-1] == "{" and expect == "key") else "value"
+            continue
+        if ch in "{[":
+            stack.append(ch)
+            out.append(ch)
+            expect = "key" if ch == "{" else "value"
+            i += 1
+            continue
+        if ch in "}]":
+            if stack:
+                stack.pop()
+            out.append(ch)
+            expect = "value"
+            i += 1
+            continue
+        if ch == ",":
+            out.append(ch)
+            expect = "key" if (stack and stack[-1] == "{") else "value"
+            i += 1
+            continue
+        if ch == ":":
+            out.append(ch)
+            expect = "value"
+            i += 1
+            continue
+        if ch.isspace():
+            out.append(ch)
+            i += 1
+            continue
+        # a bare run of text, at a key or a value position
+        if expect == "key" and stack and stack[-1] == "{":
+            j = i
+            while j < n and (txt[j].isalnum() or txt[j] in "_- "):
+                j += 1
+            key = txt[i:j].strip()
+            if not key or j >= n or txt[j] != ":":
+                return ""                        # not the shape this is for; do not guess further
+            out.append(json.dumps(key))
+            i = j
+            expect = "colon"
+            continue
+        legal = _JSON_SCALAR.match(txt, i)
+        if legal:
+            # a number or true/false/null: copy it through untouched so "fit" stays an int
+            out.append(legal.group(0))
+            i = legal.end()
+            continue
+        text, j = bare(i, stop_at_comma=bool(stack and stack[-1] == "["))
+        if not text:
+            return ""
+        out.append(json.dumps(text))
+        i = j
+    return "".join(out)
+
+
 def _parse_reply(provider, txt):
     """The model's text -> an object. Every failure raises RuntimeError, never
     JSONDecodeError: ask() catches RuntimeError to fail over, and a ValueError escaping
@@ -659,6 +786,29 @@ def _parse_reply(provider, txt):
         return json.loads(txt)
     except json.JSONDecodeError:
         pass
+    # Models write markdown into the JSON they were asked for, and put the asterisks outside the
+    # string: `**"Team collaboration** in ...`. That is not JSON, and it cost a whole extra provider
+    # call per affected ad. _tidy strips ** after parsing anyway, so losing it here costs nothing.
+    #
+    # Whole text only, and FIRST, because this is a known corruption with an exact repair - as narrow
+    # as json.loads itself. Its span variants are further down with the other span salvages.
+    plain = txt.replace("**", "")
+    if plain != txt:
+        try:
+            return json.loads(plain)
+        except json.JSONDecodeError:
+            pass
+    # Then the pseudo-JSON some providers write - keys, string values and array items all unquoted -
+    # read WHOLE. This has to come before the span salvages: taken after them,
+    # "{fit: 55, why: Short reason., gaps: []}" returned [], because the inner empty array is valid
+    # JSON and was found first. _loosen declines anything not starting with a brace, so a reply with
+    # prose around its JSON still goes to the spans below.
+    loose = _loosen(txt)
+    if loose:
+        try:
+            return json.loads(loose)
+        except json.JSONDecodeError:
+            pass
     # Models chat around the JSON, so fall back to the widest balanced-looking span - but the
     # salvage must raise RuntimeError like every other failure here, or ask() cannot fail over:
     # JSONDecodeError is a ValueError, which it does not catch, and it escaped as a 500.
@@ -668,13 +818,8 @@ def _parse_reply(provider, txt):
                 return json.loads(m.group(0))
             except json.JSONDecodeError:
                 continue
-    # Models write markdown into the JSON they were asked for, and put the asterisks outside the
-    # string: `**"Team collaboration** in ...`. That is not JSON, and it cost a whole extra
-    # provider call per affected ad. _tidy strips ** after parsing anyway, so losing it here
-    # costs nothing - do it last, so a reply that parses honestly is never touched.
-    plain = txt.replace("**", "")
-    for cand in (plain, *(m.group(0) for m in (re.search(r"\{.*\}", plain, re.S),
-                                               re.search(r"\[.*\]", plain, re.S)) if m)):
+    for cand in (m.group(0) for m in (re.search(r"\{.*\}", plain, re.S),
+                                      re.search(r"\[.*\]", plain, re.S)) if m):
         try:
             return json.loads(cand)
         except json.JSONDecodeError:
@@ -688,6 +833,15 @@ def _parse_reply(provider, txt):
         if cand:
             try:
                 return json.loads(cand)
+            except json.JSONDecodeError:
+                continue
+    # Truly last: the same loosening, but applied to a balanced span - for a reply that wraps its
+    # pseudo-JSON in prose, where _loosen above declined because the text did not start with a brace.
+    for cand in (_balanced(txt, "{", "}") or "", _balanced(txt, "[", "]") or ""):
+        loose = _loosen(cand.strip())
+        if loose:
+            try:
+                return json.loads(loose)
             except json.JSONDecodeError:
                 continue
     # head AND tail: a reply that is merely cut short looks identical to a malformed one

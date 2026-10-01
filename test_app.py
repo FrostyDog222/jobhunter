@@ -3904,4 +3904,57 @@ assert _P9i._state_of("½ zi - Vizualizată")["state_word"] == "Vizualizată",  
 # the flat mapping stays, because the dashboard has wording per state and the suite pins them together
 assert set(_P9i.APPLICATION_STATE.values()) == {"sent", "seen", "closed"}
 
+
+# 9j. Some providers answer with pseudo-JSON: keys, string values and array items all unquoted. The
+# reply below is a real one, captured whole from a run - and the values carry commas and full stops,
+# so quoting the keys alone does not make it parseable. Several answers a run were being discarded for
+# this, each costing another provider call at the moment the primary was rate limited.
+_PR9 = app.llm._parse_reply
+_LOOSE9 = ("{fit: 30, why: The candidate lacks a relevant economics degree and banking experience, "
+           "and lives far from the Bucharest office, making daily commuting impractical. However, "
+           "they have strong customer service skills., gaps: [Bucuresti commute, Economics degree], "
+           "untapped: [CRM expertise, Customer service]}")
+_g9 = _PR9("groq", _LOOSE9)
+assert _g9["fit"] == 30 and isinstance(_g9["fit"], int), "fit has to stay a number, not become '30'"
+assert "However, they have" in _g9["why"],     "the sentence was cut at a comma inside it rather than at the next member"
+assert _g9["gaps"] == ["Bucuresti commute", "Economics degree"]
+assert _g9["untapped"] == ["CRM expertise", "Customer service"]
+
+# a bare value starting with t, f or n is NOT true/false/null - and in Romanian those are "trimis",
+# "nu" and "fara", which is about as common as words get here
+assert _PR9("x", "{fit: 40, why: Trimis fara experienta., gaps: [nu are atestat, fara permis]}") ==        {"fit": 40, "why": "Trimis fara experienta.",
+        "gaps": ["nu are atestat", "fara permis"]}, "a bare value was read as a JSON keyword"
+assert _PR9("x", "{fit: 60, gaps: [one], untapped: [two, three]}") ==        {"fit": 60, "gaps": ["one"], "untapped": ["two", "three"]}
+
+# reading the WHOLE object has to beat grabbing a bracketed fragment of it: the inner "[]" here is
+# valid JSON on its own and used to be found first, so the answer came back as an empty list
+assert _PR9("x", "{fit: 55, why: Short reason., gaps: []}") ==        {"fit": 55, "why": "Short reason.", "gaps": []}, "a fragment of the reply beat the reply"
+
+# ...but the markdown repair is more specific than the loosener, so it still goes first: the loosener
+# can only treat **"broken"** as a run of text and quote it whole
+assert _PR9("x", '{"fit": 7, "why": **"broken"** }') == {"fit": 7, "why": "broken"}
+# and valid JSON is never touched by any of it - ** inside a proper string is _tidy's business
+assert _PR9("x", '{"fit": 6, "why": "**bold** text"}') == {"fit": 6, "why": "**bold** text"}
+
+# everything that worked before still does, in the same way
+for _t9, _w9 in (('{"fit": 80, "why": "ok", "gaps": []}', {"fit": 80, "why": "ok", "gaps": []}),
+                 ('here you go {"fit": 2} hope that helps', {"fit": 2}),
+                 ('{"fit": 3, "why": "a, b, c"}', {"fit": 3, "why": "a, b, c"}),
+                 ('{"fit": 4, "why": "has: a colon"}', {"fit": 4, "why": "has: a colon"}),
+                 ('[{"id": 1}, {"id": 2}]', [{"id": 1}, {"id": 2}]),
+                 ('{"order": [3,1,2]}', {"order": [3, 1, 2]}),
+                 ('{"a": "x"}{"b": 2}', {"a": "x"})):
+    assert _PR9("x", _t9) == _w9, f"{_t9!r} -> {_PR9('x', _t9)!r}"
+
+# and a reply that is not this shape must still fail over rather than have an answer invented for it:
+# ask() moves down the chain on RuntimeError, and inventing a score here would be worse than a retry
+for _b9 in ("I cannot help with that", "", "<html>503</html>", "fit is 30 maybe", "{", "   "):
+    try:
+        _PR9("x", _b9)
+        raise AssertionError(f"an answer was invented for {_b9!r}")
+    except RuntimeError:
+        pass
+# the loosener declines anything that is not an object or array outright, rather than guessing
+assert app.llm._loosen("fit is 30 maybe") == "" and app.llm._loosen("") == ""
+
 print("ok")
