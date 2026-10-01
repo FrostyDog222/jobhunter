@@ -735,10 +735,14 @@ def discover(board, query, location="", limit=25, timeout=30, country="ro", filt
 # below this many characters an "ad" is a stub: a title, a company and no requirements
 MIN_AD = 200
 
-# An ad this old is filled, withdrawn or being ignored by the employer. Applying to it wastes an
-# application; keeping it wastes a scoring call and a row on the dashboard. Undated ads are kept,
+# How long an ad with NO stated closing date is assumed to live. Undated ads are kept regardless,
 # because "no date" is not "old" - BestJobs publishes no posting date at all.
-MAX_AGE_DAYS = 14
+#
+# Thirty because that is the only shelf life any board here publishes: 206 of 275 stored eJobs ads
+# carry a closing date and it averages exactly 30 days after posting. Fourteen was arbitrary, and
+# measurably wrong - it deleted two jobs scored 85 in two days, both still open. There is no reason
+# a BestJobs or Hipo ad should live half as long as an eJobs one; we simply cannot see their dates.
+MAX_AGE_DAYS = 30
 
 
 def _too_old(posted):
@@ -768,6 +772,92 @@ def _closed(valid_through):
 # Kept low deliberately: these are small boards, the requests are spread across four of them,
 # and _get already backs off on a 429.
 FETCH_WORKERS = 5
+
+
+# Why a recheck removed something, in words a person can argue with.
+GONE_MISSING = "the board no longer has this posting"
+GONE_CLOSED = "the employer's closing date has passed"
+GONE_EMPTY = "the page is no longer an advert"
+
+# Above this share of a board's ads reported gone, assume our reader broke rather than that every
+# employer closed at once. Measured against nothing: it is a sanity bound, not a tuned number, and
+# it only ever causes LESS to be deleted.
+PARSER_DOUBT = 0.5
+
+
+def verdict(status, text, source):
+    """One page, one answer: why this ad is gone, or "" for anything short of certain.
+
+    Pulled out of the fetch so the judgement can be tested without a network, which is the half
+    worth testing - the fetching is httpx's problem.
+    """
+    if status in (404, 410):
+        return GONE_MISSING
+    if status >= 400:
+        return ""                                    # 403, 429, 500: their problem, not an answer
+    jp = _jobposting(text)
+    if jp and _closed(_flat(jp.get("validThrough"))):
+        return GONE_CLOSED
+    # eJobs and Hipo answer 200 for an ad that does not exist, so the status is not enough. A page
+    # carrying neither structured data nor the board's own ad markup is not an advert any more -
+    # the same test hydrate uses to decide a page is not worth reading.
+    if not jp and not (_markup(source, text) or ""):
+        return GONE_EMPTY
+    return ""
+
+
+def still_listed(jobs, timeout=20, on_progress=None, report=None):
+    """-> {url: reason it is gone}, for the ads a board says are gone. Silence means keep.
+
+    `jobs` is (url, source) pairs; the source is needed because reading a board's own markup is part
+    of the answer.
+
+    Three signals:
+      404 or 410                - the board does not have this posting any more
+      validThrough in the past  - the employer said it stops accepting people
+      no JSON-LD AND no markup  - the url no longer serves an advert
+
+    The third exists because eJobs and Hipo answer 200 for an ad that does not exist: fabricated
+    urls on both came back HTTP 200 with a friendly not-found page, so the status code alone works
+    on BestJobs and silently nowhere else. It is the same condition hydrate uses to decide a page is
+    not an advert, asked of a url we already hold.
+
+    Everything else is left out of the result on purpose. A timeout, a 403, a 500, a redirect to a
+    listing - each means "I could not tell", and the reason this exists is that guessing by age
+    destroyed two jobs scored 85 in two days. A recheck that deletes on ambiguity is the age rule
+    with more steps.
+    """
+    gone, seen = {}, {}
+    pairs = list(dict.fromkeys((u, s) for u, s in jobs if u))
+    if not pairs:
+        return gone
+    with httpx.Client(headers=UA, follow_redirects=True, timeout=timeout) as c:
+        def ask(pair):
+            url, source = pair
+            try:
+                r = c.get(url)
+            except httpx.HTTPError:
+                return url, source, ""               # could not tell; keep it
+            return url, source, verdict(r.status_code, r.text, source)
+        with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
+            for done, (url, source, why) in enumerate(pool.map(ask, pairs), 1):
+                if on_progress:
+                    on_progress(done, len(pairs))
+                tally = seen.setdefault(source, [0, 0])
+                tally[0] += 1
+                if why:
+                    tally[1] += 1
+                    gone[url] = (why, source)
+    # A board reporting most of its ads as empty is a broken reader, not two hundred employers
+    # closing on one morning. Refuse the lot and say which board, rather than acting on it.
+    doubted = []
+    for source, (asked, said) in seen.items():
+        if asked >= 10 and said / asked > PARSER_DOUBT:
+            doubted.append(f"{source} ({said} of {asked})")
+            gone = {u: v for u, v in gone.items() if v[1] != source}
+    if report is not None and doubted:
+        report["doubted"] = doubted
+    return {u: why for u, (why, _) in gone.items()}
 
 
 def hydrate(jobs, timeout=30, on_progress=None, report=None):

@@ -2540,12 +2540,19 @@ assert f"Up to {app.BATCH_CAP} per run." in _dash6n,     "the line under the bat
 # and the whole reason the bug survived is that the SQL reads fine.
 _sweepdir = pathlib.Path(_tf.mkdtemp())
 _keepdb6p = app.DB
-#  url,              posted,      expires,     fit, survives?
-_ROWS6P = [("keep-open",      "-40 days",  "+20 days",  85, True),
-           ("go-closed",      "-3 days",   "-1 days",   90, False),
-           ("keep-young",     "-3 days",   "",          80, True),
-           ("go-old",         "-40 days",  "",          85, False),
-           ("keep-no-posted", "",          "",          70, True)]
+#  url,               posted,     expires,     fit, survives?
+_ROWS6P = [("keep-open",       "-40 days", "+20 days",  85, True),   # employer says open
+           ("go-closed",       "-3 days",  "-1 days",   90, False),  # employer says shut
+           ("keep-young",      "-3 days",  "",          80, True),   # nothing stated, still fresh
+           # At or above the floor and nothing stated: KEPT, however old. The age rule is a proxy
+           # for "the board took it down" and a poor one - it measures age, not removal - and it
+           # destroyed two jobs scored 85 in two days, both still open on the board. A guess does
+           # not get to overrule what you said was worth your time.
+           ("keep-old-good",   "-40 days", "",          85, True),
+           # ...but below the floor it is housekeeping, and being wrong about a 30 costs nothing
+           ("go-old-bad",      "-40 days", "",          30, False),
+           ("go-old-unscored", "-40 days", "",        None, False),  # never scored counts as below
+           ("keep-no-posted",  "",         "",          70, True)]
 try:
     app.DB, app._SCHEMA_DONE = _sweepdir / "db.sqlite", False
     with app.db() as _c:
@@ -2575,11 +2582,10 @@ try:
             assert _u not in _left6p, f"{_u} survived a sweep it should not have"
     assert "keep-has-cv" in _left6p, "a row holding a tailored CV was swept"
     assert "keep-applied" in _left6p, "an application you had already sent was deleted"
-    assert _n6p == 2, f"swept {_n6p}, expected the two that were genuinely over"
-    # ...and the part you can act on. go-closed scored 90 but the EMPLOYER shut it, so it is not
-    # a job you could have applied to and must not be counted as one lost. go-old is the real
-    # case: high enough to want, no closing date to go on, gone on a guess.
-    assert _good6p == 1, f"counted {_good6p}; a job the employer closed is not one you lost"
+    assert _n6p == 3, f"swept {_n6p}, expected go-closed plus the two below the floor"
+    # Now that age cannot touch a job above the floor, a swept one can only be a closure: go-closed
+    # scored 90 and the EMPLOYER shut it. Not a loss, but still news - a job you wanted has gone.
+    assert _good6p == 1, f"counted {_good6p}, expected only the one the employer closed"
 finally:
     app.DB, app._SCHEMA_DONE = _keepdb6p, False
     with app.db():
@@ -3069,5 +3075,89 @@ assert "bestmodel" in (app.HERE / "templates" / "dashboard.html").read_text(enco
 assert hasattr(app, "llm_best_model")
 _r5 = _cl.post("/api/llm/bestmodel", json={"provider": "not-a-provider"})
 assert _r5.status_code == 400, "an unknown provider is accepted"
+
+
+# 7f. Asking the boards which saved jobs still exist, which is the honest version of what the age
+# rule was pretending to do: it measured age as a proxy for "the board took it down", and this asks.
+# Measured against the real boards: 103 of 899 saved jobs are genuinely gone, 1 of them at 75+.
+_V = scrape.verdict
+assert _V(404, "", "ejobs") == scrape.GONE_MISSING
+assert _V(410, "", "bestjobs") == scrape.GONE_MISSING
+# ...but anything short of certain keeps the job. Guessing is what cost two 85s in two days.
+for _st in (403, 429, 500, 502, 503):
+    assert _V(_st, "<html>whatever</html>", "ejobs") == "",         f"HTTP {_st} is being read as proof a job is gone"
+# eJobs and Hipo answer 200 for an ad that does not exist, so the status code works on BestJobs and
+# silently nowhere else. A page carrying neither structured data nor board markup is not an advert.
+assert _V(200, "<html><body>Nu am gasit anuntul</body></html>", "ejobs") == scrape.GONE_EMPTY
+_LD7 = ('<script type="application/ld+json">{"@type":"JobPosting","title":"x",'
+        '"description":"' + "d" * 300 + '","validThrough":"%s"}</script>')
+assert _V(200, _LD7 % "2099-01-01", "ejobs") == "", "a live ad was called gone"
+assert _V(200, _LD7 % "2020-01-01", "ejobs") == scrape.GONE_CLOSED, "a passed closing date missed"
+
+# a board reporting most of its ads as empty is a broken reader, not every employer closing at
+# once - so its answers are refused wholesale and named, rather than acted on
+class _FakeResp7:
+    def __init__(self, text): self.status_code, self.text = 200, text
+class _FakeClient7:
+    def __init__(self, *a, **k): pass
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def get(self, url): return _FakeResp7("<html>gone</html>" if "/dead" in url else _LD7 % "2099-01-01")
+_hx7 = scrape.httpx
+try:
+    class _Shim7:
+        Client, HTTPError = _FakeClient7, _hx7.HTTPError
+    scrape.httpx = _Shim7
+    # 12 ejobs ads, all of them looking empty -> the whole board is distrusted
+    _rep7 = {}
+    _all_dead = [(f"https://x/dead/{i}", "ejobs") for i in range(12)]
+    _g7 = scrape.still_listed(_all_dead, report=_rep7)
+    assert _g7 == {}, f"a board that looks wholly broken was still acted on: {len(_g7)} deleted"
+    assert _rep7.get("doubted"), "nothing said about the board whose answers were refused"
+    # ...but a believable minority is acted on
+    _mixed = ([(f"https://x/dead/{i}", "ejobs") for i in range(2)]
+              + [(f"https://x/live/{i}", "ejobs") for i in range(10)])
+    _g7b = scrape.still_listed(_mixed, report={})
+    assert len(_g7b) == 2, f"a plausible handful was not acted on: {_g7b}"
+finally:
+    scrape.httpx = _hx7
+
+# the monthly pass itself: removes only what came back gone, and never a row you have acted on
+_rc7 = pathlib.Path(_tf.mkdtemp())
+_keep7f = (app.DB, scrape.still_listed, app.save_settings_file)
+try:
+    app.DB, app._SCHEMA_DONE = _rc7 / "db.sqlite", False
+    app.save_settings_file = lambda cur: None
+    with app.db() as _c7:
+        for _u, _st, _fit, _cv in (("u-gone", "new", 80, None), ("u-live", "new", 90, None),
+                                   ("u-applied", "applied", 85, None),
+                                   ("u-has-cv", "new", 85, "cv.pdf")):
+            _c7.execute("INSERT INTO jobs(url,source,status,fit,cv) VALUES(?,'ejobs',?,?,?)",
+                        (_u, _st, _fit, _cv))
+    scrape.still_listed = lambda jobs, **k: {u: scrape.GONE_MISSING for u, _ in jobs
+                                             if u in ("u-gone", "u-applied", "u-has-cv")}
+    _out7 = app.recheck_jobs()
+    with app.db() as _c7:
+        _left7 = {r[0] for r in _c7.execute("SELECT url FROM jobs")}
+    assert "u-gone" not in _left7, "a job the board says is gone was kept"
+    assert "u-live" in _left7, "a job nobody said anything about was deleted"
+    assert "u-applied" in _left7, "an application you already sent was deleted"
+    assert "u-has-cv" in _left7, "a job holding a tailored CV was deleted"
+    assert _out7["gone"] == 1 and _out7["gone_good"] == 1, _out7
+finally:
+    app.DB, scrape.still_listed, app.save_settings_file = _keep7f
+    app._SCHEMA_DONE = False
+    with app.db():
+        pass
+    _sh6.rmtree(_rc7, ignore_errors=True)
+
+# off by default, because it deletes; and due only when the window has passed
+assert app.DEFAULTS["recheck"] is False, "something that deletes is on without being asked for"
+assert not app.recheck_due({"recheck": False})
+assert app.recheck_due({"recheck": True, "recheck_last": "", "recheck_days": 30})
+assert not app.recheck_due({"recheck": True, "recheck_last": __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "recheck_days": 30})
+assert app.recheck_due({"recheck": True, "recheck_last": "not a date", "recheck_days": 30}),     "an unreadable stamp must mean never-run, not never-again"
+assert "recheck_due" in (app.HERE / "auto.py").read_text(encoding="utf-8"),     "the monthly pass is not wired into the run that already happens"
 
 print("ok")

@@ -216,7 +216,11 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
         # default and deliberately so: "engineer" is junk for one person and the whole point of
         # the app for the next one. Families only - a city, a language or a seniority word here
         # would quietly hide ads you want.
-        "skip_families": []}
+        "skip_families": [],
+        # Ask the boards once a month which saved jobs they still have, and remove the ones they
+        # say are gone. Off by default: it only ever deletes on an unambiguous answer, but it does
+        # delete, and that is a choice to make rather than inherit.
+        "recheck": False, "recheck_days": 30, "recheck_last": ""}
 
 
 def _migrate_days(s):
@@ -472,7 +476,7 @@ def set_auto(body: dict = Body(...)):
 def _set_auto(body):
     cur = settings()
     for k in ("auto_enabled", "auto_days", "auto_time", "auto_query", "auto_location",
-              "auto_county", "auto_country", "keep_signed_in", "skip_families",
+              "auto_county", "auto_country", "keep_signed_in", "skip_families", "recheck",
               "auto_min_fit", "auto_apply", "auto_apply_min_fit",
               "auto_apply_cap"):
         if k not in body:
@@ -1680,6 +1684,63 @@ def _gate_pass(p, judged, todo):
     return [t for t in todo if t["url"] not in dropped], vetoed, freed
 
 
+def recheck_jobs(on_progress=None):
+    """Ask the boards which saved jobs still exist and delete the ones they say are gone.
+
+    -> {"asked": n, "gone": n, "gone_good": n, "why": {reason: n}}
+
+    The honest version of the age rule: it asks instead of guessing, and removes a row only on a 404
+    or 410 from the board, or a closing date the employer has let pass. Anything it could not read
+    is kept, so a bad connection costs nothing but time.
+
+    Rows nobody has touched, exactly like the sweep: applied, opened, tailored and skipped all stay
+    whatever a board now says, because that list is a record of what you did.
+    """
+    floor = int(settings().get("auto_min_fit", 75))
+    with db() as c:
+        rows = [(r[0], r[1] if r[1] is not None else -1, r[2] or "") for r in c.execute(
+            "SELECT url, fit, source FROM jobs WHERE status IN ('new','ready','vetoed') "
+            "AND (cv IS NULL OR cv = '')")]
+    doubt = {}
+    gone = scrape.still_listed([(u, src) for u, _, src in rows], on_progress=on_progress,
+                               report=doubt)
+    why = {}
+    for reason in gone.values():
+        why[reason] = why.get(reason, 0) + 1
+    good = sum(1 for u, fit, _ in rows if u in gone and fit >= floor)
+    if gone:
+        with db() as c:
+            c.executemany("DELETE FROM jobs WHERE url = ? AND status IN ('new','ready','vetoed') "
+                          "AND (cv IS NULL OR cv = '')", [(u,) for u in gone])
+    cur = settings()
+    cur["recheck_last"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    save_settings_file(cur)
+    return {"asked": len(rows), "gone": len(gone), "gone_good": good, "why": why,
+            # a board whose answers looked like a broken parser, so none of them were acted on
+            "doubted": doubt.get("doubted", [])}
+
+
+def recheck_due(s=None):
+    """-> True if a monthly recheck is switched on and one has not run inside the window."""
+    s = s or settings()
+    if not s.get("recheck"):
+        return False
+    last = (s.get("recheck_last") or "").strip()
+    if not last:
+        return True
+    try:
+        when = datetime.datetime.strptime(last[:16], "%Y-%m-%d %H:%M")
+    except ValueError:
+        return True                         # unreadable stamp: treat as never, not as never again
+    return (datetime.datetime.now() - when).days >= max(1, int(s.get("recheck_days", 30)))
+
+
+@app.post("/api/recheck")
+async def api_recheck():
+    """Run the recheck now, whatever the schedule says. The manual half of the same switch."""
+    return await off(recheck_jobs)
+
+
 def sweep_stale(floor):
     """Delete ads that have stopped being worth keeping. -> (how many, how many at `floor`+).
 
@@ -1700,21 +1761,25 @@ def sweep_stale(floor):
              #    the employer's own answer, in both directions: gone once it is behind us, and
              #    kept until then however old the posting is
              "     THEN expires < date('now') "
-             #    nothing stated, so fall back to age. bestjobs publishes no posted date either,
-             #    so falling back again to when we first saw it is the difference between those
-             #    rows expiring and living for ever
-             "     ELSE COALESCE(NULLIF(posted, ''), found) < date('now', ?) END")
-    age = (f"-{scrape.MAX_AGE_DAYS} days",)
+             #    A job you said was worth your time is never deleted on a guess. The age rule is
+             #    a proxy for "the board took it down" and a poor one - it measures age, not
+             #    removal - and it destroyed two jobs scored 85 in two days, both still open.
+             #    These leave when the employer's own date says so, when you act on them, or when
+             #    an apply attempt finds the posting closed. Not before.
+             "     WHEN COALESCE(fit, -1) >= :floor THEN 0 "
+             #    below the floor, nothing stated: fall back to age. bestjobs publishes no posted
+             #    date either, so falling back again to when we first saw it is the difference
+             #    between those rows expiring and living for ever
+             "     ELSE COALESCE(NULLIF(posted, ''), found) < date('now', :age) END")
+    age = {"age": f"-{scrape.MAX_AGE_DAYS} days", "floor": int(floor)}
     with db() as c:
         # One WHERE for both statements, so the count cannot disagree with the delete.
         #
-        # And only the ones OUR OWN guess killed. A job the employer has closed is not a job you
-        # would have applied to - you could not have, it is shut - so counting it as a loss would
-        # inflate the number with housekeeping and make the real losses easy to ignore. What is
-        # left is exactly the regrettable case: scored high enough for you to want it, no closing
-        # date to go on, and deleted because fourteen days is the best this app can guess.
-        good = c.execute(f"SELECT COUNT(*) FROM jobs WHERE {stale} AND fit >= ? "
-                         f"AND COALESCE(expires, '') = ''", age + (int(floor),)).fetchone()[0]
+        # Now that the age rule cannot touch them, a swept job at or above the floor can only be
+        # one the EMPLOYER closed - which is not a loss but is still news, because it is a job you
+        # wanted and it has gone. Worth saying; nothing can be done about it.
+        good = c.execute(f"SELECT COUNT(*) FROM jobs WHERE {stale} AND fit >= :floor",
+                         age).fetchone()[0]
         return c.execute(f"DELETE FROM jobs WHERE {stale}", age).rowcount, good
 
 

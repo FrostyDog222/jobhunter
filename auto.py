@@ -78,8 +78,9 @@ def run():
             # to going is the only part of that number you can act on, and it used to be folded
             # into "27 dropped as over two weeks old" with nothing to say an 85 was among them.
             + (f", {found['expired']} closed or aged out"
-               + (f" - {found['expired_good']} of them at "
-                  f"{s.get('auto_min_fit', 75)}+" if found.get("expired_good") else "")
+               + (f" - {found['expired_good']} of them a job at "
+                  f"{s.get('auto_min_fit', 75)}+ that the employer closed"
+                  if found.get("expired_good") else "")
                if found.get("expired") else "")
             + (f"  warnings: {'; '.join(found['warnings'])}" if found.get("warnings") else ""))
     except Exception as e:
@@ -87,6 +88,24 @@ def run():
         log(report["error"] + "\n" + traceback.format_exc())
         _write(report)
         return report
+
+    # Once a month, ask the boards which saved jobs they still have. Inside this run rather than
+    # a task of its own: it is some nine hundred requests, so a daily pass would be thirty times
+    # the traffic to learn the same thing, and a third scheduled task is a third thing to go wrong.
+    #
+    # After the search on purpose. The search has already added today's ads, so they are checked
+    # too - and if this throws, the search above is still saved below.
+    if app.recheck_due(s):
+        try:
+            rc = app.recheck_jobs()
+            report["rechecked"] = rc
+            log(f"monthly recheck: asked the boards about {rc['asked']} saved jobs, "
+                f"{rc['gone']} are gone"
+                + (f" ({rc['gone_good']} of them at {s.get('auto_min_fit', 75)}+)"
+                   if rc["gone_good"] else "")
+                + (" - " + ", ".join(f"{n} {w}" for w, n in rc["why"].items()) if rc["why"] else ""))
+        except Exception as e:
+            log(f"the monthly recheck failed ({type(e).__name__}) - nothing was removed")
 
     # what is now sitting there for you, by the standard you set for a job worth opening
     with app.db() as c:

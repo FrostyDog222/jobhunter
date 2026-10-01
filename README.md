@@ -196,12 +196,35 @@ city as you type, and ignores diacritics — `iasi` finds `Iași`.
 **Ad age.** Each job carries a green **new** badge for the first week after it was posted and an
 amber **old** one after that.
 
-Old ads are cleared out on every search, but **the ad's own closing date decides** — not its age.
+**Asking the boards what is still there.** Under *Settings* you can have the app ask, once a month,
+which of your saved jobs each board still has — and remove the ones they say are gone. Off by
+default, because it deletes; there is a **Check now** button for doing it by hand instead.
+
+It removes a job on three answers and nothing else: a 404 on the ad, a closing date the employer has
+let pass, or a page that no longer carries an advert at all. That last one matters because eJobs and
+Hipo answer *200 OK* for an ad that does not exist — a check built on the status code alone would
+work on BestJobs and silently do nothing on the other three. Anything it cannot read — a timeout, a
+403, a server error — is kept, because a bad connection is not an answer. And if a board suddenly
+reports most of its ads as empty, that is far more likely to be our reader breaking than every
+employer closing at once, so its answers are refused wholesale and the run says which board.
+
+Measured on one real database: 103 of 899 saved jobs were genuinely gone, and only one of them was a
+job worth applying to.
+
+Old ads are also cleared out on every search, but **the ad's own closing date decides** — not its
+age.
 eJobs states one on most postings, and it is almost always 30 days after posting; where it exists
 it is believed in both directions, so an ad stays until the day it closes however old it looks,
 and goes the moment it has closed however new it looks. Only ads that state no closing date fall
-back to being dropped at two weeks, which is every BestJobs, Hipo and freehire posting — there is
-nothing to consult, so a guess is all there is.
+back to being dropped at **thirty days**, which is every BestJobs, Hipo and freehire posting — there
+is nothing to consult, so a guess is all there is, and thirty is the only shelf life any board here
+publishes (206 of 275 stored eJobs ads state a closing date, averaging exactly 30 days).
+
+**A job at or above your score floor is never dropped on age.** The age rule is a proxy for "the
+board took it down" and a poor one — it measures age, not removal — and at fourteen days it quietly
+destroyed two jobs scored 85 in two days, both still open. Your floor is your own statement of what
+is worth your time, so a guess does not overrule it: those leave when the employer's date says so,
+when you act on them, when the monthly check finds them gone, or when an apply attempt proves it.
 
 This used to be age *or* closing date, whichever came first, which meant an eJobs ad was deleted
 at day 14 while eJobs went on accepting applications for another 16. Measured on one real

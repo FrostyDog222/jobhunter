@@ -443,6 +443,14 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
          added without one: a CV says what someone has done, not what they want to do next. -->
     <div id="cvterms" style="display:none;margin-top:8px"></div>
     <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
+      font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="recheck"
+      style="width:auto"> Ask the boards once a month which saved jobs they still have</label>
+    <p class="muted" style="margin:4px 0 0">Removes only what a board answers is gone — a 404 on the
+      ad, or a closing date the employer has let pass. Anything it cannot read is kept, because a bad
+      connection is not an answer. <button type="button" class="ghost tiny" id="recheck_now"
+        style="margin-left:4px">Check now</button></p>
+
+    <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
       font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="auto_apply"
       style="width:auto"> <b style="color:var(--mid)">Also apply for me, without asking</b></label>
     <div class="row" id="applyrow">
@@ -842,7 +850,7 @@ $('#importhist').onclick = e => busy(e.target, async () => {
 
 /* ---------- the scheduled run ---------- */
 const AUTO_FIELDS = ['auto_enabled', 'auto_days', 'auto_time', 'auto_query', 'auto_location',
-                     'auto_county', 'auto_country', 'keep_signed_in',
+                     'auto_county', 'auto_country', 'keep_signed_in', 'recheck',
                      'auto_min_fit', 'auto_apply', 'auto_apply_min_fit',
                      'auto_apply_cap'];
 // the floor and the cap only mean anything while applying is on
@@ -933,8 +941,8 @@ async function loadAuto(){
       : s ? fill('{found} ads seen, {fresh} new, {scored} scored',
                  {found: s.found, fresh: s.new, scored: s.scored})
             + (s.expired ? fill(', {n} closed or aged out', {n: s.expired}) : '')
-            + (s.expired_good ? fill(' (<b>{n}</b> of them you would have applied to)',
-                                     {n: s.expired_good}) : '')
+            + (s.expired_good ? fill(' (<b>{n}</b> of them a job you wanted, closed by the '
+                                     + 'employer)', {n: s.expired_good}) : '')
             + fill('. <b>{n}</b> waiting at {floor}+.',
                    {n: l.waiting, floor: esc(String(a.settings.auto_min_fit))})
       : esc(l.note || 'nothing to do')));
@@ -1069,6 +1077,19 @@ $('#auto_from_cv').onclick = () => {
   $('#auto_query').value = mine.join(', ');
   toast('Filled from your CV. Edit it, then Save the schedule.', 6000);
 };
+// The manual half of the monthly switch. Same pass, run now, whether or not the schedule is on -
+// so somebody who would rather not hand this to a timer can still use it.
+$('#recheck_now').onclick = e => busy(e.target, async () => {
+  const r = await api('/api/recheck', {});
+  await load();
+  toast(r.gone
+    ? fill('Asked about {asked} saved jobs. {gone} are gone and have been removed{good}.',
+           {asked: r.asked, gone: r.gone,
+            good: r.gone_good ? fill(', {n} of them ones you wanted', {n: r.gone_good}) : ''})
+    : fill('Asked about {asked} saved jobs. Every one of them is still listed.', {asked: r.asked}),
+    9000);
+}, t('asking the boards...'));
+
 $('#autocopy2').onclick = () => $('#autocopy').click();
 
 // Titles read OUT of the CV, as opposed to copied off it. "Use my job titles" above takes the
@@ -2174,7 +2195,7 @@ $('#go').onclick = e => busy(e.target, async () => {
           (r.vetoed ? ' ' + fill('{n} skipped on language.', {n: r.vetoed}) : '') +
           (r.freed ? ' ' + fill('{n} re-opened by the language check.', {n: r.freed}) : '') +
           (r.expired ? ' ' + fill('{n} closed or aged out.', {n: r.expired}) : '') +
-          (r.expired_good ? ' ' + fill('{n} of those you would have applied to.',
+          (r.expired_good ? ' ' + fill('{n} of those a job you wanted, closed by the employer.',
                                        {n: r.expired_good}) : '') +
           ((r.warnings || []).length ? ' ⚠ ' + r.warnings.map(friendly).join('; ') : '') +
           (r.failed ? ' ' + fill('{n} failed — search again to retry them.',

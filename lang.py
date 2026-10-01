@@ -879,8 +879,8 @@ RO = {
         ", a lăsat {n} pentru tine",
     ", {n} closed or aged out":
         ", {n} închise sau expirate",
-    " (<b>{n}</b> of them you would have applied to)":
-        " (<b>{n}</b> dintre ele la care ai fi aplicat)",
+    " (<b>{n}</b> of them a job you wanted, closed by the employer)":
+        " (<b>{n}</b> dintre ele un job pe care îl voiai, închis de angajator)",
     ". <b>{n}</b> waiting at {floor}+.":
         ". <b>{n}</b> în așteptare la {floor}+.",
     "About to send {n} real application(s):":
@@ -935,8 +935,8 @@ RO = {
         "{kept} rămân: tot ce e aplicat, deschis, adaptat sau refuzat. Rândurile refuzate sunt păstrate intenționat, ca un job pe care l-ai respins să nu revină imediat la următoarea căutare.",
     "{n} closed or aged out.":
         "{n} închise sau expirate.",
-    "{n} of those you would have applied to.":
-        "{n} dintre acelea la care ai fi aplicat.",
+    "{n} of those a job you wanted, closed by the employer.":
+        "{n} dintre acelea un job pe care îl voiai, închis de angajator.",
     "{n} failed — search again to retry them.":
         "{n} au eșuat — caută din nou pentru a le reîncerca.",
     "{n} job(s) queued — press Search & score to re-run them.":
@@ -991,6 +991,20 @@ RO = {
         "Încearcă modelele acestui furnizor, de la cel mai bun, și completează primul care răspunde cu cheia ta.",
     "Pick a provider first.":
         "Alege mai întâi un furnizor.",
+    "Ask the boards once a month which saved jobs they still have":
+        "Întreabă site-urile o dată pe lună ce joburi salvate mai au",
+    "Removes only what a board answers is gone — a 404 on the ad, or a closing date the employer has let pass. Anything it cannot read is kept, because a bad connection is not an answer.":
+        "Șterge doar ce un site confirmă că nu mai există — un 404 pe anunț sau o dată de închidere pe care angajatorul a lăsat-o să treacă. Ce nu poate citi este păstrat, pentru că o conexiune proastă nu este un răspuns.",
+    "Check now":
+        "Verifică acum",
+    "asking the boards...":
+        "întreb site-urile...",
+    "Asked about {asked} saved jobs. {gone} are gone and have been removed{good}.":
+        "Am întrebat despre {asked} joburi salvate. {gone} nu mai există și au fost șterse{good}.",
+    ", {n} of them ones you wanted":
+        ", {n} dintre ele unele pe care le voiai",
+    "Asked about {asked} saved jobs. Every one of them is still listed.":
+        "Am întrebat despre {asked} joburi salvate. Toate sunt încă listate.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":
