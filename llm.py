@@ -1119,6 +1119,59 @@ def search_terms(profile, already=(), never_worked=()):
         max_tokens=2000)
 
 
+def try_models(provider, key, system, user, max_tokens, models_to_try, on_each=None):
+    """Try each model on one real prompt. -> [{model, ok, secs, fit, note}], in the order tried.
+
+    Judged on the work this app actually does, because a toy prompt is how a model that answers 503
+    on every real request came to be chosen: it returned {"ok": true} in 1.9 seconds.
+
+    Measured, not guessed: of eight candidates on two real adverts, four never produced the shape the
+    app needs and the usable ones differed by 28x in time.
+    """
+    out = []
+    for model in models_to_try:
+        t0 = time.time()
+        row = {"model": model, "ok": False, "secs": 0.0, "fit": None, "note": ""}
+        try:
+            got = _call(provider, model, key, system, user, max_tokens, 1)
+            row["secs"] = round(time.time() - t0, 1)
+            fit = got.get("fit") if isinstance(got, dict) else None
+            if isinstance(fit, (int, float)):
+                row.update(ok=True, fit=int(fit))
+            else:
+                # answered, but not in the shape the app needs - which is a failure for our purposes
+                # however good the prose was
+                row["note"] = f"answered, but not as {type({}).__name__} with a number in 'fit'"
+        except QuotaError as e:
+            row["secs"] = round(time.time() - t0, 1)
+            row["note"] = f"out of quota or rate limited: {str(e)[-70:]}"
+        except ModelGone as e:
+            row["secs"] = round(time.time() - t0, 1)
+            row["note"] = f"this key cannot call it: {str(e)[-70:]}"
+        except (RuntimeError, ValueError) as e:
+            row["secs"] = round(time.time() - t0, 1)
+            row["note"] = f"{type(e).__name__}: {str(e)[:80]}"
+        except httpx.HTTPError as e:
+            row["secs"] = round(time.time() - t0, 1)
+            row["note"] = f"no answer in time ({type(e).__name__})"
+        out.append(row)
+        if on_each:
+            on_each(row)
+    return out
+
+
+def best_of(rows):
+    """-> the model to use, from try_models output. Reliable first, then fast. Never biggest.
+
+    Size is absent on purpose. It was the criterion that chose a 550b which answers 503, and the
+    two models that did the job properly here are a 14b and an 8b.
+    """
+    usable = [r for r in rows if r["ok"]]
+    if not usable:
+        return None
+    return sorted(usable, key=lambda r: (r["secs"], r["model"]))[0]["model"]
+
+
 def shortlist(profile, jobs, pick=3):
     """Rank these jobs against each other and name the few worth doing today.
 

@@ -1335,6 +1335,67 @@ def forget_llm(body: dict = Body(...)):
     return get_llm()
 
 
+# How many models one press may try. Each is a real scoring call, so this is the quota the button
+# spends - and the dialog says so before it is pressed.
+BENCH_TRIES = 6
+
+
+def _bench_prompt():
+    """The real scoring prompt, built from a real advert. -> (system, user, max_tokens)
+
+    Captured by letting llm.score build it and intercepting the call, so it cannot drift from what
+    scoring actually sends. A synthetic prompt would be the mistake this button exists to undo.
+    """
+    with db() as c:
+        ad = c.execute("SELECT title, company, location, description FROM jobs "
+                       "WHERE LENGTH(description) > 600 ORDER BY found DESC LIMIT 1").fetchone()
+    job = (dict(ad) if ad else
+           # no adverts yet, so a stand-in - still a whole advert, not a toy
+           {"title": "Customer Support Officer", "company": "Example", "location": "Bucuresti",
+            "description": "Answer customer questions by phone and email, record them in the CRM, "
+                           "and escalate what you cannot resolve. English required. " * 8})
+    held = {}
+    real = llm.ask
+    llm.ask = lambda system, user, max_tokens=8000, tries=5: (
+        held.update(args=(system, user, max_tokens)), {"fit": 0})[1]
+    try:
+        llm.score(profile(), job)
+    finally:
+        llm.ask = real
+    return held["args"]
+
+
+@app.post("/api/llm/bench")
+async def llm_bench(body: dict = Body(default={})):
+    """Try this provider's models on a real scoring prompt and report which can do the job.
+
+    Spends quota: one real scoring call per candidate. The dialog in front of it says so.
+
+    Returns every row, including the failures, because the failures are the point - of eight
+    candidates measured by hand, four never produced the shape the app needs and one of those was
+    the model this app was configured to use.
+    """
+    provider = (body.get("provider") or "").strip() or llm.cfg("LLM_PROVIDER")
+    if provider not in llm.PROVIDERS:
+        raise HTTPException(400, "Pick a provider first.")
+    entry = llm._entry(provider)
+    if not entry:
+        raise HTTPException(400, f"No key saved for {provider}. Paste one and save it first.")
+    _, current, key = entry
+    system, user, max_tokens = await off(_bench_prompt)
+    # best-first only to decide what to TRY; what wins is decided by the result, never by the order
+    cands = await off(lambda: llm.candidates_for(provider))
+    order = ([current] + [m for m in cands if m != current])[:BENCH_TRIES] if current else \
+        cands[:BENCH_TRIES]
+    rows = await off(lambda: llm.try_models(provider, key, system, user, max_tokens, order))
+    best = llm.best_of(rows)
+    return {"provider": provider, "current": current, "best": best, "rows": rows,
+            "tried": len(rows),
+            # said plainly, because it is the cost of accepting the suggestion rather than a detail:
+            # every score already in the database came from whichever model produced it
+            "scale_shift": sorted({r["fit"] for r in rows if r["ok"]})}
+
+
 @app.post("/api/llm/bestmodel")
 async def llm_best_model(body: dict = Body(default={})):
     """Try this provider's models, best first, and return the first that actually answers.

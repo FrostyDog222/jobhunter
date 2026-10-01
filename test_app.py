@@ -3291,4 +3291,86 @@ assert "data-goto" in _d8b, "a pick does not link back to the job's own card"
 import share as _share8b
 assert not _share8b.wanted(app.HERE / ".shortlist.json"), "one person's ranking would be shipped"
 
+
+# 8c. Choosing a model by trying it on the work this app actually does. Built only after measuring
+# that it was worth building, and the measurement was emphatic - eight candidates, two real adverts:
+#   mistral/ministral-8b-latest    valid 2/2  avg  1.2s     nvidia/nemotron-4-340b   0/2  404
+#   mistral/ministral-14b-latest   valid 2/2  avg  8.7s     nvidia/nemotron-3-ultra  0/2  503
+# Half could not do the job at all, and the usable ones differed by 28x in time. "Best" is not
+# "biggest": the 550b was chosen earlier for answering a toy prompt in 1.9s.
+_L8c = app.llm
+_seen8c = []
+
+
+def _call8c(provider, model, key, system, user, max_tokens, tries):
+    _seen8c.append(model)
+    if model == "slow-but-works":
+        _tm.sleep(0.05)
+        return {"fit": 70, "why": "x"}
+    if model == "fast-and-works":
+        return {"fit": 85, "why": "x"}
+    if model == "answers-rubbish":
+        return ["not", "a", "dict"]          # answered, but not the shape the app needs
+    if model == "not-entitled":
+        raise _L8c.ModelGone("nvidia/not-entitled: [404] Not found for account")
+    if model == "no-quota":
+        raise _L8c.QuotaError("nvidia/no-quota: rate limited")
+    raise _L8c.httpx.ReadTimeout("timed out")
+
+
+_k8c = _L8c._call
+try:
+    _L8c._call = _call8c
+    _rows8c = _L8c.try_models("nvidia", "k", "sys", "usr", 1500,
+                              ["not-entitled", "answers-rubbish", "slow-but-works", "no-quota",
+                               "fast-and-works", "times-out"])
+    _by8c = {r["model"]: r for r in _rows8c}
+    assert len(_rows8c) == 6 and _seen8c == [r["model"] for r in _rows8c],         "it did not try every candidate, in order"
+    # every way this has really failed is reported as itself, because the failures are the point
+    assert not _by8c["not-entitled"]["ok"] and "cannot call it" in _by8c["not-entitled"]["note"]
+    assert not _by8c["no-quota"]["ok"] and "quota" in _by8c["no-quota"]["note"]
+    assert not _by8c["times-out"]["ok"] and "no answer" in _by8c["times-out"]["note"]
+    # answering is not the same as answering usefully: a reply in the wrong shape is a failure here
+    assert not _by8c["answers-rubbish"]["ok"],         "a reply the app cannot read was counted as a working model"
+    assert _by8c["fast-and-works"]["ok"] and _by8c["fast-and-works"]["fit"] == 85
+    # reliable first, then fast - and size is nowhere in it
+    assert _L8c.best_of(_rows8c) == "fast-and-works", _L8c.best_of(_rows8c)
+    assert "size" not in _iK.getsource(_L8c.best_of).lower().split("absent on purpose")[1][:200]
+    # nothing usable is its own answer, not the least-bad guess
+    assert _L8c.best_of([r for r in _rows8c if not r["ok"]]) is None
+finally:
+    _L8c._call = _k8c
+
+# the probe is the REAL scoring prompt, built from a real advert. A toy prompt is exactly how a model
+# that answers 503 to every real request came to be selected.
+_bs8c, _bu8c, _bm8c = app._bench_prompt()
+assert len(_bu8c) > 800 and "Candidate:" in _bu8c, "the bench prompt is not the real scoring prompt"
+assert "fit" in _bs8c, "the bench prompt does not ask for what scoring asks for"
+
+# the endpoint reports every row, names the scale shift, and applies nothing
+_k8d = (_L8c.candidates_for, _L8c._call, _L8c._entry)
+try:
+    _L8c.candidates_for = lambda p, m="": ["fast-and-works", "not-entitled", "slow-but-works"]
+    _L8c._entry = lambda name, model=None: (name, "fast-and-works", "k")
+    _L8c._call = _call8c
+    _j8c = _cl.post("/api/llm/bench", json={"provider": "nvidia"}).json()
+    assert _j8c["best"] == "fast-and-works", _j8c
+    assert len(_j8c["rows"]) == 3 and any(not r["ok"] for r in _j8c["rows"]),         "the failures were hidden, and the failures are the useful part"
+    assert _j8c["scale_shift"] == [70, 85],         f"the scale shift is not reported: {_j8c.get('scale_shift')}"
+    assert _j8c["current"] == "fast-and-works"
+finally:
+    _L8c.candidates_for, _L8c._call, _L8c._entry = _k8d
+assert _cl.post("/api/llm/bench", json={"provider": "nope"}).status_code == 400
+
+# and it costs quota, so it asks first and applies nothing by itself
+_d8c = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+_btn8c = _d8c.split("$('#benchmodels').onclick")[1][:2600]
+assert "confirm(" in _btn8c, "a button that spends quota does not ask first"
+_flat8c = _reL.sub(r"'\s*\+\s*'", "", _btn8c)
+assert "of your quota" in _flat8c, "the dialog does not say that it costs quota"
+assert "not how big it is" in _flat8c, "the dialog does not say what best means here"
+assert "Nothing is saved" in _flat8c, "the dialog does not say it changes nothing by itself"
+assert "$('#model').value =" not in _btn8c,         "the benchmark writes the model box without being asked"
+assert "usebest" in _d8c and "Save & test" in _d8c,     "there is no way to accept the suggestion, or no reminder that accepting is a second step"
+
 print("ok")

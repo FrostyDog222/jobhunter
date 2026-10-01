@@ -248,6 +248,23 @@ publishes 81 models and serves a subset of them to any given key without saying 
 top four refuse a free key outright. Whichever model answers is the one kept, because it has just
 demonstrably done the work rather than merely ranked first.
 
+**Test which model is best** is the one to reach for when a provider is configured but something
+feels slow or wrong. It scores **one real job advert from your own list** with each of that
+provider's models in turn and reports which returned a usable answer and how long it took. It asks
+before running, because it spends one scoring call per model, and it changes nothing by itself — it
+fills in the box and you press *Save & test*.
+
+A real advert, not a test phrase, because the difference is enormous. Measured on one key: of nvidia's
+six best-ranked models, **one** could do the job — one was retired in August, one answered *503*, and
+three came back *"Not found for account"*. Meanwhile an 8b model elsewhere did the same work
+correctly in 1.2 seconds where a 550b took 30. **Best does not mean biggest**: that 550b was chosen
+in the first place for answering "return {ok: true}" in 1.9 seconds.
+
+The score each model gave is shown too, and it is not a quality mark — there is nothing to compare it
+against. It is there because switching models shifts the scale: the same advert scored **65, 75 and
+85** across models, which is either side of a 75 floor, so your threshold means something slightly
+different afterwards. That is worth knowing before you accept a suggestion.
+
 **Find one that works** does the same walk on demand, next to the model box, for when nothing is
 broken and you simply want the best one your key can have. This is the difference between reading a
 list and knowing: a model id typed as `nemotron-3-ultra-550b` instead of

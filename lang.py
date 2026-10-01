@@ -1037,6 +1037,36 @@ RO = {
         "Ce ar trebui să fac azi?",
     "Compare the jobs waiting and say which few are worth doing today, and why.":
         "Compară joburile în așteptare și spune care merită făcute azi și de ce.",
+    "Test which of {p} models can do the real work?":
+        "Testez care dintre modelele {p} pot face treaba reală?",
+    "It scores one real job advert from your list with each model in turn, best-first, and reports which returned a usable answer and how long it took. Up to six models, so up to six scoring calls of your quota.":
+        "Punctează un anunț real din lista ta cu fiecare model pe rând, începând cu cel mai bun, și raportează care a dat un răspuns folosibil și cât a durat. Până la șase modele, deci până la șase apeluri de punctare din cota ta.",
+    "It is measuring whether a model can do THIS job, not how big it is: the largest model here failed every attempt while an 8b answered in about a second.":
+        "Măsoară dacă un model poate face ACEASTĂ treabă, nu cât de mare este: cel mai mare model de aici a eșuat la fiecare încercare, în timp ce unul de 8b a răspuns în aproximativ o secundă.",
+    "Nothing is saved. It fills in the box and you press Save & test, because changing the model changes the scores future jobs get - your 75 floor will mean something slightly different afterwards.":
+        "Nu se salvează nimic. Completează caseta, iar tu apeși Salvează și testează, pentru că schimbarea modelului schimbă punctajele joburilor viitoare — pragul tău de 75 va însemna ceva puțin diferit după aceea.",
+    "Still going. A model that does not answer has to time out before the next one is tried.":
+        "Încă rulează. Un model care nu răspunde trebuie să expire înainte să fie încercat următorul.",
+    "Scored one real advert with {n} of {p} models:":
+        "S-a punctat un anunț real cu {n} dintre modelele {p}:",
+    "said {f}":
+        "a spus {f}",
+    "Use {m}":
+        "Folosește {m}",
+    "the same advert scored {fits} across these, so your score floor will mean something slightly different afterwards":
+        "același anunț a primit {fits} de la acestea, așa că pragul tău de punctaj va însemna ceva puțin diferit după aceea",
+    "fastest of the ones that worked":
+        "cel mai rapid dintre cele care au funcționat",
+    "None of them could do it. Try another provider, or check the key.":
+        "Niciunul nu a reușit. Încearcă alt furnizor sau verifică cheia.",
+    "testing models...":
+        "testez modele...",
+    "Filled in. Press Save & test to keep it.":
+        "Completat. Apasă Salvează și testează pentru a păstra.",
+    "Test which model is best":
+        "Testează care model e cel mai bun",
+    "Try this provider's models on a real job advert and report which can actually do the work, and how fast. Spends quota.":
+        "Încearcă modelele acestui furnizor pe un anunț real și raportează care pot face treaba și cât de repede. Consumă din cotă.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

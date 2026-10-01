@@ -198,9 +198,14 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   <div class="row">
     <div style="flex:2"><label for="model">Model</label>
       <input id="model" list="modellist" placeholder="provider default">
-      <datalist id="modellist"></datalist></div>
+      <datalist id="modellist"></datalist>
+      <!-- the table from #benchmodels. Hidden until there is a result, because an empty table under
+           a button reads as a failure. -->
+      <div id="benchout" style="display:none;margin-top:8px"></div></div>
     <div style="flex:0 0 auto;display:flex;align-items:flex-end;gap:8px">
       <button class="ghost" id="listmodels">List models</button>
+      <button class="ghost" id="benchmodels"
+        title="Try this provider's models on a real job advert and report which can actually do the work, and how fast. Spends quota.">Test which model is best</button>
       <button class="ghost" id="findmodel"
         title="Try this provider's models, best first, and fill in the first one that actually answers on your key.">Find one that works</button>
       <button id="savellm">Save &amp; test</button></div>
@@ -1754,6 +1759,70 @@ document.addEventListener('click', async e => {
 // serves a subset to any given key, without saying which. So this asks: best first, one real call
 // each, stopping at the first that answers. It fills the box and nothing more; Save & test is still
 // yours to press, because every score this app produces comes from whichever model produced it.
+// Which model can actually do OUR work, measured rather than assumed.
+//
+// It exists because "biggest" was the criterion once and it was wrong: a 550b model was chosen for
+// answering a toy prompt in 1.9 seconds, and on a real scoring prompt it answers 503. Measured over
+// eight candidates on two real adverts, four could not produce the shape the app needs at all, and
+// the two that did it properly were a 14b and an 8b.
+//
+// Confirmed first. It spends a real scoring call per candidate, and taking its answer changes which
+// model scores your jobs - the same advert scored 65, 75 and 85 across models, either side of a 75
+// floor. Neither belongs to an accidental click.
+$('#benchmodels').onclick = e => {
+  const p = $('#prov').value;
+  if(!confirm(fill('Test which of {p} models can do the real work?', {p: p}) + '\n\n'
+      + t('It scores one real job advert from your list with each model in turn, best-first, and '
+        + 'reports which returned a usable answer and how long it took. Up to six models, so up to '
+        + 'six scoring calls of your quota.') + '\n\n'
+      + t('It is measuring whether a model can do THIS job, not how big it is: the largest model '
+        + 'here failed every attempt while an 8b answered in about a second.') + '\n\n'
+      + t('Nothing is saved. It fills in the box and you press Save & test, because changing the '
+        + 'model changes the scores future jobs get - your 75 floor will mean something slightly '
+        + 'different afterwards.'))) return;
+  busy(e.target, async () => {
+    const box = $('#benchout');
+    const slow = setTimeout(() => toast(t('Still going. A model that does not answer has to time '
+      + 'out before the next one is tried.'), 9000), 25000);
+    let r;
+    try { r = await api('/api/llm/bench', {provider: p}); }
+    finally { clearTimeout(slow); }
+    box.style.display = '';
+    box.innerHTML = `<div class="muted" style="font-size:12.5px">${esc(
+        fill('Scored one real advert with {n} of {p} models:', {n: r.tried, p: r.provider}))}</div>`
+      + r.rows.map(x => `<div style="display:flex;gap:8px;font-size:12.5px;margin-top:3px">
+          <span style="min-width:15px">${x.ok ? '✓' : '·'}</span>
+          <code style="flex:1 1 auto;opacity:${x.ok ? 1 : .55}">${esc(x.model)}</code>
+          <span class="muted" style="min-width:52px;text-align:right">${x.secs}s</span>
+          <span class="muted" style="min-width:58px;text-align:right">${
+            x.ok ? esc(fit_label(x.fit)) : ''}</span>
+          <span class="muted" style="flex:2 1 auto">${esc(x.note || '')}</span>
+        </div>`).join('')
+      + (r.best
+          ? `<div style="margin-top:8px"><button type="button" class="ghost tiny" id="usebest"
+               data-model="${esc(r.best)}">${esc(fill('Use {m}', {m: r.best}))}</button>
+             <span class="muted" style="font-size:12px;margin-left:8px">${esc(
+               r.scale_shift.length > 1
+                 ? fill('the same advert scored {fits} across these, so your score floor will mean '
+                      + 'something slightly different afterwards', {fits: r.scale_shift.join(', ')})
+                 : t('fastest of the ones that worked'))}</span></div>`
+          : `<div class="muted" style="margin-top:8px;color:var(--bad)">${esc(t('None of them could '
+              + 'do it. Try another provider, or check the key.'))}</div>`);
+    localiseDOM(box);
+  }, t('testing models...'));
+};
+
+// the score a model gave, labelled as what it is: not a quality mark, since there is nothing to
+// compare it against - only evidence that the scale moves when the model does
+const fit_label = f => (f === null || f === undefined) ? '' : fill('said {f}', {f: f});
+
+$('#benchout').onclick = e => {
+  const b = e.target.closest('#usebest');
+  if(!b) return;
+  $('#model').value = b.dataset.model;
+  toast(t('Filled in. Press Save & test to keep it.'), 7000);
+};
+
 $('#findmodel').onclick = e => busy(e.target, async () => {
   const p = $('#prov').value;
   const slow = setTimeout(() => toast(t('Still trying. A model that does not answer has to time out '
