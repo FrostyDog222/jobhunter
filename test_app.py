@@ -514,7 +514,11 @@ _node = _sh.which("node")
 if _node:
     from jinja2 import Environment as _Env, FileSystemLoader as _FSL
     _env = _Env(loader=_FSL(str(app.HERE / "templates")))
-    _ctx = {"counties": [("timis", "Timis")], "request": None}
+    # the same context the real route passes, so the render here is the render people get. If a
+    # new variable is added to a template, this raises rather than quietly rendering "Undefined".
+    _ctx = {"counties": [("timis", "Timis")], "request": None,
+            "auto_apply": list(app.prefill.AUTO_APPLY),
+            "manual_apply": list(app.prefill.MANUAL_APPLY)}
     for _page in ("dashboard.html", "profile.html"):
         _html = _env.get_template(_page).render(**_ctx)
         _js = "\n;\n".join(_re2.findall(r"<script(?![^>]*src=)[^>]*>(.*?)</script>",
@@ -2921,13 +2925,15 @@ _keep7 = _L7.models
 try:
     _L7.models = lambda p=None: ["openai/gpt-oss-120b", "qwen/qwen3-32b:free",
                                  "google/gemma-2-27b-it:free"]
-    _free7 = _L7.replacement_for("openrouter", "deepseek/deepseek-r1:free")
+    # candidates_for, not the one-shot wrapper that used to sit on top of it: the walk in ask()
+    # reads this list, so the rules below are asserted where they are actually enforced
+    _free7 = (_L7.candidates_for("openrouter", "deepseek/deepseek-r1:free") or [None])[0]
     assert _free7 and _free7.endswith(":free"),         f"a free slug was replaced with a paid one: {_free7}"
     # and nothing to move to is its own answer, not a wrong one
     _L7.models = lambda p=None: ["text-embedding-3-large"]
-    assert _L7.replacement_for("openai", "gpt-4.1") is None,         "a catalogue of embeddings produced a chat replacement"
+    assert not _L7.candidates_for("openai", "gpt-4.1"),         "a catalogue of embeddings produced a chat replacement"
     _L7.models = lambda p=None: (_ for _ in ()).throw(RuntimeError("no listing"))
-    assert _L7.replacement_for("openai", "gpt-4.1") is None,         "a provider that will not list its models must simply yield nothing"
+    assert not _L7.candidates_for("openai", "gpt-4.1"),         "a provider that will not list its models must simply yield nothing"
 finally:
     _L7.models = _keep7
 
@@ -2942,7 +2948,7 @@ try:
     _L7.DOWN = _e7 / ".llm_down.json"
     _L7._BLOWN.clear(); _L7._NOTES.clear()
     _wrote7 = {}
-    _L7.set_cfg = lambda **kv: _wrote7.update(kv)
+    _L7.set_cfg = lambda _forget_down=True, **kv: _wrote7.update(kv)
     # stubbed, or this test passes or fails depending on which provider the person running it
     # happens to have selected. Here the selected one is groq, so nvidia is a plain chain member.
     _L7.cfg = lambda name, default=None: "groq" if name == "LLM_PROVIDER" else (default or "")
@@ -2984,14 +2990,21 @@ try:
     assert _L7._breaker(("nvidia", "meta/llama-3.3-70b-instruct")),         "a model that cannot work is still being called every cycle"
     assert not _wrote7, "it wrote a model choice while having nothing to choose"
 
-    # the other branch: repairing the SELECTED provider has to write LLM_MODEL, which is what
-    # chain() passes explicitly for it - writing the per-provider key would look like it worked
-    # and change nothing at all
+    # the other branch, through keep_model, which is what ask() uses now that the one-shot repair()
+    # is gone: repairing the SELECTED provider has to write LLM_MODEL, because that is what chain()
+    # passes explicitly for it - writing the per-provider key would look like it worked and change
+    # nothing at all.
     _L7._NOTES.clear(); _L7._BLOWN.clear(); _wrote7.clear()
     _L7.cfg = lambda name, default=None: "nvidia" if name == "LLM_PROVIDER" else (default or "")
-    _L7.models = lambda p=None: ["nvidia/nemotron-4-340b-instruct"]
-    assert _L7.repair("nvidia", "meta/llama-3.3-70b-instruct", "[410] end of life")
+    _L7.keep_model("nvidia", "nvidia/nemotron-4-340b-instruct", "meta/llama-3.3-70b-instruct",
+                   "[410] end of life")
     assert _wrote7 == {"LLM_MODEL": "nvidia/nemotron-4-340b-instruct"},         f"the selected provider's repair went to the wrong setting: {_wrote7}"
+    # ...and it must NOT have wiped what the walk paid to learn. _set_cfg clears the breaker, which
+    # is right when a PERSON changes a key and wrong when a repair writes a model - reproduced:
+    # three providers with four, two and one strikes gone from one successful repair.
+    _L7._BLOWN[("gemini", "m")] = (_tm.time(), "gemini: out of quota", False, 3)
+    _L7.keep_model("nvidia", "nvidia/nemotron-3-super-120b-a12b", "x", "[404] gone")
+    assert _L7._BLOWN.get(("gemini", "m"), (0, 0, 0, 0))[3] == 3,         "a repair wiped another provider's backoff, which is the escalation it exists to keep"
 finally:
     (_L7.DOWN, _, _, _L7.models, _L7._call, _L7.chain, _L7.set_cfg, _L7.cfg) = _k7
     _L7._BLOWN.clear(); _L7._BLOWN.update(_k7[1])
@@ -3022,7 +3035,7 @@ try:
     _L7.DOWN = _e5 / ".llm_down.json"
     _L7._BLOWN.clear(); _L7._NOTES.clear()
     _L7.cfg = lambda name, default=None: "groq" if name == "LLM_PROVIDER" else (default or "")
-    _L7.set_cfg = lambda **kv: None
+    _L7.set_cfg = lambda _forget_down=True, **kv: None
     _L7.chain = lambda: [("nvidia", "dead-model", "k")]
     # four listed, the first two refuse for this key, the third answers
     _L7.models = lambda p=None: ["a-500b-instruct", "b-400b-instruct", "c-300b-instruct",
@@ -3421,5 +3434,179 @@ assert "status IN ('new','ready','vetoed')" in _q8d,     "it would re-score jobs
 # ...and rows with NO stamp are left alone: every score predating the column has none, and
 # re-scoring nine hundred adverts to find out what they would say now is a bill, not a migration
 assert "COALESCE(scored_by,'') <> ''" in _asrc8d,     "unstamped rows would all be re-scored, which is nine hundred calls nobody asked for"
+
+
+# 9a. Findings from the audit of today's work. Each was reproduced before being fixed, and each
+# assertion below is the reproduction.
+_L9a = app.llm
+
+# A .env value is one line. set_cfg wrote "\n".join(f"{k}={v}") and rejected nothing, while
+# keep_model writes a model id that came out of the PROVIDER's own /v1/models listing. Reproduced: an
+# id of "gpt-x\nANTHROPIC_API_KEY=attacker" replaced a real key in the one file here with no backup.
+_e9 = pathlib.Path(_tf.mkdtemp())
+_k9a = _L9a.ENV
+try:
+    _L9a.ENV = _e9 / ".env"
+    _L9a.ENV.write_text("ANTHROPIC_API_KEY=real\n", encoding="utf-8")
+    for _bad in ("m\nANTHROPIC_API_KEY=attacker", "m\rX=1"):
+        try:
+            _L9a.set_cfg(LLM_MODEL=_bad)
+            raise AssertionError(f"a line break was written to .env: {_bad!r}")
+        except ValueError:
+            pass
+    assert _L9a.cfg("ANTHROPIC_API_KEY") == "real", "another key was overwritten"
+    _L9a.set_cfg(LLM_MODEL="nvidia/nemotron-3-super-120b-a12b")       # a real one still works
+    assert _L9a.cfg("LLM_MODEL").endswith("a12b")
+finally:
+    _L9a.ENV = _k9a
+    _sh6.rmtree(_e9, ignore_errors=True)
+# and an id that is not shaped like one never gets that far
+assert _L9a.MODEL_ID.fullmatch("nvidia/nemotron-3-super-120b-a12b")
+assert not _L9a.MODEL_ID.fullmatch("a\nb") and not _L9a.MODEL_ID.fullmatch("x " * 80)
+assert "MODEL_ID.fullmatch" in _iK.getsource(_L9a.models),     "a provider's listing is no longer filtered, so a hostile id reaches .env"
+
+# A repair must not erase what the walk paid to learn. _set_cfg clears the breaker - right when a
+# PERSON changes a key, wrong when keep_model writes a model. Reproduced: three providers with four,
+# two and one strikes, all gone from one successful repair, and the emptied table written to disk.
+assert "_forget_down" in _iK.getsource(_L9a._set_cfg)
+assert "_forget_down=False" in _iK.getsource(_L9a.keep_model),     "a repair still wipes every provider's backoff"
+
+# The benchmark captured its prompt by swapping the module-global llm.ask for 11 measured
+# milliseconds, on a process that scores six adverts at once through a shared pool. Reproduced: a
+# score landing in that window returned fit=0 with no stamp - and a 0 is below every floor, so the
+# row then became age-sweepable, and a blank stamp excluded it from ever being re-scored.
+assert "send=capture" in _iK.getsource(app._bench_prompt),     "the bench reaches into the module again"
+assert "llm.ask =" not in _iK.getsource(app._bench_prompt)
+_seen9 = {}
+assert app.llm.score({"title": "x"}, {"title": "t", "company": "c", "location": "l",
+                                      "description": "d" * 300},
+                     send=lambda *a, **k: (_seen9.update(hit=1), {"fit": 51})[1])["fit"] == 51,     "score() no longer honours the send hook the bench depends on"
+assert _seen9.get("hit"), "the send hook was ignored"
+
+# The re-score-first rule compared cfg("LLM_MODEL"), but score() stamps what _entry() RESOLVED -
+# which falls back to the per-provider key and then the built-in default. Leave the Model box blank,
+# which its own placeholder invites, and "nvidia" never equals "nvidia/meta/llama-3.3-70b-instruct":
+# reproduced, 5 of 5 rows off-scale, so every search re-scored the whole backlog and rewrote fit.
+_s9 = _iK.getsource(app._search)
+assert "llm._entry(llm.cfg(\"LLM_PROVIDER\"))" in _s9,     "the comparison is built from cfg() again, so a blank model box re-scores everything for ever"
+assert "LIMIT {RESCALE_CAP}" in _s9, "the re-score query is unbounded again"
+assert app.RESCALE_CAP <= 50
+
+# One unreadable entry must not discard the whole breaker file, and the writer must not iterate a
+# dict that six scoring threads are mutating
+assert "except (TypeError, ValueError, IndexError, KeyError)" in _iK.getsource(_L9a._load_down)
+assert "list(_BLOWN.items())" in _iK.getsource(_L9a._save_down),     "the state file is written from a live dict, which raises mid-iteration under load"
+
+# dead_words called every frequent word dead when nothing had reached the floor, because "appears in
+# no good title" is vacuously true of all of them - and terms_from_cv then ENFORCES that list
+assert app.dead_words(101) == [], "with nothing above the floor it bans every common word"
+
+# a model answering with a list, or with string ids, must not 500 or silently return nothing
+_k9b = (app.llm.shortlist, app.profile)
+try:
+    app.profile = lambda: {"title": "x"}
+    app.llm.shortlist = lambda prof, jobs, pick=3: ["not", "a", "dict"]
+    assert _cl.post("/api/shortlist", json={"refresh": True}).status_code == 200,         "a salvaged array from the model is a 500"
+    app.llm.shortlist = lambda prof, jobs, pick=3: {
+        "order": [str(j["id"]) for j in jobs],
+        "picks": [{"id": str(jobs[0]["id"]), "why": "w"}, "junk"], "note": ""}
+    _j9 = _cl.post("/api/shortlist", json={"refresh": True}).json()
+    assert len(_j9["picks"]) == 1 and _j9["order"],         f"string ids silently produced an empty panel: {_j9}"
+finally:
+    app.llm.shortlist, app.profile = _k9b
+
+# the smallest board had no sanity bound at all, and at exactly half nothing was refused
+_pd9 = _iK.getsource(scrape.still_listed)
+assert "asked >= 3" in _pd9 and ">= PARSER_DOUBT" in _pd9,     "a board with nine rows can still have all of them deleted by one markup change"
+
+# any website could fire the endpoints that take no parameters - including /api/auto/run, which sends
+# real applications. A browser always sends Origin on a cross-site POST and cannot forge it.
+_cl9 = _TC(app.app, base_url="http://127.0.0.1:8777")
+assert _cl9.post("/api/settings", json={}).status_code == 200, "no Origin must still work (curl, the task)"
+assert _cl9.post("/api/settings", json={},
+                 headers={"Origin": "http://127.0.0.1:8777"}).status_code == 200
+for _ep in ("/api/settings", "/api/recheck", "/api/board_states", "/api/auto/run"):
+    assert _cl9.post(_ep, data="x", headers={"Origin": "https://evil.example",
+                                             "Content-Type": "application/x-www-form-urlencoded"}
+                     ).status_code == 403, f"{_ep} accepts a cross-site form post"
+assert _cl9.get("/api/jobs", headers={"Origin": "https://evil.example"}).status_code == 200,     "reading was blocked too, which breaks nothing but helps nobody"
+
+# the ranking prompt is fenced like the other two: every field in it is board-supplied
+_sl9 = _iK.getsource(_L9a.shortlist)
+assert "TRUST +" in _sl9 and "<JOB_LIST>" in _sl9,     "the only new LLM caller with no trust boundary has lost it again"
+assert '.replace("<JOB_LIST", "[tag")' in _sl9, "the fence can be broken out of"
+
+
+# 9b. The same fact in two files, one of which goes stale. This is what the audit actually found -
+# not one bug but a shape - and one of these pairs had already drifted twice before anybody noticed.
+_dash9 = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+
+# Which boards this app submits on. The template used to keep its own copy; it was missing BestJobs,
+# the comment explaining that was written, and then it went stale again for Hipo - so whenever
+# /api/boards failed, every Hipo card lost its Apply button and its tick box and rendered as a plain
+# link. Rendered from prefill now, which is why this asserts there is no literal left to rot.
+assert "{{ auto_apply | tojson }}" in _dash9 and "{{ manual_apply | tojson }}" in _dash9,     "the template writes out its own board list again, which has gone stale twice"
+assert "let AUTO = ['ejobs'" not in _dash9
+assert "auto_apply=list(prefill.AUTO_APPLY)" in _iK.getsource(app.dashboard),     "the route stopped passing the list the template renders"
+
+# How contested a job is. app.py sorts by it and the dashboard colours by it; the colouring used to
+# write 25 and 150 out four more times, so changing the constant moved the filter and not the pill.
+assert f"const QUIET = {app.QUIET}, BUSY = {app.BUSY};" in _dash9,     f"the dashboard's crowding thresholds no longer match app.QUIET/BUSY ({app.QUIET}/{app.BUSY})"
+assert "n <= 25 ?" not in _dash9 and "n <= 150 ?" not in _dash9,     "the thresholds are written out as literals again"
+
+# The forms the app can fill in. Two lists, one Python and one a regex in the template.
+import re as _re9
+# com before co, or the alternation stops at "lever.co" inside "workable.com"; and the regex
+# escapes its dots, so the backslashes come out first
+_ats9 = set(_re9.findall(r"[a-z0-9-]+\.(?:com|io|co|de)",
+                         _dash9.split("const ATS = /")[1].split("/i;")[0].replace("\\", "")))
+assert _ats9 == set(app.prefill.ATS), f"prefill.ATS and the dashboard regex disagree: {_ats9 ^ set(app.prefill.ATS)}"
+
+# Workday is deliberately not among them - every employer on it demands an account before showing a
+# field - and the README spent a while promising it anyway.
+assert not any("workday" in h for h in app.prefill.ATS)
+assert "Workday" not in (app.HERE / "README.md").read_text(encoding="utf-8"),     "the README promises a form the app deliberately refuses"
+
+# The three states a board reports about an application.
+assert set(app.prefill.APPLICATION_STATE.values()) <= {"sent", "seen", "closed"}
+for _st in ("sent", "seen", "closed"):
+    assert f"{_st}:" in _dash9.split("const look = {")[1][:400],         f"the dashboard has no wording for the board state {_st!r}"
+
+# The by-hand update list in the README has to name the saved board sign-ins. It did not, which made
+# the paragraph above it - promising board sign-ins are left alone - false for anyone who followed it.
+_rd9 = (app.HERE / "README.md").read_text(encoding="utf-8")
+_byhand = _rd9.split("By hand, if you would rather")[1][:700]
+for _f9 in (".env", ".creds.json", ".session.json", "profile.json", "settings.json", "db.sqlite"):
+    assert _f9 in _byhand, f"the by-hand update list does not say to keep {_f9}"
+
+# The run is any set of days you pick. "Weekly" is what it used to be, and the word survived in
+# several user-visible places after the rename - including the Romanian for the erase warning.
+for _f9, _txt9 in (("templates/dashboard.html", _dash9),
+                   ("README.md", _rd9),
+                   ("auto_apply.py", (app.HERE / "auto_apply.py").read_text(encoding="utf-8")),
+                   ("lang.py", (app.HERE / "lang.py").read_text(encoding="utf-8"))):
+    for _bad9 in ("every week", "Every week", "this week.", "săptămânal"):
+        # "Closing this week" is about the ad's closing date, not the schedule
+        assert _bad9 not in _txt9, f"{_f9} still calls the scheduled run weekly: {_bad9!r}"
+assert app.OLD_TASKS == ("jobhunter weekly search",),     "the old task name must stay here, or an upgrade leaves the old schedule running too"
+
+# 9c. Every string handed to t() or fill() must have Romanian. Two did not - t('or') and t(' + CV') -
+# so a Romanian sentence read "nu esti autentificat la BestJobs or Hipo". The browser's lookup is
+# exact, unlike the server's, so a key that differs by one space is a key that is missing.
+_lit9 = set()
+# The long sentences are written as 'one ' + 'two ' + 'three', and the KEY is the whole thing - so
+# the pieces are joined back up here. Reading only the first piece makes every chain look missing.
+_CHAIN9 = _re9.compile(r"""\b(?:t|fill)\(\s*((?:(['"])(?:\\.|(?!\2).)*\2\s*\+?\s*)+)""", _re9.S)
+_PART9 = _re9.compile(r"""(['"])((?:\\.|(?!\1).)*)\1""", _re9.S)
+for _tpl9 in ("dashboard.html", "profile.html", "base.html"):
+    _src9 = (app.HERE / "templates" / _tpl9).read_text(encoding="utf-8")
+    for _m9 in _CHAIN9.finditer(_src9):
+        _lit9.add("".join(_q.group(2).replace("\\'", "'").replace('\\"', '"')
+                          for _q in _PART9.finditer(_m9.group(1))))
+assert len(_lit9) > 100, f"the scanner found only {len(_lit9)} literals, so it is not working"
+_gone9 = sorted(x for x in _lit9 if x and x not in app.lang.RO
+                # placeholders-only strings and single characters carry no words to translate
+                and not _re9.fullmatch(r"[\s\W\d]*|\{\w+\}", x))
+assert not _gone9, f"handed to t() with no Romanian: {_gone9}"
 
 print("ok")

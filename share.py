@@ -19,7 +19,7 @@ PRIVATE = {".env", ".creds.json", "profile.json", "profile.previous.json", "sett
            # the write-ahead log holds the most recent job rows - it is the database too
            "db.sqlite-wal", "db.sqlite-shm",
            "signin.log", "srv.log", "srv.err.log",
-           # what the weekly run did, including the jobs it applied to
+           # what the scheduled run did, including the jobs it applied to
            "auto.log", "auto_last.json"}
 PRIVATE_DIRS = {".venv", "__pycache__", ".browser", "out", ".claude", ".git", "graphify-out",
                 "backup"}
@@ -105,7 +105,8 @@ def main():
         raise AssertionError(f"private files reached the zip, which has been deleted: {inside}")
     print(f"{out.name}: {len(files)} files, {out.stat().st_size / 1024:.0f} KB")
     print("Left out on purpose: your API keys, profile, job list, board sign-ins and CVs.")
-    print("Send the zip. They unzip it anywhere and double-click run.bat.")
+    print("Send the zip. They unzip it to a short local folder such as C:\\jobhunter - not "
+          "inside OneDrive - and double-click FirstTimeSetup.bat.")
 
 
 if __name__ == "__main__":

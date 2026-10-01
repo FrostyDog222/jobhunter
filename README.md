@@ -345,7 +345,7 @@ invented: no employer, date, degree, tool or achievement that is not in your pro
 | eJobs, BestJobs | Applies for you, after you confirm. Tick several and send up to 50 in one run — separate from the scheduled run's own cap, which you also set between 1 and 50. |
 | Hipo | Applies for you, after you confirm — see the note below on what it does and does not tell you. Some Hipo ads redirect to the employer's own site instead; those are marked and opened, never submitted. |
 | **You apply yourself** | One tile gathers everything you have to send by hand — employer forms, ads that redirect to the employer's own site, and anything on a board this app cannot apply on. None of them are ever picked up by batch apply or by the scheduled run, so they never take a slot and are never reported as a failure. |
-| Employer forms (Greenhouse, Lever, Ashby, Workable, Workday and others) | Opens the form with your details filled in and the CV attached, then stops. You read it and press submit. |
+| Employer forms (Greenhouse, Lever, Ashby, Workable, SmartRecruiters and others) | Opens the form with your details filled in and the CV attached, then stops. You read it and press submit. |
 | Ads that redirect to the employer's own site | Recognised while the ad is read, marked *apply on the employer site*, and never clicked. Most Hipo ads and a fair share of BestJobs' are this kind. |
 | Anything else | Opens the ad and your tailored CV side by side. |
 
@@ -359,8 +359,9 @@ session and reloading the board:
 | **Hipo** | a rolling 6 hours — every visit resets it to a full six. Stays signed in for ever while the PC is on, and lapses if it is off overnight. |
 
 *Keep me signed in* therefore visits every two hours, which is set by Hipo and nothing else. It
-does not wake a sleeping machine: the only board that cannot survive a night is the one this app
-never applies on anyway.
+does not wake a sleeping machine — holding a cookie is not worth the electricity — so a PC that
+sleeps all night loses the Hipo session. That is survivable: where you have saved the password, the
+scheduled run signs back in by itself before it applies.
 
 **Signing in again by itself (optional, off).** The scheduled run happens with nobody at the
 keyboard, so a board that has signed you out by then means no applications at all that day. Under
@@ -510,9 +511,12 @@ changed it installs them for you. Close the app's black window and start it agai
 If the folder is a git checkout it runs `git pull` instead, and says so.
 
 By hand, if you would rather: `git pull` in a checkout, or download the zip again with one of
-the commands under [Getting it](#getting-it) and copy the files over the top. Keep your own
-files when you do — `.env`, `profile.json`, `settings.json`, `db.sqlite`, `.session.json`,
-`.boards.json` and the `out` folder. That is the bookkeeping Update.bat does for you.
+the commands under [Getting it](#getting-it) and copy the files over the top. Keep your own files
+when you do — everything starting with a dot (`.env`, `.creds.json`, `.session.json`,
+`.boards.json`), `profile.json`, `profile.previous.json`, `settings.json`, `db.sqlite`,
+`photo.jpg`, `auto.log`, `auto_last.json`, and the `out` folder. **`.creds.json` is the one worth
+naming twice**: it holds your board sign-ins, and it was missing from this list. That is the
+bookkeeping Update.bat does for you, which is the reason to use it instead.
 
 ## Giving the app to someone else
 
@@ -540,7 +544,7 @@ Two things it cannot reach: applications already sent to an employer stay sent, 
 on eJobs, BestJobs or Hipo is untouched. It signs this app out of them; it does not close them.
 
 Use it before handing the PC to someone else. Deleting the folder does the same job, apart from
-the scheduled tasks, which would stay behind and fail quietly every week.
+the two scheduled tasks, which would stay behind and fail quietly on every run.
 
 ## Moving to a new PC (keeping your own data)
 
@@ -592,6 +596,8 @@ and rebuilds it.
     db.sqlite     jobs and history   out/           generated CVs
     .env          API keys           .session.json  board sign-ins
     auto.log      what the scheduled run did         auto_last.json  its last summary
+    .boards.json  which board states were last read  .shortlist.json the cached "today" answer
+    .llm_down.json which providers are resting, and why - read by every run, not just this one
 
 None of those leave the machine: `share.py` excludes every one of them, and `.gitignore` keeps
 them out of the repository.
@@ -599,9 +605,28 @@ them out of the repository.
 Adding a CV template is one CSS file in `templates/cv/`; its first comment line is
 `/* Name - one-line description */` and it appears in the picker on the next reload.
 
-Adding a provider is one line in `llm.PROVIDERS`, if it speaks the OpenAI API.
+Anything the dashboard needs to know about the Python - the county list, which boards the app can
+submit on - is rendered into the template rather than written out twice. A hand-kept copy of the
+board list went stale twice, and each time a failed `/api/boards` turned every card on that board
+into a plain link with no Apply button. `test_app.py` pins the remaining pairs, and sweeps every
+string passed to `t()` for a missing Romanian.
+
+Adding a provider is one line in `llm.PROVIDERS`, if it speaks the OpenAI API — plus one in
+`KEY_URLS` in `templates/dashboard.html`, or its *Get a key* link renders dead and its cost note
+blank. Optionally one in `llm.KEY_PREFIX`, which is what notices a key pasted into the wrong box.
 
 Job ads are untrusted input: every prompt that sees one opens with a trust boundary and wraps
-the ad in `<JOB_POSTING>` tags. That raises the bar; it is not a sandbox.
+the ad in `<JOB_POSTING>` tags - or `<JOB_LIST>` for the one prompt that is handed many at once.
+That raises the bar; it is not a sandbox.
+
+The server has no password, which is reasonable for something listening on 127.0.0.1 - but a
+request arriving with somebody else's `Origin` is refused, because several endpoints take no
+parameters and were therefore an ordinary cross-site form post from any page open in the browser.
+`/api/auto/run` sends real applications. A request with no `Origin` at all is allowed: that is
+curl, the scheduled task and the test suite, none of which a website can reach.
+
+Model ids are validated before they are written: a provider's own `/v1/models` listing is filtered
+to ids shaped like ids, because the model-repair walk writes whichever one answers into `.env`, and
+a value with a newline in it would have been a second line in that file.
 
 Check it still works: `python test_app.py`

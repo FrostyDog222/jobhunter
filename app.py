@@ -13,6 +13,7 @@ from fastapi import FastAPI, UploadFile, File, Body, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
 import creds, lang, llm, prefill, scrape
@@ -35,6 +36,32 @@ tpl = Jinja2Templates(directory=HERE / "templates")
 # the logo, and anything else that is part of the app rather than part of a person
 (HERE / "static").mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
+
+# No password on a local tool is reasonable; accepting instructions from any website is not.
+#
+# Several endpoints take no parameters, so FastAPI never parses a body and accepts any content type -
+# which makes them an ordinary cross-origin form post with no preflight. Any page open in the browser
+# could delete rows through /api/recheck, drive Playwright against live board sessions through
+# /api/board_states, or send real applications in the user's name through /api/auto/run.
+#
+# A browser always sends Origin on a cross-site POST and a page cannot forge it, and this app's own
+# fetch() calls are same-origin - so one check covers every endpoint, including the ones that predate
+# it. A request with NO Origin is allowed: that is curl, the scheduled task and the test client, none
+# of which a hostile website can reach.
+@app.middleware("http")
+async def _only_our_own_page(request, call_next):
+    origin = request.headers.get("origin")
+    if origin and request.method not in ("GET", "HEAD", "OPTIONS"):
+        host = request.headers.get("host") or "127.0.0.1:8777"
+        ok = {f"http://{host}", f"https://{host}",
+              "http://127.0.0.1:8777", "http://localhost:8777"}
+        if origin not in ok:
+            return JSONResponse(
+                {"detail": "That request came from another website, so it was refused and nothing "
+                           "was changed. Open the dashboard yourself and try again there."},
+                status_code=403)
+    return await call_next(request)
+
 # Measured against the live chain, not guessed: 12 real ads scored in 26.1s three at a
 # time and 13.1s six at a time, with no 429 and the breaker untripped. Browser work is
 # dispatched one at a time by apply_batch, so this never means six Chromiums.
@@ -291,9 +318,7 @@ TASK = "jobhunter scheduled search"
 OLD_TASKS = ("jobhunter weekly search",)
 KEEP_TASK = "jobhunter keep signed in"
 # Hipo's session cookie is the shortest at about six hours, and it is renewed to a full
-# six every time the site is visited. Four hours leaves room for a laptop that was asleep
-# when a run was due without letting the window close.
-# Every two hours, set by the only board that needs it.
+# six every time the site is visited. Every two hours, set by the only board that needs it.
 #
 # Measured by removing one cookie at a time from a copy of the session and visiting:
 #   Hipo     ctlyst_hp_sss IS the session, and a visit rolls it back to a full 6h. Miss six
@@ -443,8 +468,8 @@ def keep_signed_in(on):
         # -AtStartup and -AtLogOn are refused here without administrator rights - which fails
         # the WHOLE registration and leaves the old task in place.
         # No -WakeToRun either: waking a sleeping machine every couple of hours to hold a cookie
-        # is a poor trade, and the only board that cannot survive a night is the one this app
-        # never applies on.
+        # is a poor trade. A missed tick costs the Hipo session, and the scheduled run signs it
+        # back in by itself where a saved password allows - that code lives in auto_apply, not here.
         f"$s = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries "
         f"-DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew "
         f"-ExecutionTimeLimit (New-TimeSpan -Minutes 10);"
@@ -883,7 +908,14 @@ def dashboard(request: Request):
     # dropdown from it means the two can never drift apart
     return page(request, "dashboard.html",
                 counties=[(slug, name) for slug, (name, _towns) in sorted(
-                    scrape.COUNTIES.items(), key=lambda kv: kv[1][0])])
+                    scrape.COUNTIES.items(), key=lambda kv: kv[1][0])],
+                # Same reason as the counties: the template used to keep its own list of which
+                # boards this app can submit on, and it drifted twice. The first time BestJobs was
+                # missing, so a failed /api/boards left every BestJobs card as a plain link; the
+                # comment written about that is still there, and then Hipo did it again. Rendered
+                # from prefill, the copy cannot be stale.
+                auto_apply=list(prefill.AUTO_APPLY),
+                manual_apply=list(prefill.MANUAL_APPLY))
 
 
 @app.get("/profile", response_class=HTMLResponse)
@@ -1343,6 +1375,10 @@ def forget_llm(body: dict = Body(...)):
 # How many models one press may try. Each is a real scoring call, so this is the quota the button
 # spends - and the dialog says so before it is pressed.
 BENCH_TRIES = 6
+# How many off-scale rows one run may put back on the primary's scale. A cap because the alternative
+# is unbounded: a comparison bug here re-scored the whole backlog every run, rewriting every fit, and
+# a bounded version of that mistake costs one batch instead of a quota.
+RESCALE_CAP = 25
 
 
 def _bench_prompt():
@@ -1359,14 +1395,16 @@ def _bench_prompt():
            {"title": "Customer Support Officer", "company": "Example", "location": "Bucuresti",
             "description": "Answer customer questions by phone and email, record them in the CRM, "
                            "and escalate what you cannot resolve. English required. " * 8})
+    # Captured through score()'s own `send` hook rather than by swapping llm.ask, which is a module
+    # global that concurrent scoring is reading: an 11ms window where every in-flight advert came
+    # back fit=0 with no stamp, and 0 is below every floor so the row then became age-sweepable.
     held = {}
-    real = llm.ask
-    llm.ask = lambda system, user, max_tokens=8000, tries=5: (
-        held.update(args=(system, user, max_tokens)), {"fit": 0})[1]
-    try:
-        llm.score(profile(), job)
-    finally:
-        llm.ask = real
+
+    def capture(system, user, max_tokens=8000, tries=5):
+        held["args"] = (system, user, max_tokens)
+        return {"fit": 0}
+
+    llm.score(profile(), job, send=capture)
     return held["args"]
 
 
@@ -1419,8 +1457,11 @@ async def llm_best_model(body: dict = Body(default={})):
     _, current, key = entry
     # Tries more than an automatic repair would: somebody is watching this one, and the wait is the
     # point rather than an interruption to a search.
-    found, tried = await off(lambda: llm.best_working(provider, key, body.get("model") or "",
-                                                      limit=8))
+    # capped and shape-checked: it goes to difflib, which is O(n*m) on a value a caller controls
+    want = (body.get("model") or "")[:120]
+    if want and not llm.MODEL_ID.fullmatch(want):
+        want = ""
+    found, tried = await off(lambda: llm.best_working(provider, key, want, limit=8))
     if not found:
         raise HTTPException(400, "None of the models {p} lists would answer for this key. "
                                  "Tried: {t}".format(p=provider, t=", ".join(tried) or "none"))
@@ -1458,6 +1499,11 @@ def dead_words(floor=75, seen=6):
     # "Team Leader (Sibiu)" was scored 85 - and advising a model away from "lead" is advising it
     # away from Team Leader. When the evidence is this thin the error worth avoiding is
     # discouraging a direction that has already worked.
+    if not kept:
+        # Nothing has reached the floor, so there is no evidence about any word - and "appears in no
+        # good title" is vacuously true of all of them. Returning the lot would have the suggestion
+        # endpoint enforce a ban on every common word and hand back nothing.
+        return []
     return sorted((w for w, n in bad.items()
                    if n >= seen and not any(w in t for t in kept)),
                   key=lambda w: -bad[w])[:20]
@@ -1476,7 +1522,10 @@ def terms_from_cv(body: dict = Body(default={})):
     already = [q.strip() for q in re.split(r"[,;]", body.get("already") or "") if q.strip()]
     dead = dead_words(int(settings().get("auto_min_fit", 75)))
     out = llm.search_terms(p, already, dead)
-    terms = [t for t in (out.get("terms") or []) if (t.get("term") or "").strip()]
+    if not isinstance(out, dict):
+        out = {}                     # a salvaged bare array is a legitimate reply, not a traceback
+    terms = [t for t in (out.get("terms") or [])
+             if isinstance(t, dict) and (t.get("term") or "").strip()]
     # The prompt asks the model to avoid these, and it obeyed on one run and ignored it on the
     # next - returning "Customer Engagement Specialist", built on the one word this person's own
     # results show has never once produced a job they wanted. So it is enforced here rather than
@@ -1879,6 +1928,8 @@ def _shortlist_cached(urls):
         got = json.loads(SHORTLIST.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+    if not isinstance(got, dict):
+        return None                  # a cache file holding an array is a cache miss, not a crash
     return got if got.get("for") == sorted(urls) else None
 
 
@@ -1903,13 +1954,29 @@ async def api_shortlist(body: dict = Body(default={})):
              "salary": r["salary"], "tailored": r["status"] == "ready"}
             for i, r in enumerate(rows)]
     out = await off(lambda: llm.shortlist(profile(), jobs))
+    # A reply can legitimately be a list - _parse_reply salvages bare arrays - and ids can come back
+    # as strings, which nothing in the prompt forbids. Neither should be a traceback or a silently
+    # empty panel, so both are coerced here rather than trusted.
+    if not isinstance(out, dict):
+        out = {}
     by_id = {i + 1: r for i, r in enumerate(rows)}
-    picks = [{"url": by_id[p["id"]]["url"], "title": by_id[p["id"]]["title"],
-              "company": by_id[p["id"]]["company"], "fit": by_id[p["id"]]["fit"],
+
+    def _ident(v):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return None
+
+    picks = [{"url": by_id[_ident(p.get("id"))]["url"],
+              "title": by_id[_ident(p.get("id"))]["title"],
+              "company": by_id[_ident(p.get("id"))]["company"],
+              "fit": by_id[_ident(p.get("id"))]["fit"],
               "why": (p.get("why") or "").strip()}
-             for p in (out.get("picks") or []) if p.get("id") in by_id]
+             for p in (out.get("picks") or []) if isinstance(p, dict)
+             and _ident(p.get("id")) in by_id]
     got = {"for": sorted(urls), "picks": picks,
-           "order": [by_id[i]["url"] for i in (out.get("order") or []) if i in by_id],
+           "order": [by_id[_ident(i)]["url"] for i in (out.get("order") or [])
+                     if _ident(i) in by_id],
            "note": (out.get("note") or "").strip(),
            "when": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
     try:
@@ -2086,7 +2153,7 @@ async def _search(body, p):
         if complaint:
             warnings.append(complaint)
 
-    # Two weeks is the shelf life of an ad that does not say when it closes; one that does say is
+    # Thirty days is the shelf life of an ad that does not say when it closes; one that does say is
     # believed. sweep_stale holds the rule, so the suite can put rows through the real thing.
     expired, expired_good = sweep_stale(settings().get("auto_min_fit", 75))
 
@@ -2134,13 +2201,24 @@ async def _search(body, p):
         # Rows with no stamp at all are left alone: every score that predates this column has one,
         # and re-scoring nine hundred adverts to learn what they would say now is not a migration,
         # it is a bill. They stay on whatever scale they were on, and say nothing about it.
-        here = f"{llm.cfg('LLM_PROVIDER')}/{llm.cfg('LLM_MODEL') or ''}".rstrip("/")
+        #
+        # `here` is built from _entry, which is what score() stamps - NOT from cfg("LLM_MODEL").
+        # Those differ whenever the Model box is left blank, which its own placeholder invites:
+        # _entry falls back to LLM_MODEL_<PROVIDER> and then the built-in default, so "nvidia" never
+        # matched "nvidia/meta/llama-3.3-70b-instruct" and every scored row read as off-scale. That
+        # re-scored the entire backlog on every single search, rewriting fit each time, for ever.
+        entry = llm._entry(llm.cfg("LLM_PROVIDER")) if llm.cfg("LLM_PROVIDER") in llm.PROVIDERS \
+            else None
         stale_scale = []
-        if llm.cfg("LLM_PROVIDER"):
+        if entry:
+            here = f"{entry[0]}/{entry[1]}"
             stale_scale = [dict(r) for r in c.execute(
                 "SELECT * FROM jobs WHERE fit IS NOT NULL AND COALESCE(scored_by,'') <> '' "
                 "AND scored_by <> ? AND COALESCE(tries,0) < ? "
-                "AND status IN ('new','ready','vetoed')", (here, SCORE_TRIES))]
+                "AND status IN ('new','ready','vetoed') "
+                # Capped, so a mistake here costs a batch and not a quota. Oldest first: a score
+                # from a model that has since been replaced is the one most worth correcting.
+                f"ORDER BY found ASC LIMIT {RESCALE_CAP}", (here, SCORE_TRIES))]
             todo = stale_scale + todo
         stuck = c.execute("SELECT COUNT(*) FROM jobs WHERE fit IS NULL "
                           "AND COALESCE(tries,0) >= ? "
@@ -2597,8 +2675,8 @@ async def apply_batch(body: dict = Body(...)):
             continue
         board = j["source"] if prefill.apply_mode(j["source"]) == "auto" else ""
         # `source` authorises the send; the url decides where the browser goes. A row stored as
-        # ejobs with a hipo.ro url passed this gate and then ran the Hipo flow, which is
-        # deliberately manual-only.
+        # ejobs with a hipo.ro url passed this gate and then ran a different board's flow against
+        # it - each board has its own form, so the wrong one silently fills nothing.
         if board and prefill.board_of(j["url"]) != board:
             results.append({"url": url, "title": j["title"],
                             "error": f"this row says {board} but its link is not a {board} "

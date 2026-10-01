@@ -1,6 +1,6 @@
 """The scheduled run, started by Windows Task Scheduler rather than by you opening the app.
 
-It does the part of a Sunday morning that is pure legwork: run your saved search across all four
+It does the part of a morning that is pure legwork: run your saved search across all four
 boards, score everything new against your profile, and leave the result waiting on the dashboard.
 If you switched applying on as well, it then sends the best of what it found, on the boards that
 take an application without a form. auto_apply.py holds that step and the limits on it.
@@ -142,10 +142,8 @@ SESSION_COOKIES = {
 
 def _cookie_hours():
     """-> {board: "name 5.9h, other 20.0h"} for the cookies that carry each session."""
-    import json as _json
-    import prefill
     try:
-        jar = _json.loads(prefill.STATE.read_text(encoding="utf-8")).get("cookies", [])
+        jar = json.loads(prefill.STATE.read_text(encoding="utf-8")).get("cookies", [])
     except (OSError, ValueError):
         return {}
     now, out = datetime.datetime.now().timestamp(), {}
@@ -168,7 +166,6 @@ def touch():
     This is the whole keep-alive. It is the same call the dashboard makes to check sign-ins -
     the checking IS the refreshing, because a board renews its cookie when you visit.
     """
-    import prefill
     before = _cookie_hours()
     out = prefill.verify_boards()
     # A session that lapsed while the PC was off is the exact thing this task exists to prevent,

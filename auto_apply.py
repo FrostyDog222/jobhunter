@@ -136,7 +136,7 @@ def run(app, prefill, settings, log):
     report["considered"] = len(picks)
     if not picks:
         report["note"] = (f"Nothing scored {settings['auto_apply_min_fit']} or above on "
-                          f"{' or '.join(usable)} this week."
+                          f"{' or '.join(usable)} on this run."
                           + (f" (Not signed in to {', '.join(out)}.)" if out else ""))
         log(report["note"])
         return report

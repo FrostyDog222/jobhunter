@@ -19,8 +19,8 @@ BOARDS = {
     "hipo": ("https://www.hipo.ro/locuri-de-munca/cautajob/Toate-Domeniile/{loc}/{q}/",
              r'href="(/locuri-de-munca/locuri_de_munca/[^"]+)"'),
     # neither board paginates server-side: page 2 returns page 1, so ~40 per query is the ceiling.
-    # bestjobs.eu is a client-rendered SPA with no server-side JSON-LD -> would need a
-    # browser + hand-written selectors. Left out until the two above stop being enough.
+    # BestJobs is not here because it has no server-side JSON-LD to read; it is a JSON API
+    # instead, handled on its own below.
 }
 BASE = {"ejobs": "https://www.ejobs.ro", "hipo": "https://www.hipo.ro"}
 # BOARDS are HTML boards scraped via JSON-LD; freehire and bestjobs are JSON APIs, each handled
@@ -791,10 +791,16 @@ def verdict(status, text, source):
     Pulled out of the fetch so the judgement can be tested without a network, which is the half
     worth testing - the fetching is httpx's problem.
     """
+    # A missing status or a missing body is not evidence of anything, and this is called on whatever
+    # a board returned. Guarded because the only honest answer to "I could not read it" is silence:
+    # every path out of here that is not a definite gone must keep the job.
+    if not isinstance(status, int):
+        return ""
     if status in (404, 410):
         return GONE_MISSING
     if status >= 400:
         return ""                                    # 403, 429, 500: their problem, not an answer
+    text = text or ""
     jp = _jobposting(text)
     if jp and _closed(_flat(jp.get("validThrough"))):
         return GONE_CLOSED
@@ -852,7 +858,11 @@ def still_listed(jobs, timeout=20, on_progress=None, report=None):
     # closing on one morning. Refuse the lot and say which board, rather than acting on it.
     doubted = []
     for source, (asked, said) in seen.items():
-        if asked >= 10 and said / asked > PARSER_DOUBT:
+        # Three, not ten. The threshold was a count, so a board with nine saved rows had no sanity
+        # bound at all - and the smallest board is the one with the most fragile hand-written parser,
+        # so it was precisely the unprotected case. And >=, not >: at exactly half nothing was
+        # refused, which is not a line anybody would draw deliberately.
+        if asked >= 3 and said / asked >= PARSER_DOUBT:
             doubted.append(f"{source} ({said} of {asked})")
             gone = {u: v for u, v in gone.items() if v[1] != source}
     if report is not None and doubted:

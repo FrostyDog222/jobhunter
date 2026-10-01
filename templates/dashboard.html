@@ -451,8 +451,9 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="recheck"
       style="width:auto"> Ask the boards once a month which saved jobs they still have</label>
     <p class="muted" style="margin:4px 0 0">Removes only what a board answers is gone — a 404 on the
-      ad, or a closing date the employer has let pass. Anything it cannot read is kept, because a bad
-      connection is not an answer. <button type="button" class="ghost tiny" id="recheck_now"
+      ad, a closing date the employer has let pass, or a page that no longer carries an advert at all.
+      That last one is the only signal that works on eJobs and Hipo, which answer 200 for an ad that
+      is not there. Anything it cannot read is kept, because a bad connection is not an answer. <button type="button" class="ghost tiny" id="recheck_now"
         style="margin-left:4px">Check now</button></p>
 
     <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
@@ -481,7 +482,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <div class="warn-box">
       <b>⚠ Read this before you switch it on</b>
       <ul>
-        <li><b>It runs with nobody watching.</b> Every week it spends API quota on scoring,
+        <li><b>It runs with nobody watching.</b> Every run spends API quota on scoring,
           whether or not you look at the result. If a free tier runs dry it fails quietly and
           you find out days later, in the summary.</li>
         <li><b>The score is a model's opinion, not a fact.</b> It is a useful sort order, not a
@@ -593,7 +594,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 
   <div class="advanced" id="adv">
     <div style="flex:1 1 100%;margin:0"><span class="muted" style="font-size:12.5px">These four
-      narrow the freehire results only — eJobs and Hipo have no equivalent, so they come back
+      narrow the freehire results only — the Romanian boards have no equivalent, so they come back
       unfiltered.</span></div>
     <div><label for="fresh">Freshness</label><select id="fresh">
       <option value="fresh" selected>Fresh only</option><option value="">Any age</option></select></div>
@@ -1226,7 +1227,9 @@ function pickTemplate(){
     const syncPhoto = () => {
       const advice = (TPLS[chosen] || {}).photo || 'either';
       $('#tplphoto').checked = chosen ? photoDefault(chosen) : false;
-      $('#tplphotohint').textContent = chosen ? '— ' + (PHOTO_HINT[advice] || '') : '';
+      // through t(): this is written straight to textContent, so localiseDOM never sees it and
+      // the three translations for it sat unused in lang.py while the modal stayed English
+      $('#tplphotohint').textContent = chosen ? '— ' + t(PHOTO_HINT[advice] || '') : '';
     };
     syncPhoto();
     $('#tplmodal').classList.add('open');
@@ -1291,7 +1294,7 @@ document.addEventListener('toggle', e => {
 // "2026-09-26 21:14:03" -> "26 Sep 2026, 21:14"
 // Under this many people have applied and you are early. On a live query of 100 ads the
 // median is 85 and only 16 sit under 25, so this is a real shortlist rather than a soft filter.
-const QUIET = 25;
+const QUIET = 25, BUSY = 150;
 // null <= 25 is TRUE in JavaScript, so every job on every other board - which is most of them -
 // counted as having few applicants. One predicate, used by both the filter and the tile.
 const quiet = j => typeof j.applicants === 'number' && j.applicants <= QUIET;
@@ -1396,9 +1399,11 @@ function followLine(j){
 function crowd(j){
   const n = j.applicants;
   if(n === null || n === undefined) return '';
-  const colour = n <= 25 ? 'good' : n <= 150 ? 'mid' : 'bad';
-  const why = n <= 25 ? t('Hardly anyone has applied yet. Apply today.')
-            : n <= 150 ? t('A normal queue for this board.')
+  // QUIET and BUSY, not the numbers again: these were written out four times here while the
+  // filter above used the const, so changing one line changed the colour and not the shortlist
+  const colour = n <= QUIET ? 'good' : n <= BUSY ? 'mid' : 'bad';
+  const why = n <= QUIET ? t('Hardly anyone has applied yet. Apply today.')
+            : n <= BUSY ? t('A normal queue for this board.')
             : t('A long queue. Your CV has to survive a pile this big before a person reads it.');
   return `<span class="pill" style="border-color:var(--${colour});color:var(--${colour})"
     title="${esc(why)}">${fill('{n} applied', {n})}</span>`;
@@ -1409,11 +1414,11 @@ const fmtWhen = s => { const d = new Date(String(s).replace(' ', 'T'));
 // mirrors prefill.ATS - the application forms the app can fill in for you
 const ATS = /:\/\/([a-z0-9-]+\.)*(greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|smartrecruiters\.com|teamtailor\.com|recruitee\.com|personio\.de|personio\.com|jobvite\.com)(\/|$)/i;
 // filled from /api/boards - AUTO are boards this app submits on, MANUAL are boards you
-// apply to yourself in your own browser. Defaults keep the list usable if the call fails.
-// Kept in step with prefill.AUTO_APPLY / MANUAL_APPLY. BestJobs was missing here, so whenever
-// /api/boards failed every BestJobs card silently lost its Apply button and its tick box and
-// rendered as an ordinary link - on the board with the second most jobs in the list.
-let AUTO = ['ejobs', 'bestjobs'], MANUAL = ['hipo'];
+// apply to yourself in your own browser. The fallback keeps the list usable if the call fails, and
+// is rendered from prefill.AUTO_APPLY rather than written out here: a hand-kept copy drifted twice,
+// first missing BestJobs and then missing Hipo, and each time a failed /api/boards silently turned
+// every card on that board into a plain link with no Apply button and no tick box.
+let AUTO = {{ auto_apply | tojson }}, MANUAL = {{ manual_apply | tojson }};
 const BOARD = j => AUTO.includes(j.source);
 // Jobs you send yourself. Not a board any more - every board here can be applied to - but
 // freehire and the employer-run forms, plus any board posting whose apply button hands you to
@@ -1908,7 +1913,7 @@ function draw(){
                           && (!needle || fold(`${j.title} ${j.company} ${j.location} ${j.lang || ''}`).includes(needle)));
   // Applied is a history, newest application first; every other view keeps the fit ordering
   // the server gave it. All of them show 20 to a page - nobody scans 600 cards, and a page is
-  // also exactly what one batch run will send.
+  // not the batch size: BATCH is 50, see the note on it below.
   const view = f + '|' + mf + '|' + needle;
   if(view !== lastView){ PAGE = 1; lastView = view; }
   if(f === 'applied')
@@ -1931,18 +1936,20 @@ function draw(){
   const shown = JOBS.filter(j => !needle
       || fold(`${j.title} ${j.company} ${j.location} ${j.lang || ''}`).includes(needle));
   const n = s => shown.filter(j=>j.status===s).length;
+  const FLOOR = +(S.auto_min_fit ?? 75);
 
   $('#stats').innerHTML = [
       // applied rows only appear under Applied, so counting them here made the card
       // disagree with the list it opens
       ['Total', shown.filter(j => j.status !== 'applied').length, '', '0'],
-      ['Best for you', shown.filter(j=>(j.fit??0)>=75 && j.status!=='applied').length, '', '75'],
+      // your floor, not a hardcoded 75: the tile counted 75+ while the filter it opens honoured
+      // the saved floor, so at 85 it claimed jobs the list then refused to show
+      ['Best for you', shown.filter(j=>(j.fit??0)>=FLOOR && j.status!=='applied').length,
+       '', String(FLOOR)],
       ['Closing this week', shown.filter(j => { const d = daysLeft(j);
           return d !== null && d >= 0 && d <= 7 && j.status !== 'applied'; }).length, '@soon', '0'],
       ['CV ready', n('ready'), 'ready', '0'],
       ['Applied', n('applied'), 'applied', '0'],
-      // the two that matter after applying: who has not answered, and who has been silent long
-      // enough that writing again is normal
       // Only BestJobs publishes the count, so this tile is about a subset of the list and
       // says so on hover rather than looking like a count of everything.
       ['Few applicants', shown.filter(j => quiet(j) && j.status !== 'applied').length,
@@ -1966,7 +1973,7 @@ function draw(){
                         catch(e){ return []; } };
     const gaps = list(j.gaps), brings = list(j.untapped);
     // How old the ad is, not how long we have known about it. A week is the line: after that
-    // the good ones are usually spoken for. Anything past two weeks never reaches this list.
+    // the good ones are usually spoken for.
     const days = j.posted ? Math.round((Date.now() - new Date(j.posted)) / 864e5) : null;
     const dated = days != null && !isNaN(days);
     const age = !dated ? ''

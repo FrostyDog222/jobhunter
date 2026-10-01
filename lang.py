@@ -125,6 +125,11 @@ RO = {
     # ---- CV templates
     "Put my photo on it": "Pune-mi poza pe el",
     "Tailor with this template": "Adaptează cu acest model",
+    # the conjunction in "you are not signed in to BestJobs or Hipo" - built by joining board
+    # names, so it is a translated word on its own rather than part of a sentence
+    "or": "sau",
+    # the ATS dry-run toast ends "...filled 9 fields + CV". The leading space is part of the key.
+    " + CV": " + CV-ul",
     "better with one": "arată mai bine cu poză",
     "this one is better without": "acesta arată mai bine fără",
     "either works": "merge și așa, și așa",
@@ -300,8 +305,8 @@ RO = {
         "customer support, suport clienti, technical support",
     "Four Romanian job boards, read and scored against your own profile. Nothing leaves this PC except the calls to the AI model you picked.":
         "Patru site-uri românești de joburi, citite și punctate față de propriul tău profil. Nimic nu pleacă de pe acest PC în afară de apelurile către modelul AI ales de tine.",
-    "These four narrow the freehire results only — eJobs and Hipo have no equivalent, so they come back unfiltered.":
-        "Aceste patru filtre restrâng doar rezultatele de pe freehire — eJobs și Hipo nu au echivalent, așa că vin nefiltrate.",
+    "These four narrow the freehire results only — the Romanian boards have no equivalent, so they come back unfiltered.":
+        "Aceste patru filtre restrâng doar rezultatele de pe freehire — site-urile românești nu au echivalent, așa că vin nefiltrate.",
     "Upload a PDF/DOCX/TXT and the profile below is filled in automatically. Nothing is invented — blanks stay blank.":
         "Încarcă un PDF/DOCX/TXT și profilul de mai jos se completează automat. Nu se inventează nimic — ce lipsește rămâne gol.",
     "Delete results you never acted on, so a new search starts from a clean list. Applied, opened, tailored and skipped jobs stay.":
@@ -316,8 +321,8 @@ RO = {
         "Profilul tău așa cum este, în ce stil vrei — nimic nu este adaptat unui job și nu se folosește AI, deci este instantaneu. Cele adaptate se scriu pentru fiecare anunț, din lista de joburi.",
     "Hipo keeps its own list of what you applied to. This copies it into your Applied history, with the dates, so jobs you sent by hand stop showing up as still to do.":
         "Hipo își ține propria listă cu aplicările tale. Asta o copiază în istoricul tău de Aplicate, cu date cu tot, ca joburile trimise manual să nu mai apară ca nefăcute.",
-    "Every week it spends API quota on scoring, whether or not you look at the result. If a free tier runs dry it fails quietly and you find out days later, in the summary.":
-        "În fiecare săptămână consumă din cota API pentru punctare, fie că te uiți la rezultat, fie că nu. Dacă un plan gratuit se golește, eșuează în tăcere și afli peste câteva zile, din rezumat.",
+    "Every run spends API quota on scoring, whether or not you look at the result. If a free tier runs dry it fails quietly and you find out days later, in the summary.":
+        "Fiecare rulare consumă din cota API pentru punctare, fie că te uiți la rezultat, fie că nu. Dacă un plan gratuit se golește, eșuează în tăcere și afli peste câteva zile, din rezumat.",
     "Counted across the jobs already scored, not a new question to the AI. A thing many employers want and your profile never mentions is either the next thing to learn — or something you have and forgot to write down.":
         "Numărat din joburile deja punctate, nu o întrebare nouă către AI. Un lucru pe care mulți angajatori îl cer și pe care profilul tău nu îl pomenește este fie următorul lucru de învățat — fie ceva ce ai și ai uitat să scrii.",
     # ---- the long explanations, which are most of what this app says
@@ -368,7 +373,7 @@ RO = {
     "— the checkbox further up, next to the sign-in buttons. Boards renew a sign-in whenever the site is opened, so Windows visits them every two hours and the session never lapses. Hipo's lasts about six hours on its own. It only loads the pages: nothing is searched, sent, or spent.":
         "— bifa de mai sus, lângă butoanele de autentificare. Site-urile reînnoiesc autentificarea de fiecare dată când sunt deschise, așa că Windows le vizitează la două ore și sesiunea nu expiră niciodată. A celor de la Hipo ține cam șase ore de la sine. Doar încarcă paginile: nu se caută, nu se trimite și nu se consumă nimic.",
     "Deletes everything this app holds about you — your profile and photo, every job it found and scored, your applied history, the CVs it wrote, the board sign-ins, your settings and the schedule. It cannot be undone, and it does not touch anything on eJobs, BestJobs or Hipo: applications you have already sent stay sent.":
-        "Șterge tot ce știe aplicația despre tine — profilul și poza, fiecare job găsit și punctat, istoricul aplicărilor, CV-urile scrise, autentificările pe site-uri, setările și programarea săptămânală. Nu se poate anula, și nu atinge nimic pe eJobs, BestJobs sau Hipo: aplicările deja trimise rămân trimise.",
+        "Șterge tot ce știe aplicația despre tine — profilul și poza, fiecare job găsit și punctat, istoricul aplicărilor, CV-urile scrise, autentificările pe site-uri, setările și programarea. Nu se poate anula, și nu atinge nimic pe eJobs, BestJobs sau Hipo: aplicările deja trimise rămân trimise.",
     "— Windows starts it on the days and at the time you pick, with the app closed; the black run.bat window does not need to be open. It searches the same terms you saved, across the same boards, and scores everything new against your profile. It sends nothing. Each run spends AI quota on the scoring, whether or not you look at the result.":
         "— Windows o pornește în ziua și la ora pe care le alegi, cu aplicația închisă; fereastra neagră run.bat nu trebuie să fie deschisă. Caută aceiași termeni pe care i-ai salvat, pe aceleași site-uri, și punctează tot ce este nou față de profilul tău. Nu trimite nimic. Fiecare rulare consumă din cota AI pentru punctare, fie că te uiți la rezultat, fie că nu.",
     "Boards renew a sign-in whenever the site is opened, so Windows visits them every few hours in the background and the session never lapses. Hipo's lasts about six hours on its own, so without this it is signed out most of the time. It sends nothing and applies to nothing — it only loads each board. Turn it off and sign-ins expire on their own again.":
@@ -993,8 +998,8 @@ RO = {
         "Alege mai întâi un furnizor.",
     "Ask the boards once a month which saved jobs they still have":
         "Întreabă site-urile o dată pe lună ce joburi salvate mai au",
-    "Removes only what a board answers is gone — a 404 on the ad, or a closing date the employer has let pass. Anything it cannot read is kept, because a bad connection is not an answer.":
-        "Șterge doar ce un site confirmă că nu mai există — un 404 pe anunț sau o dată de închidere pe care angajatorul a lăsat-o să treacă. Ce nu poate citi este păstrat, pentru că o conexiune proastă nu este un răspuns.",
+    "Removes only what a board answers is gone — a 404 on the ad, a closing date the employer has let pass, or a page that no longer carries an advert at all. That last one is the only signal that works on eJobs and Hipo, which answer 200 for an ad that is not there. Anything it cannot read is kept, because a bad connection is not an answer.":
+        "Șterge doar ce un site confirmă că nu mai există — un 404 pe anunț, o dată de închidere pe care angajatorul a lăsat-o să treacă, sau o pagină care nu mai conține niciun anunț. Ultimul semnal este singurul care funcționează pe eJobs și Hipo, care răspund 200 pentru un anunț care nu mai există. Ce nu poate citi este păstrat, pentru că o conexiune proastă nu este un răspuns.",
     "Check now":
         "Verifică acum",
     "asking the boards...":
@@ -1072,5 +1077,3 @@ RO = {
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":
         "Rulează acum, exact cum o va face Windows. Durează câteva minute — panoul afișează rezultatul când sosește.",}
 
-# Longest first, so replacing a short string can never eat part of a longer one that contains it.
-PAIRS = sorted(RO.items(), key=lambda kv: -len(kv[0]))
