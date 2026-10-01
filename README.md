@@ -258,6 +258,12 @@ used to print the one that matters most — why this job suits you — in Englis
 the model which language to write in. Scores, the shortlist reasons and the CV term suggestions now
 follow the language the app is set to.
 
+Written properly, not just in the right language. Measured across four models on one real Romanian
+ad, the meaning was right every time and the language was not: invented words, inflections lost
+halfway through a long clause, and the Turkish cedilla `ş ţ` where Romanian uses a comma — `ș ț`. The
+orthography is a rule, so it is corrected in the code and does not wait for a model to cooperate; the
+rest is asked for in Romanian, in Romanian, which is what stopped one model writing *Candidateul*.
+
 What does *not* get translated is deliberate: the JSON the model replies in, so code keeps reading
 it; an employer's own name for a thing, because a translated `HACCP` or `SQL reporting` stops
 matching the ad that asked for it and these are compared across ads; and the search terms

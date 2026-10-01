@@ -3833,4 +3833,31 @@ finally:
     app.PROFILE = _pfile9
     _sh6.rmtree(_tmp9f.parent, ignore_errors=True)
 
+
+# 9h. Romanian written properly. Measured across four models on one real Romanian advert: the meaning
+# was right every time and the language was not - invented words ("Candidateul", "Candidatul
+# possessa"), inflections lost halfway through a long clause ("cerintele posteului", "indeplesind"),
+# and the Turkish cedilla where Romanian uses a comma ("suport clienti" with cedilla, "Iasi").
+#
+# Two fixes, because they are different kinds of problem. The orthography is a rule, so it is applied
+# in code and does not wait for a model to cooperate.
+for _bad9, _good9 in (("ş", "ș"), ("ţ", "ț"),
+                      ("Ş", "Ș"), ("Ţ", "Ț")):
+    assert app.SCRUB.get(_bad9) == _good9,         f"the Turkish cedilla {_bad9!r} is no longer corrected to Romanian {_good9!r}"
+_ced9 = "suport clienţi în Iaşi, competenţele şi cerinţele"
+assert app._tidy(_ced9) == "suport clienți în Iași, competențele și cerințele", app._tidy(_ced9)
+# every path that puts model prose in front of somebody runs it through _tidy, not just the scorer
+_app9h = (app.HERE / "app.py").read_text(encoding="utf-8")
+assert '_tidy((p.get("why") or "").strip())' in _app9h,     "a shortlist reason reaches the card without being cleaned"
+assert "terms = [_tidy(t) for t in" in _app9h,     "a suggested search term reaches the chips without being cleaned"
+
+# And the part a rule cannot fix is asked for in the language itself, which measurably helped:
+# groq produced the invented "Candidateul" before this and not after.
+_nat9 = app.llm.NATIVE["ro"]
+assert "limba română" in _nat9, "the Romanian request is no longer written in Romanian"
+assert "sedilă" in _nat9, "nothing tells the model which diacritics Romanian uses"
+assert "Nu inventa cuvinte" in _nat9, "nothing tells the model to stop inventing words"
+assert _nat9 in app.llm._reply_in("ro"), "NATIVE never reaches the prompt"
+assert app.llm._reply_in("en") == "" and app.llm.NATIVE.get("en") is None,     "an English UI pays for an instruction it does not need"
+
 print("ok")

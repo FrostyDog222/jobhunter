@@ -1560,6 +1560,17 @@ NEW_TO_WORK = (
 
 LANGUAGE = {"ro": "Romanian", "en": "English"}
 
+# Said in the language itself, after the English instruction. "Write in Romanian" is one clause in a
+# wall of English and gets treated like one; the same request in Romanian is followed much more
+# closely. It names the orthography, because ș and ț are written with a comma below and the cedilla
+# forms belong to Turkish, and it asks for short plain sentences: the grammar slips measured here
+# ("îndeplesind", "cerințele posteului", "Candidatul possessă") all came from long subordinate
+# clauses a model lost track of halfway through.
+NATIVE = {"ro": "Scrie în limba română corectă, cu diacriticele românești (ă â î ș ț), folosind "
+                "virgulă sub ș și ț, nu sedilă. Propoziții scurte și simple, limbaj curent de "
+                "resurse umane. Nu inventa cuvinte și nu româniza termeni englezești: dacă un "
+                "termen nu are echivalent firesc, lasă-l în engleză. "}
+
 
 def _reply_in(code, only=""):
     """The sentence that makes the model write its prose in the language the app is set to.
@@ -1579,7 +1590,8 @@ def _reply_in(code, only=""):
     return (f"Write {what} in {want}, as a native speaker of it would. "
             f"The JSON field NAMES stay exactly as specified, in English. Keep the employer's own "
             f"name for a skill, tool, certificate or qualification in its original form - do not "
-            f"translate HACCP, ITIL, SQL or a job title the posting itself uses. ")
+            f"translate HACCP, ITIL, SQL or a job title the posting itself uses. "
+            + NATIVE.get(code or "", ""))
 
 
 def score(profile, job, send=None, reply_in=""):

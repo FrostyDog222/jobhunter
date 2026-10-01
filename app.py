@@ -1529,7 +1529,7 @@ def terms_from_cv(body: dict = Body(default={})):
     out = llm.search_terms(p, already, dead, reply_in=ui_lang())
     if not isinstance(out, dict):
         out = {}                     # a salvaged bare array is a legitimate reply, not a traceback
-    terms = [t for t in (out.get("terms") or [])
+    terms = [_tidy(t) for t in (out.get("terms") or [])
              if isinstance(t, dict) and (t.get("term") or "").strip()]
     # The prompt asks the model to avoid these, and it obeyed on one run and ignored it on the
     # next - returning "Customer Engagement Specialist", built on the one word this person's own
@@ -2018,7 +2018,9 @@ async def api_shortlist(body: dict = Body(default={})):
               "title": by_id[_ident(p.get("id"))]["title"],
               "company": by_id[_ident(p.get("id"))]["company"],
               "fit": by_id[_ident(p.get("id"))]["fit"],
-              "why": (p.get("why") or "").strip()}
+              # _tidy like every other model sentence: it is what takes out em-dashes, markdown
+              # and the Turkish cedilla a model reaches for when it means Romanian's ș and ț
+              "why": _tidy((p.get("why") or "").strip())}
              for p in (out.get("picks") or []) if isinstance(p, dict)
              and _ident(p.get("id")) in by_id]
     got = {"for": sorted(urls), "picks": picks,
@@ -2466,7 +2468,12 @@ def _month(v, lang):
 
 
 SCRUB = {"—": " - ", "–": "-", "‘": "'", "’": "'",
-         "“": '"', "”": '"'}
+         "“": '"', "”": '"',
+         # Romanian is written with a comma below: ș ț. The cedilla forms ş ţ are Turkish, and
+         # models mix them in freely - measured, one model returned "suport clienţi", "Iaşi" and
+         # "competenţele" in a single two-sentence answer, every word correct and every one of them
+         # misspelled. A substitution, not a judgement, so it does not belong in a prompt.
+         "ş": "ș", "ţ": "ț", "Ş": "Ș", "Ţ": "Ț"}
 # Emphasis markers only count when they WRAP something, on one line. Removing them blindly
 # turned __init__.py into init.py and 2**8 into 28 - on a technical CV, in the file that is sent
 # to the employer.
