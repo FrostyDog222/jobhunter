@@ -110,6 +110,12 @@ def _connect():
     c.execute("""CREATE TABLE IF NOT EXISTS jobs(
         url TEXT PRIMARY KEY, source TEXT, title TEXT, company TEXT, location TEXT,
         posted TEXT, description TEXT, fit INTEGER, why TEXT, gaps TEXT,
+        -- found is UTC: that is what SQLite's datetime('now') returns, unlike every other
+        -- timestamp here, which app.py writes from datetime.now() in local time. Deliberately
+        -- left alone - every comparison against it is UTC too (date('now') in sweep_stale, and
+        -- ORDER BY found against itself), and changing the default would put two conventions in
+        -- one column of rows already written. Never shown in the UI. Worth knowing before you
+        -- read it by hand and conclude a run saved nothing: 16:16 local is stored as 13:16.
         status TEXT DEFAULT 'new', cv TEXT, found TEXT DEFAULT (datetime('now')))""")
     for col in ("note TEXT", "lang TEXT", "applied_at TEXT", "untapped TEXT",
                 "salary TEXT", "expires TEXT", "terms TEXT",
