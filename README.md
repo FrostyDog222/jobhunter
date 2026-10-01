@@ -394,34 +394,29 @@ and rebuilds it.
     .boards.json  which board states were last read  .shortlist.json the cached "today" answer
     .llm_down.json which providers are resting, and why - read by every run, not just this one
 
-None of those leave the machine: `share.py` excludes every one of them, and `.gitignore` keeps
-them out of the repository.
+None of those leave the machine: `share.py` excludes every one, and `.gitignore` keeps them out of
+the repository.
 
-Adding a CV template is one CSS file in `templates/cv/`; its first comment line is
-`/* Name - one-line description */` and it appears in the picker on the next reload.
+**Conventions worth knowing before you change something:**
 
-Anything the dashboard needs to know about the Python - the county list, which boards the app can
-submit on - is rendered into the template rather than written out twice. A hand-kept copy of the
-board list went stale twice, and each time a failed `/api/boards` turned every card on that board
-into a plain link with no Apply button. `test_app.py` pins the remaining pairs, and sweeps every
-string passed to `t()` for a missing Romanian.
+- Job ads are untrusted input. Every prompt that sees one opens with a trust boundary and wraps the
+  ad in `<JOB_POSTING>` tags, or `<JOB_LIST>` where a prompt is handed many at once. That raises the
+  bar; it is not a sandbox.
+- Requests carrying somebody else's `Origin` are refused. The server has no password, and several
+  endpoints take no parameters — `/api/auto/run` sends real applications. No `Origin` at all is
+  allowed: that is curl, the scheduled task and the test suite.
+- Model ids are filtered to ids shaped like ids before being written, because the repair walk puts
+  whichever model answers into `.env`.
+- Anything the dashboard needs to know about the Python — the county list, which boards can be
+  applied on — is rendered into the template rather than written out twice. The hand-kept copy went
+  stale twice. `test_app.py` pins the remaining pairs and sweeps every `t()` string for a missing
+  Romanian.
 
-Adding a provider is one line in `llm.PROVIDERS`, if it speaks the OpenAI API — plus one in
-`KEY_URLS` in `templates/dashboard.html`, or its *Get a key* link renders dead and its cost note
-blank. Optionally one in `llm.KEY_PREFIX`, which is what notices a key pasted into the wrong box.
+**Adding a CV template:** one CSS file in `templates/cv/`, first comment line
+`/* Name - one-line description */`. It appears in the picker on the next reload.
 
-Job ads are untrusted input: every prompt that sees one opens with a trust boundary and wraps
-the ad in `<JOB_POSTING>` tags - or `<JOB_LIST>` for the one prompt that is handed many at once.
-That raises the bar; it is not a sandbox.
-
-The server has no password, which is reasonable for something listening on 127.0.0.1 - but a
-request arriving with somebody else's `Origin` is refused, because several endpoints take no
-parameters and were therefore an ordinary cross-site form post from any page open in the browser.
-`/api/auto/run` sends real applications. A request with no `Origin` at all is allowed: that is
-curl, the scheduled task and the test suite, none of which a website can reach.
-
-Model ids are validated before they are written: a provider's own `/v1/models` listing is filtered
-to ids shaped like ids, because the model-repair walk writes whichever one answers into `.env`, and
-a value with a newline in it would have been a second line in that file.
+**Adding a provider:** one line in `llm.PROVIDERS` if it speaks the OpenAI API, plus one in
+`KEY_URLS` in `templates/dashboard.html` or its *Get a key* link renders dead. Optionally one in
+`llm.KEY_PREFIX`, which catches a key pasted into the wrong box.
 
 Check it still works: `python test_app.py`
