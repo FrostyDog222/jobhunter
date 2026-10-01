@@ -633,6 +633,8 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   <span class="gap"></span>
   <span class="muted" id="count"></span>
   <button id="rescore" class="ghost" style="display:none">Score these again</button>
+  <button id="askboards" class="ghost" style="display:none"
+    title="Read each board's own list of your applications and show where they stand. Sends nothing.">Ask the boards what happened</button>
   <span class="bands">
     <label><input type="checkbox" class="band" data-band="strong" checked> Strong 75+</label>
     <label><input type="checkbox" class="band" data-band="medium" checked> Medium 50-74</label>
@@ -1298,6 +1300,24 @@ function waitingDays(j){
 
 // How long an application has been sitting. A fact the app already knows, shown without asking
 // anything of you - the four buttons that used to live beside it asked for upkeep nobody does.
+// What the BOARD says about an application, which is the only thing here that came from the
+// employer's side rather than from us. Three states because three is what changes what you would
+// do: it is in, somebody opened it, or it is over. The board's own word is on hover, so a Romanian
+// status is never translated away, and the date is there because an old answer must not pose as
+// today's.
+//
+// This is not the outcome tracker that was removed. Nobody presses anything for this.
+function boardState(j){
+  if(!j.board_state) return '';
+  const [state, word] = String(j.board_state).split(':');
+  const look = {seen: ['good', 'opened by the employer'],
+                closed: ['dim', 'closed'],
+                sent: ['dim', 'with them, not opened yet']}[state] || ['dim', state];
+  return `<span class="pill" style="border-color:var(--${look[0]});color:var(--${look[0]})"
+    title="${esc((word ? word + ' — ' : '') + t('what the board said when last asked') + ' '
+                 + (j.board_state_at || ''))}">${esc(t(look[1]))}</span>`;
+}
+
 function followLine(j){
   const d = waitingDays(j);
   if(d === null) return '';
@@ -1814,6 +1834,8 @@ function draw(){
   $('#manualnote').style.display = f === '@manual' ? '' : 'none';
   $('#quietnote').style.display = f === '@quiet' ? '' : 'none';
   $('#rescore').style.display = $('#filter').value === 'vetoed' && rows.length ? '' : 'none';
+  // only where the question is asked: Applied is the one view about what happened afterwards
+  $('#askboards').style.display = $('#filter').value === 'applied' && rows.length ? '' : 'none';
 
   $('#list').innerHTML = rows.map(j => {
     const list = v => { try { const x = JSON.parse(v || '[]'); return Array.isArray(x) ? x : []; }
@@ -1864,7 +1886,7 @@ function draw(){
           ${age}
           ${j.status === 'new' ? '' : `<span class="st st-${esc(j.status)}">${esc(j.status)}</span>`}
           ${applied ? `<span class="applied-when">· ${j.applied_at ? t('applied') + ' ' + esc(fmtWhen(j.applied_at)) : t('applied (date not recorded)')}</span>` : ''}
-          ${applied ? followLine(j) : ''}
+          ${applied ? followLine(j) : ''}${applied ? boardState(j) : ''}
           ${j.salary ? `<span class="pill" style="border-color:var(--good);color:var(--good);
               font-weight:600" title="What the ad itself states. It does not affect the score.">${esc(j.salary)}</span>` : ''}
           ${!j.salary && j.pay_est ? `<span class="pill" title="${esc(t('The board\'s own estimate for an ad that states no pay. The employer never said this - do not quote it back to them.'))}">~ ${esc(j.pay_est)} ${esc(t('(est.)'))}</span>` : ''}
@@ -2049,6 +2071,20 @@ $('#stats').addEventListener('click', e => {
   $('#minfit').value = card.dataset.mf || '0';
   draw();
 });
+
+// Only in Applied, because that is the one view where "what happened to it" is the question. The
+// boards publish this themselves, so nothing has to be kept up to date by hand - which is exactly
+// what the four outcome buttons we removed could never manage.
+$('#askboards').onclick = e => busy(e.target, async () => {
+  const r = await api('/api/board_states', {});
+  await load();
+  const bits = Object.entries(r.states || {}).map(([k, n]) => `${n} ${t(k)}`).join(', ');
+  toast(fill('Read {read} applications from the boards; {matched} matched jobs here. {bits}',
+             {read: r.read, matched: r.matched, bits: bits}) +
+        (Object.keys(r.failed || {}).length
+          ? ' ' + fill('Could not read: {who}.', {who: Object.keys(r.failed).join(', ')}) : ''),
+        11000);
+}, t('asking the boards...'));
 
 $('#rescore').onclick = e => busy(e.target, async () => {
   const r = await api('/api/rescore', {status:'vetoed'});

@@ -97,7 +97,12 @@ def _connect():
                 # what the employer themselves stated
                 "pay_est TEXT",
                 # 1 = the board says this employer answers applications. Only BestJobs knows.
-                "responsive INTEGER"):                                           # added later
+                "responsive INTEGER",
+                # Where an application stands, according to the BOARD - sent, seen, or closed - and
+                # when we last asked. Not the outcome tracker that was removed: nobody maintains
+                # these, they come from the employer's side, and the date means an old answer
+                # cannot pose as a current one.
+                "board_state TEXT", "board_state_at TEXT"):                      # added later
         try:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col}")
             fresh_col = True
@@ -1485,7 +1490,7 @@ FRESH_DAYS, STALE_DAYS = 3, 14
 
 LIST_COLS = ("url, source, title, company, location, posted, fit, why, gaps, untapped, "
              "status, cv, found, note, salary, expires, terms, lang, applied_at, "
-             "applicants, pay_est, responsive, "
+             "applicants, pay_est, responsive, board_state, board_state_at, "
              "LENGTH(description) AS desc_len")
 
 
@@ -1682,6 +1687,48 @@ def _gate_pass(p, judged, todo):
     # one pass at the end: the list was rebuilt per vetoed row, which is O(n*m) over two lists
     # that are both the size of the table
     return [t for t in todo if t["url"] not in dropped], vetoed, freed
+
+
+def refresh_board_states(boards=None):
+    """Ask each board where your applications stand, and write it against the jobs. -> a summary.
+
+    This is what the removed outcome tracker could never be: it costs the user nothing. Four
+    buttons that have to be pressed produce an empty tracker, and "3 waiting to hear" that nobody
+    updated is a false claim about the world. The boards already know, and all three publish it.
+
+    Matched on the ad's url, which all three put in their own list. Matching on a title would be
+    guessing which application a status belongs to, and a wrong status is worse than none.
+    """
+    when = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    out = {"read": 0, "matched": 0, "states": {}, "unknown": [], "failed": {}}
+    for board in (boards or sorted(prefill.APPLICATIONS)):
+        try:
+            got = prefill.board_applications(board)
+        except Exception as e:
+            out["failed"][board] = f"{type(e).__name__}: {str(e)[:90]}"
+            continue
+        out["read"] += len(got)
+        rows = [(a["state"], a.get("state_word", ""), when, a["url"]) for a in got if a.get("state")]
+        for a in got:
+            if a.get("state"):
+                out["states"][a["state"]] = out["states"].get(a["state"], 0) + 1
+            elif a.get("state_word") or a.get("title"):
+                # a word none of ours covers. Named rather than filed under the nearest match, so a
+                # board inventing a fourth state shows up as itself.
+                out["unknown"].append(f"{board}: {a.get('state_word') or a.get('title', '')[:40]}")
+        if rows:
+            with db() as c:
+                for state, word, stamp, url in rows:
+                    out["matched"] += c.execute(
+                        "UPDATE jobs SET board_state = ?, board_state_at = ? WHERE url = ?",
+                        (f"{state}:{word}" if word else state, stamp, url)).rowcount
+    return out
+
+
+@app.post("/api/board_states")
+async def api_board_states():
+    """Refresh what the boards say about your applications. Reads only; sends nothing."""
+    return await off(refresh_board_states)
 
 
 def recheck_jobs(on_progress=None):

@@ -1946,7 +1946,9 @@ assert "function followLine" in _dash5i and "waitingDays" in _dash5i,     "the p
 # Asserting against the real file passed here only because they were dropped by hand, and would
 # have failed on every other copy. What actually matters is that a NEW database is not given
 # them again, which is the list in _connect().
-_mig5i = _iK.getsource(app._connect)
+# the COLUMNS, not the word: a comment explaining why the outcome tracker went is not the tracker
+# coming back, and matching the bare word made that indistinguishable
+_mig5i = _reL.sub("#[^" + chr(92) + "n]*", "", _iK.getsource(app._connect))
 assert "outcome" not in _mig5i, "the migration list is adding the outcome columns again"
 
 # 5j. A saved board password is the most dangerous thing this app can hold, so the rules it is
@@ -3159,5 +3161,71 @@ assert not app.recheck_due({"recheck": True, "recheck_last": __import__("datetim
                             "recheck_days": 30})
 assert app.recheck_due({"recheck": True, "recheck_last": "not a date", "recheck_days": 30}),     "an unreadable stamp must mean never-run, not never-again"
 assert "recheck_due" in (app.HERE / "auto.py").read_text(encoding="utf-8"),     "the monthly pass is not wired into the run that already happens"
+
+
+# 8a. What the BOARD says about an application, which is the one thing here that comes from the
+# employer's side. This is deliberately not the outcome tracker that was removed: four buttons
+# somebody has to press makes an empty tracker, and "3 waiting to hear" nobody updated is a false
+# claim. Nobody presses anything for this - all three boards publish it, measured:
+#   ejobs     DIV.applications-page__application   Vizualizată / Trimisă
+#   bestjobs  /applied-jobs                        Nevizualizat
+#   hipo      Status: Nevizualizat / Vizualizat
+_P8 = app.prefill
+for _word, _want in (("Vizualizată", "seen"), ("Vizualizat", "seen"), ("Trimisă", "sent"),
+                     ("Nevizualizat", "sent"), ("Respinsă", "closed"), ("Retras", "closed")):
+    _g8 = _P8._state_of(f"Status: {_word} | Data aplicarii: 29-09-2026")
+    assert _g8["state"] == _want, f"{_word!r} read as {_g8['state']!r}, expected {_want!r}"
+    assert _g8["state_word"], "the board's own word was thrown away"
+# diacritics fold, because the same board writes it both ways across pages
+assert _P8._state_of("vizualizata")["state"] == "seen"
+# a word none of ours covers is left unlabelled rather than filed under the nearest guess
+assert _P8._state_of("Status: Ceva Nou")["state"] == "", "an unknown state was given one of ours"
+# ...and the three boards are all read by one walk, which is where the urls come from
+assert set(_P8.APPLICATIONS) == {"ejobs", "bestjobs", "hipo"}, _P8.APPLICATIONS
+assert "APPLICATION_STATE" in (app.HERE / "prefill.py").read_text(encoding="utf-8")
+# the pre-existing BOARD_STATE is the sign-in cache path and must not have been shadowed
+assert str(_P8.BOARD_STATE).endswith(".boards.json"),     "the sign-in cache path was overwritten by the application-status table"
+
+# stored against the job, matched on the ad's url - a title would be guessing which application a
+# status belongs to, and a wrong status is worse than none
+_bs8 = pathlib.Path(_tf.mkdtemp())
+_k8 = (app.DB, _P8.board_applications)
+try:
+    app.DB, app._SCHEMA_DONE = _bs8 / "db.sqlite", False
+    with app.db() as _c8:
+        _c8.execute("INSERT INTO jobs(url,source,status,title) "
+                    "VALUES('https://x/a','ejobs','applied','A')")
+        _c8.execute("INSERT INTO jobs(url,source,status,title) "
+                    "VALUES('https://x/b','ejobs','applied','B')")
+    _P8.board_applications = lambda board, **k: ([
+        {"url": "https://x/a", "title": "A", "when": "", "state": "seen",
+         "state_word": "Vizualizată"},
+        {"url": "https://x/zzz", "title": "never seen here", "when": "", "state": "sent",
+         "state_word": "Trimisă"}] if board == "ejobs" else [])
+    _out8 = app.refresh_board_states()
+    assert _out8["read"] == 2 and _out8["matched"] == 1,         f"a status was matched to the wrong job, or not at all: {_out8}"
+    with app.db() as _c8:
+        _got8 = dict(_c8.execute("SELECT url, board_state FROM jobs").fetchall())
+    assert _got8["https://x/a"].startswith("seen:"), _got8
+    assert _got8["https://x/b"] is None, "a job no board mentioned was given a status anyway"
+    # the date is stamped, so an old answer cannot pose as today's
+    with app.db() as _c8:
+        assert _c8.execute("SELECT board_state_at FROM jobs WHERE url='https://x/a'").fetchone()[0]
+    # a board that cannot be read is named, and does not stop the others
+    _P8.board_applications = lambda board, **k: (_ for _ in ()).throw(RuntimeError("not signed in"))
+    _f8 = app.refresh_board_states()
+    assert set(_f8["failed"]) == {"ejobs", "bestjobs", "hipo"} and _f8["read"] == 0, _f8
+finally:
+    app.DB, _P8.board_applications = _k8
+    app._SCHEMA_DONE = False
+    with app.db():
+        pass
+    _sh6.rmtree(_bs8, ignore_errors=True)
+
+# shown on the applied card, beside how long it has been waiting - the two belong together
+_d8 = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "function boardState(" in _d8 and "boardState(j)" in _d8
+assert "board_state" in app.LIST_COLS, "the page is never sent the column it renders"
+assert "askboards" in _d8 and "'applied'" in _d8.split("askboards').style.display")[1][:120],     "the refresh button is offered outside the Applied view, where the question is not asked"
 
 print("ok")

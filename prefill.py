@@ -16,6 +16,7 @@ import re
 import subprocess
 import sys
 import time
+import unicodedata
 from urllib.parse import urlsplit
 
 HERE = pathlib.Path(__file__).parent
@@ -795,15 +796,41 @@ def _profile():
 # This is better evidence than anything on the job page itself: Hipo puts no "you applied"
 # marker on a posting, so the board's own list is the only way to know - and it also covers
 # applications you made yourself, in your own browser, which this app never saw.
+# All three turned out to be the same shape, so there is one walk: find the anchors pointing at an
+# advert, climb to the smallest ancestor that also carries a date, and hand back that element's text
+# for the status and the date to be read out of. Measured container per board, for the record:
+#   ejobs     DIV.applications-page__application   "... | 29 Septembrie 2026 | Vizualizată | ..."
+#   bestjobs  the card around /loc-de-munca/...     "Aplicat la 29 sep 2026 | Nevizualizat"
+#   hipo      the row TD                            "Status: | Nevizualizat | Data aplicarii: | ..."
+_APPS_WALK = """(frag) => [...document.querySelectorAll('a')]
+    .filter(a => ((a.getAttribute('href') || '').includes(frag))
+              && !/Top-Talents|job-add/i.test(a.getAttribute('href') || ''))
+    .map(a => { let n = a, row = '';
+        for (let i = 0; i < 8 && n; i++) { n = n.parentElement;
+          if (n && /\\d{1,2}[ -\\/](\\w{3,}|\\d{1,2})[ -\\/]\\d{4}|\\d{2}-\\d{2}-\\d{4}/.test(n.innerText || '')) {
+            row = n.innerText; break; } }
+        return {url: a.href, title: (a.innerText || '').trim(), row}; })
+    .filter(x => x.row)"""
+
 APPLICATIONS = {
     "hipo": ("https://www.hipo.ro/locuri-de-munca/candidat/myhipo/aplicarileMele",
-             """() => [...document.querySelectorAll('a')]
-                 .filter(a => (a.getAttribute('href') || '').includes('locuri_de_munca')
-                           && !(a.getAttribute('href') || '').includes('Top-Talents'))
-                 .map(a => { let n = a, row = '';
-                     for (let i = 0; i < 6 && n; i++) { n = n.parentElement;
-                       if (n && /data aplic/i.test(n.innerText || '')) { row = n.innerText; break; } }
-                     return {url: a.href, title: (a.innerText || '').trim(), row}; })"""),
+             "locuri_de_munca"),
+    "ejobs": ("https://www.ejobs.ro/aplicari", "/locuri-de-munca/"),
+    "bestjobs": ("https://www.bestjobs.eu/applied-jobs", "/loc-de-munca/"),
+}
+
+# What a board's status word means, reduced to the three things that change what you would DO.
+# Raw text is kept alongside, because a board inventing a fourth state should show as itself rather
+# than be quietly filed under the nearest of these.
+#
+#   sent      it is in, nobody has opened it
+#   seen      a human on the employer's side opened it - a different silence from never looked
+#   closed    they said no, or withdrew the posting
+APPLICATION_STATE = {
+    "nevizualizat": "sent", "nevizualizata": "sent", "trimisa": "sent", "in asteptare": "sent",
+    "vizualizat": "seen", "vizualizata": "seen", "deschisa": "seen", "in curs": "seen",
+    "respins": "closed", "respinsa": "closed", "refuzat": "closed", "inchis": "closed",
+    "retras": "closed", "anulat": "closed",
 }
 
 
@@ -872,15 +899,37 @@ def board_profile(board, headless=True):
             browser.close()
 
 
+def _state_of(row):
+    """-> {"state": one of sent/seen/closed or "", "state_word": the board's own word}
+
+    Reduced to three because three is what changes what you would do: it is in, somebody looked, or
+    it is over. Finer than that is a tracker, and a tracker is what nobody maintains.
+    """
+    flat = _fold_ro(row)
+    for word, state in APPLICATION_STATE.items():
+        if re.search(r"\b" + re.escape(word) + r"\b", flat):
+            # the raw word, read back out of the row at its own casing, so an unexpected state is
+            # visible as itself and not translated into one of ours
+            raw = re.search(word, flat)
+            return {"state": state, "state_word": row[raw.start():raw.end()] if raw else word}
+    return {"state": "", "state_word": ""}
+
+
+def _fold_ro(s):
+    """lowercase with diacritics removed: Vizualizată and vizualizata are the same word."""
+    return "".join(c for c in unicodedata.normalize("NFKD", (s or "").lower())
+                   if not unicodedata.combining(c))
+
+
 def board_applications(board, headless=True):
-    """-> [{url, title, when}] straight from the board's own "my applications" page.
+    """-> [{url, title, when, state, state_word}] from the board's own "my applications" page.
 
     Read-only. Raises if the board is not one we can read, or the session has lapsed.
     """
     from playwright.sync_api import sync_playwright
     if board not in APPLICATIONS:
         raise ValueError(f"no applications page known for {board}")
-    page_url, extract = APPLICATIONS[board]
+    page_url, frag = APPLICATIONS[board]
     out = []
     with sync_playwright() as pw:
         browser, ctx, page = _open(pw, headless)
@@ -889,10 +938,15 @@ def board_applications(board, headless=True):
             page.wait_for_timeout(2500)
             if any(d in page.url.lower() for d in BOARD_UI[board]["denied"]):
                 raise RuntimeError(f"not signed in to {board}")
-            for r in page.evaluate(extract):
-                m = re.search(r"data aplic[aă]rii:\s*(\d{2})-(\d{2})-(\d{4})", r.get("row") or "", re.I)
+            for r in page.evaluate(_APPS_WALK, frag):
+                row = r.get("row") or ""
+                m = re.search(r"data aplic[aă]rii:\s*(\d{2})-(\d{2})-(\d{4})", row, re.I)
                 out.append({"url": r["url"], "title": r["title"],
-                            "when": f"{m.group(3)}-{m.group(2)}-{m.group(1)}" if m else ""})
+                            "when": f"{m.group(3)}-{m.group(2)}-{m.group(1)}" if m else "",
+                            # the board's own word for where this application stands, plus what it
+                            # reduces to. Both: a board inventing a fourth state must show as
+                            # itself rather than be filed under the nearest one we know.
+                            **_state_of(row)})
         finally:
             _save(ctx, visited=(BOARD_HOSTS.get(board) or "",))
             browser.close()

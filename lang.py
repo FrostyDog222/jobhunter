@@ -1005,6 +1005,24 @@ RO = {
         ", {n} dintre ele unele pe care le voiai",
     "Asked about {asked} saved jobs. Every one of them is still listed.":
         "Am întrebat despre {asked} joburi salvate. Toate sunt încă listate.",
+    "Read {read} applications from the boards; {matched} matched jobs here. {bits}":
+        "S-au citit {read} candidaturi de pe site-uri; {matched} corespund joburilor de aici. {bits}",
+    "Could not read: {who}.":
+        "Nu s-a putut citi: {who}.",
+    "what the board said when last asked":
+        "ce a spus site-ul la ultima verificare",
+    "opened by the employer":
+        "deschisă de angajator",
+    "with them, not opened yet":
+        "la ei, încă nedeschisă",
+    "closed":
+        "închisă",
+    "sent":
+        "trimise",
+    "Ask the boards what happened":
+        "Întreabă site-urile ce s-a întâmplat",
+    "Read each board's own list of your applications and show where they stand. Sends nothing.":
+        "Citește lista fiecărui site cu candidaturile tale și arată unde au ajuns. Nu trimite nimic.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
     "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":

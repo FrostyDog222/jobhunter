@@ -415,6 +415,24 @@ to by hand then stop showing up as still to do. It only ever adds.
 
 ## After you apply
 
+**What the boards say happened.** All three publish their own verdict on each application, and
+*Ask the boards what happened* in the Applied view reads it and puts it on the card: **with them,
+not opened yet**, **opened by the employer**, or **closed**. The board's own word — *Vizualizată*,
+*Nevizualizat* — is on hover, along with when it was last asked, so an old answer cannot pose as
+today's.
+
+This is the one thing in the app that comes from the employer's side rather than from you, and it is
+deliberately the opposite of the outcome buttons that used to live here: nobody presses anything.
+There are no states to keep up to date, because none of it is yours to maintain.
+
+Three states and no more, because three is what changes what you would do: it is in, somebody
+opened it, or it is over. A board inventing a fourth shows as its own word rather than being filed
+under the nearest of ours. Applications matched on the advert's url only — matching a title would be
+guessing which application a status belongs to, and a wrong status is worse than none.
+
+One limit worth knowing: eJobs paginates, so a very long history reads only the recent page.
+
+
 Pressing Apply is the start of the part that gets you hired, not the end. Every applied job says
 how long it has been waiting — *sent today*, *waiting 4 days* — and once that passes **ten days**
 the line turns amber and says it is worth a nudge. Long enough not to pester someone still
