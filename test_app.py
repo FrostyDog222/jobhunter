@@ -1799,7 +1799,12 @@ assert "loadLlm().catch(" in _dash4u or "loadLlm().catch(" in (
 # which is that the session is not accepted outside the browser window that made it.
 _rm = (app.HERE / "README.md").read_text(encoding="utf-8")
 assert "118 stored jobs" not in _rm, "the README still quotes one snapshot of one database"
-assert "Hipo applies like the others now" in _rm,     "the README still says Hipo is manual-apply"
+# the claim, not the sentence that happened to carry it: Hipo must be listed among the boards the
+# app applies on, and nowhere described as one you have to do by hand
+_applytable = _rm.split("## Applying")[1].split("##")[0]
+assert "Hipo" in _applytable,     "the README no longer lists Hipo as a board the app applies on"
+for _manual in ("Hipo is manual", "manual-only", "Hipo, which is manual", "manual apply on Hipo"):
+    assert _manual not in _rm, f"the README still says Hipo is manual-apply: {_manual!r}"
 assert "## Erasing everything" in _rm, "the one button that cannot be undone is undocumented"
 for _fact in ("asks twice", "scheduled tasks", "stay sent"):
     assert _fact in _rm.split("## Erasing everything")[1].split("## ")[0], _fact

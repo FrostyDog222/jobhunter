@@ -4,45 +4,22 @@
 
 # jobhunter
 
-A local job-hunting assistant for the Romanian market. It finds jobs, scores each one against
-your profile, writes a CV tailored to the ad, and applies on the boards that allow it.
+Finds jobs on the Romanian boards, scores each one against your CV, writes a CV tailored to the ad,
+and applies for you where the board allows it.
 
-Everything stays on your PC except the calls to the AI model you choose — and with Ollama, not
-even those.
+Everything stays on your PC. The only thing that leaves is the job ad and your profile, sent to
+whichever AI model you choose to score them — and if you run Ollama, not even that.
 
-**Windows only.** The saved board sign-ins are encrypted with Windows DPAPI and the daily run is
-a Windows scheduled task, so it will not start on macOS or Linux. Deliberate, not an oversight —
-tying the passwords to your Windows account is what keeps them unreadable on any other machine.
+**Windows only.**
 
 ## Getting it
 
-The repository is public, so none of this needs a GitHub account or a login.
+No GitHub account needed. Open
+[github.com/FrostyDog222/jobhunter](https://github.com/FrostyDog222/jobhunter), press **Code →
+Download ZIP**, and unzip it somewhere short like `C:\jobhunter` — **not** inside OneDrive.
 
-Easiest: open [github.com/FrostyDog222/jobhunter](https://github.com/FrostyDog222/jobhunter),
-press **Code → Download ZIP**, and unzip it somewhere short like `C:\jobhunter` — not inside
-OneDrive.
-
-Or from a terminal. With git:
-
-```
-git clone https://github.com/FrostyDog222/jobhunter.git
-```
-
-Without git, in PowerShell:
-
-```
-Invoke-WebRequest https://github.com/FrostyDog222/jobhunter/archive/refs/heads/main.zip -OutFile jobhunter.zip
-Expand-Archive jobhunter.zip -DestinationPath .
-```
-
-Or with curl, which ships with Windows 10 and later:
-
-```
-curl -L -o jobhunter.zip https://github.com/FrostyDog222/jobhunter/archive/refs/heads/main.zip
-```
-
-The zip unpacks into a folder called `jobhunter-main`; git gives you `jobhunter`. Either is
-fine — the app runs from whatever folder it is in. Then carry on below.
+If you have git, `git clone https://github.com/FrostyDog222/jobhunter.git` does the same thing. The
+folder name does not matter.
 
 ## Start
 
@@ -113,253 +90,62 @@ The dashboard shows a checklist until all three are done.
 
 ## Finding jobs
 
-Four sources are searched at once:
+Type what you are looking for and press *Search*. Four job boards are searched at once: **eJobs**,
+**BestJobs**, **Hipo** and **freehire** (international and remote).
 
-| source | what it covers |
+Every job gets a score out of 100, a one-line reason, what you **bring** to it and what the
+**gaps** are. *Best for you* is everything at or above your score floor, which you set under
+*Settings*.
+
+**The search box suggests as you type** but never restricts — type anything and it is searched
+exactly as typed. *Settings → Suggest terms from my CV* reads your profile and proposes job titles
+you might not think of, each showing the line in your CV it came from. Nothing is filled in until
+you click it.
+
+Lists show 20 jobs to a page. The filter box narrows what is already found, and ignores diacritics —
+`iasi` finds `Iași`.
+
+### What is on a card
+
+| | |
 |---|---|
-| eJobs | the largest Romanian board |
-| BestJobs | the second largest |
-| Hipo | Romanian board, strong on graduate and corporate roles |
-| freehire | international index, including remote roles and employer career pages |
+| **score and reason** | out of 100, with what you bring and what is missing |
+| **applicants** | how many have already applied. Green under 25, red over 150. BestJobs only |
+| **replies** | a green badge where the employer is known to answer applications. BestJobs only |
+| **new / old** | green for the first week after posting, amber after |
+| **closes in N days** | the employer's own closing date, where they published one |
+| **salary** | marked `(est.)` and dimmed when it is the board's guess rather than the employer's figure. **Do not quote an estimate back to an employer** |
 
-Every job gets a score from 0 to 100 with a short reason, what you **bring** that the ad asks
-for, and the **gaps**. *Best for you* is everything scoring 75 or more.
+The **Few applicants** tile shows just the quiet ones. *What should I do today?* picks three jobs
+worth sending now and says why — advice only, nothing is hidden or rewritten.
 
-**How many people you are up against.** BestJobs publishes, for every ad, how many have already
-applied — and no other board here does. Where it is known the card says so, and the colour is the
-point: under 25 is green and worth today, over 150 is red and your CV has a pile to survive
-first. The **Few applicants** tile shows just those.
+### Narrowing it down
 
-It also breaks ties, which matters more than it sounds: almost every score lands on a multiple of
-five, so the whole *Best for you* band is only two or three values wide and something has to
-order it. Within a band the list is sorted by how contested each job is, in three groups —
-barely touched (under 25 applicants, or posted in the last three days), busy, and crowded — so a
-quiet ad the board counted and a fresh ad nobody counted rank together, ahead of one with 1437.
-Boards that publish no count are ranked by how recently the ad went up instead of being dumped
-at the bottom.
+**Skip job families you do not work in.** Under *Settings*, list families like `engineer`, `sudor`,
+`contabil` or `sofer`. Ads whose title names one are never opened or scored. It starts empty.
 
-**Employers who answer.** BestJobs also flags, on about one ad in four, that this employer
-actually replies to applications. Where it does, the card carries a green **replies** badge. It
-is the only signal anywhere in this app about the employer's behaviour rather than about you.
+Two things it will not do: it never skips an ad that names the job you actually searched for
+(including the Romanian or English wording of it), and it only takes job families — never a city, a
+language or a seniority word. Every search tells you how many it skipped.
 
-It also decides which ads get read in full. One request to BestJobs returns 100 and only 20 are
-worth a detail fetch and a model call: half of those go to the board's own relevance order, and
-half to the least crowded of the rest. Measured on one search, that moves the median from 128
-applicants to 21.
+**Say when you can work.** *Can work weekends* and *Can work shifts or nights* on your profile, each
+set to yes, no, or left blank. These never go on your CV. They are used only where an ad asks for
+weekend or shift work, and they let the app answer that question on an employer's form. Left blank,
+nothing is claimed either way.
 
-**A salary is only a salary if the employer said it.** BestJobs publishes its own estimate for
-ads that state no pay, and that estimate used to be shown as fact. It now appears as `~ 900 - 1000
-EUR/month (est.)` — dimmer, and marked. Do not quote an estimate back to an employer.
+### When jobs disappear from your list
 
-**Job families you do not work in.** A search term is a blunt instrument: *Customer Support* finds
-*Customer Support Officer* and *Technical Support Engineer* equally well, and the second one costs
-a page fetch and an AI call to learn what its title already said. Under *Settings* you can list
-families to skip — `engineer`, `sudor`, `contabil`, `sofer` — and ads whose title names one are
-never read or scored. It starts **empty**, deliberately: "engineer" is noise for one person and the
-whole point of the app for the next.
+Ads are cleared out as they close. Where the employer published a closing date, that date decides.
+Where they did not, the ad is dropped **thirty days** after it was posted.
 
-Two rules keep it from hiding work you want. An ad whose title names **the same job you searched
-for** is never skipped, whatever else it says — and it does not have to be worded the way you typed
-it. Search *Customer Support* and *Customer Service Agent*, *Agent Relații cu Clienții*, *Consilier
-Clienți* and *Help Desk* are all recognised as the same work, in Romanian or English, with or
-without diacritics. Matching only the literal words left thirteen of the thirty-four jobs that had
-scored 75+ protected by nothing but luck. And it takes job families only,
-never a city, a language or a seniority word: those turn up in ads worth reading as often as in
-ads that are not. Measured on 894 scored ads with one real list: 28% of the wasted AI calls gone,
-and not one of the 34 jobs that had scored 75+ would have been dropped.
+**Anything at or above your score floor is never dropped for being old**, and neither is anything
+you applied to, tailored, opened or skipped. A search tells you if it dropped something you would
+have wanted.
 
-Every run says how many it skipped, so you can see what the list is doing rather than trust it.
-
-**Terms read out of your CV.** *Settings → Suggest terms from my CV* reads the profile and
-proposes job titles, including ones you would not think to type: a CV describing sixty calls a day
-and billing disputes settled in two languages implies *Suport clienti multicanal* and *Call Center*,
-and neither phrase is anywhere in it. Each suggestion carries the line from your CV it came from,
-and **nothing is filled in until you click it** — a CV says what you have done, not what you want
-to do next, so someone moving into training needs to keep asking for training.
-
-It is also told what your own results say has never worked: words that keep appearing in ads you
-have been shown and never once in one that scored well. That is what stops it proposing *Customer
-Engagement Manager* to someone who has seen dozens of those and wanted none. It can still invent a
-title that sounds plausible and does not exist, which is the other reason you pick rather than it
-filling the box.
-
-**Nothing here is a menu.** The search box suggests as you type — titles that have actually scored
-well for you first, then the job titles from your profile, then a dozen example role families in
-Romanian and English — but it never restricts. Type a job nobody thought of and it is searched
-exactly as typed, expands to nothing you did not ask for, and is protected from the skip list by
-the fact that you asked for it. The suggestions get better as you use the app, because the first
-group is drawn from your own results rather than from anyone's guess.
-
-Lists show 20 jobs to a page. The filter box narrows what is already found by title, company or
-city as you type, and ignores diacritics — `iasi` finds `Iași`.
-
-**Ad age.** Each job carries a green **new** badge for the first week after it was posted and an
-amber **old** one after that.
-
-**Asking the boards what is still there.** Under *Settings* you can have the app ask, once a month,
-which of your saved jobs each board still has — and remove the ones they say are gone. Off by
-default, because it deletes; there is a **Check now** button for doing it by hand instead.
-
-It removes a job on three answers and nothing else: a 404 on the ad, a closing date the employer has
-let pass, or a page that no longer carries an advert at all. That last one matters because eJobs and
-Hipo answer *200 OK* for an ad that does not exist — a check built on the status code alone would
-work on BestJobs and silently do nothing on the other three. Anything it cannot read — a timeout, a
-403, a server error — is kept, because a bad connection is not an answer. And if a board suddenly
-reports most of its ads as empty, that is far more likely to be our reader breaking than every
-employer closing at once, so its answers are refused wholesale and the run says which board.
-
-Measured on one real database: 103 of 899 saved jobs were genuinely gone, and only one of them was a
-job worth applying to.
-
-Old ads are also cleared out on every search, but **the ad's own closing date decides** — not its
-age.
-eJobs states one on most postings, and it is almost always 30 days after posting; where it exists
-it is believed in both directions, so an ad stays until the day it closes however old it looks,
-and goes the moment it has closed however new it looks. Only ads that state no closing date fall
-back to being dropped at **thirty days**, which is every BestJobs, Hipo and freehire posting — there
-is nothing to consult, so a guess is all there is, and thirty is the only shelf life any board here
-publishes (206 of 275 stored eJobs ads state a closing date, averaging exactly 30 days).
-
-**A job at or above your score floor is never dropped on age.** The age rule is a proxy for "the
-board took it down" and a poor one — it measures age, not removal — and at fourteen days it quietly
-destroyed two jobs scored 85 in two days, both still open. Your floor is your own statement of what
-is worth your time, so a guess does not overrule it: those leave when the employer's date says so,
-when you act on them, when the monthly check finds them gone, or when an apply attempt proves it.
-
-This used to be age *or* closing date, whichever came first, which meant an eJobs ad was deleted
-at day 14 while eJobs went on accepting applications for another 16. Measured on one real
-database: 171 of 173 stored ads with a closing date were being cut short, by 16 days on average,
-and one of them was scored 85 and still live.
-
-Jobs you applied to, tailored, opened or skipped stay regardless of age, and so does anything
-holding a CV. When a search does drop something you would have wanted — scored at or above your
-own floor, with no closing date to go on — it now says so instead of only counting it.
-
-**When you can work.** Two answers on the profile page — *Can work weekends* and *Can work shifts
-or nights* — with three states each: yes, no, and **not stated**, which is where they start. Three
-states rather than a tick box, because a tick box cannot tell "I cannot work weekends" from "nobody
-asked me", and an employer's form needs those to be different answers.
-
-They are not CV content and never appear on a page. They do three things:
-
-- **The score uses them, but only where the ad raises it.** An ad that wants Saturdays is a real
-  shortfall for someone who cannot work them, and a selling point for someone who can — a generic CV
-  never says either. Measured on one cook's profile against one ad asking for weekend and two-shift
-  work: *not stated* 72, *no* 52 with `weekend` and `schimburi` added to the gaps, *yes* 80 with
-  `ture de weekend` moved into what you bring.
-- **Screening questions can be answered from them.** *Are you available to work weekends?* is the
-  question boards actually ask, and until now nothing in a CV answered it, so it came back blank and
-  waited for you.
-- **Blank stays blank.** An unanswered question is never read as a "no", and nothing is claimed
-  either way on an ad that never asked.
-
-**The reasons are written in your language.** The app translates every sentence of its own, and then
-used to print the one that matters most — why this job suits you — in English, because nothing told
-the model which language to write in. Scores, the shortlist reasons and the CV term suggestions now
-follow the language the app is set to.
-
-Written properly, not just in the right language. Measured across four models on one real Romanian
-ad, the meaning was right every time and the language was not: invented words, inflections lost
-halfway through a long clause, and the Turkish cedilla `ş ţ` where Romanian uses a comma — `ș ț`. The
-orthography is a rule, so it is corrected in the code and does not wait for a model to cooperate; the
-rest is asked for in Romanian, in Romanian, which is what stopped one model writing *Candidateul*.
-
-What does *not* get translated is deliberate: the JSON the model replies in, so code keeps reading
-it; an employer's own name for a thing, because a translated `HACCP` or `SQL reporting` stops
-matching the ad that asked for it and these are compared across ads; and the search terms
-themselves, which are typed into a Romanian board and are supposed to come back in both wordings.
-
-**Which model scored what.** Every score records the model that produced it, because a score is only
-comparable with scores from the same model. Measured on six adverts across three models: the same
-advert came back **85 from one and 35 from another**, and one model moved *every* advert tested across
-a 75 floor. The provider chain falls through whenever one is out of quota or unwell, so without this
-a list can hold several scales with nothing saying which row is on which.
-
-That also settles what happens when your main model runs out of quota. You still get a score — the
-chain still falls through, so nothing is ever left unscored — but it is stamped with whoever gave it,
-and those rows go to the **front of the next run's queue** to be scored again on the model in charge.
-The mixing is temporary by construction and clears itself without you doing anything.
-
-Scores that predate this are left alone. Re-scoring nine hundred adverts to learn what they would say
-today is a bill, not a migration.
-
-**When a model disappears under you.** A model name in your settings is a guess about someone
-else's catalogue, and catalogues rotate: models get retired on a published date, moved behind a paid
-plan, or dropped from a free tier. All three look identical from here — the key is fine and the call
-fails — and this app used to report all three as *"this provider is spent"*, which points at the one
-fix that cannot work (a new key) and hides the one that can (one string).
-
-It now tells them apart, and repairs the fixable kind by itself: it asks the provider what models it
-currently offers and works down that list, best first, until one actually answers. Walking rather
-than picking matters, because a provider's list is what EXISTS, not what your key may CALL — nvidia
-publishes 81 models and serves a subset of them to any given key without saying which, so two of its
-top four refuse a free key outright. Whichever model answers is the one kept, because it has just
-demonstrably done the work rather than merely ranked first.
-
-**Test which model is best** is the one to reach for when a provider is configured but something
-feels slow or wrong. It scores **one real job advert from your own list** with each of that
-provider's models in turn and reports which returned a usable answer and how long it took. It asks
-before running, because it spends one scoring call per model, and it changes nothing by itself — it
-fills in the box and you press *Save & test*.
-
-A real advert, not a test phrase, because the difference is enormous. Measured on one key: of nvidia's
-six best-ranked models, **one** could do the job — one was retired in August, one answered *503*, and
-three came back *"Not found for account"*. Meanwhile an 8b model elsewhere did the same work
-correctly in 1.2 seconds where a 550b took 30. **Best does not mean biggest**: that 550b was chosen
-in the first place for answering "return {ok: true}" in 1.9 seconds.
-
-The score each model gave is shown too, and it is not a quality mark — there is nothing to compare it
-against. It is there because switching models shifts the scale: the same advert scored **65, 75 and
-85** across models, which is either side of a 75 floor, so your threshold means something slightly
-different afterwards. That is worth knowing before you accept a suggestion.
-
-**Find one that works** does the same walk on demand, next to the model box, for when nothing is
-broken and you simply want the best one your key can have. This is the difference between reading a
-list and knowing: a model id typed as `nemotron-3-ultra-550b` instead of
-`nvidia/nemotron-3-ultra-550b-a55b` answers "404 page not found", which is indistinguishable from
-"your key cannot have this one". The switch is announced in the AI panel, in the
-provider's own words, because a different model answering is a real change — every score this app
-produces came from whichever model produced it. If there is nothing suitable to move to, the
-provider is set aside and the panel says so rather than letting it waste a call on every run.
-
-Three rules it will not break. A free model can only ever become another free model, so restoring
-service never starts spending money — a provider's own error message will happily recommend its paid
-version. Embedding, vision, speech and guardrail models are never chosen, because a vision model
-answers text prompts plausibly enough that only your scores get worse. And it never does any of this
-for a rate limit or an empty account: no model name fixes either, and going looking would work
-through the whole catalogue trying.
-
-**When a provider goes quiet.** Every AI call walks your whole provider list, in order, and moves
-on the moment one refuses — that is how a free tier running dry mid-search keeps the search alive.
-What it used to do badly was walk into the same wall each time: a provider that accepts the
-connection and then answers nothing costs its full timeout, and only the process that discovered
-that remembered it. Every scheduled run is a fresh process, so every run paid it again.
-
-Three things changed. What is down is written to a file all of them read, so one run's 45 seconds is
-not every run's. A provider is left alone for longer when finding out was expensive — half an hour
-after a timeout, five minutes after a plain refusal, because a refusal arrives in under a second and
-asking often is how a quota that has reset gets noticed. And each consecutive failure doubles that
-wait, up to six hours for one that cannot be reached and one hour for one that is out of quota, so a
-provider that is briefly unwell is retried almost at once while one that is simply gone stops being
-asked at all.
-
-A single successful answer wipes all of it, streak included, so nothing is ever punished for having
-been down. The list is still walked in full; nothing is pinned or dropped, and changing a key or a
-provider in the panel clears it immediately.
-
-**Which of these today.** *What should I do today?* compares the waiting jobs with each other and
-names three, each with the specific reason it is there — a tailored CV already written for it, pay
-the ad actually states, a queue of six rather than six hundred.
-
-It exists because the score cannot do this. Scoring rates each advert on its own, and on one real
-database 923 ads produced **23 distinct scores and never one above 85** — so the ten best jobs are
-routinely all 85 and the list has no order at all. Asking for a finer number would invent precision;
-asking which of these ten beats the others is a question a model can actually answer.
-
-Advisory, and visibly so. The list underneath is unchanged, nothing is hidden, and no score is
-rewritten — a ranking that edited the scores would make the next ranking a ranking of its own
-opinion. The answer is kept until the shortlist itself changes, so applying to one of the three
-earns a fresh comparison rather than stale advice.
+**Check what is still open.** *Settings* has a monthly check that asks each board which of your
+saved jobs it still has, and removes the ones it says are gone. It is **off by default** because it
+deletes; there is a **Check now** button to run it by hand. It only removes a job when a board
+clearly says so — anything it cannot read is kept.
 
 ## Tailored CVs
 
@@ -374,168 +160,135 @@ invented: no employer, date, degree, tool or achievement that is not in your pro
 
 ## Applying
 
-| where the job is | what the app does |
+| where the job is | what happens |
 |---|---|
-| eJobs, BestJobs | Applies for you, after you confirm. Tick several and send up to 50 in one run — separate from the scheduled run's own cap, which you also set between 1 and 50. |
-| Hipo | Applies for you, after you confirm — see the note below on what it does and does not tell you. Some Hipo ads redirect to the employer's own site instead; those are marked and opened, never submitted. |
-| **You apply yourself** | One tile gathers everything you have to send by hand — employer forms, ads that redirect to the employer's own site, and anything on a board this app cannot apply on. None of them are ever picked up by batch apply or by the scheduled run, so they never take a slot and are never reported as a failure. |
-| Employer forms (Greenhouse, Lever, Ashby, Workable, SmartRecruiters and others) | Opens the form with your details filled in and the CV attached, then stops. You read it and press submit. |
-| Ads that redirect to the employer's own site | Recognised while the ad is read, marked *apply on the employer site*, and never clicked. Most Hipo ads and a fair share of BestJobs' are this kind. |
-| Anything else | Opens the ad and your tailored CV side by side. |
+| eJobs, BestJobs, Hipo | The app applies for you, after you confirm. Tick several and send up to 50 at once |
+| Employer forms (Greenhouse, Lever, Ashby, Workable, SmartRecruiters and others) | Opens the form with your details filled in and your CV attached, then stops. You check it and press submit |
+| Ads that send you to the employer's own site | Marked *apply on the employer site* and opened, never submitted. Most Hipo ads and many BestJobs ones are this kind |
+| Anything else | Opens the ad and your tailored CV side by side |
 
-**How long a sign-in lasts.** Measured by removing one cookie at a time from a copy of the saved
-session and reloading the board:
+The **You apply yourself** tile gathers everything you have to send by hand. None of it is ever
+picked up by batch apply or the scheduled run.
 
-| | |
-|---|---|
-| **eJobs** | the access token lives 1 hour, but the app mints a new one from a 13-month refresh token on the next visit after it expires. Heals itself; survives the PC being off. |
-| **BestJobs** | about six months, renewed on every visit. Effectively never expires. |
-| **Hipo** | a rolling 6 hours — every visit resets it to a full six. Stays signed in for ever while the PC is on, and lapses if it is off overnight. |
+**Sign in first**, under *Settings → Job board accounts*. A browser window opens and you type your
+password into the board's own page, not into this app. All three boards need it before they can
+apply.
 
-*Keep me signed in* therefore visits every two hours, which is set by Hipo and nothing else. It
-does not wake a sleeping machine — holding a cookie is not worth the electricity — so a PC that
-sleeps all night loses the Hipo session. That is survivable: where you have saved the password, the
-scheduled run signs back in by itself before it applies.
+**What a board application sends is the CV on your board profile, not your tailored PDF.** Keep
+those profiles up to date — the links are under *Settings*.
 
-**Signing in again by itself (optional, off).** The scheduled run happens with nobody at the
-keyboard, so a board that has signed you out by then means no applications at all that day. Under
-*Settings → Job board accounts* you can save a board sign-in and let the app log in again on its
-own — once, only when the board has just said you are signed out, and never twice in a row.
+**Screening questions.** Some eJobs ads ask their own. Salary, notice period and start date come
+from your *Application answers*; if anything is left blank the app stops and opens the form for you.
+The salary figure you save goes to every employer that asks, so set one you would stand behind.
 
-A saved sign-in shows a green **saved** badge beside the *Forget* button, and the password field
-has an eye you can hold to check what you typed before saving it. Only a password the board
-itself rejects counts against the two attempts; a timeout, a dropped connection or a board having
-a bad morning does not, so a week of poor wifi cannot quietly switch the feature off.
+**Hipo confirms nothing.** When an application goes through, Hipo just removes the apply button —
+no message, no badge. The same thing happens when a posting closes, and the two cannot be told
+apart, so the app reports "either it closed or you already applied" rather than guessing. *Import my
+Hipo applications* settles it.
 
-It stays on this PC. One file in this folder, encrypted with Windows DPAPI so only your Windows
-account can read it, never sent anywhere except the board's own login page. It is excluded from
-the shared zip and from the repository.
+### Staying signed in
 
-Two honest caveats. The encryption means a copy taken anywhere else — a backup, a stolen drive —
-is unreadable, but nothing stored on a computer can protect against something already running as
-you. And a password is worth more than the cookie beside it: it does not expire, it often opens
-other sites too, and it can change the account's email. **Not trusting a tool from the internet
-with your password is a perfectly sensible choice** — leave it empty and sign in by hand; nothing
-else changes.
+Board sign-ins expire at different rates: eJobs renews itself, BestJobs lasts months, and **Hipo
+lapses after six hours** without a visit. *Keep me signed in* visits every two hours to hold it. It
+does not wake a sleeping PC, so a machine that sleeps overnight will have lost the Hipo session by
+morning.
 
-Sign in once under *Settings → Job board accounts*. You type your password into the browser
-window that opens, never into this app — unless you save the sign-in (below), which is optional
-and off. All three need it to apply.
+**Saving a board password (optional, off).** Under *Settings → Job board accounts* you can save a
+sign-in so the scheduled run can log back in on its own when a board has signed you out. It is
+stored in one file on this PC, encrypted so only your Windows account can read it, and is never
+sent anywhere except the board's own login page. It is left out of the shared zip and the
+repository.
 
-**Hipo applies like the others now.** It used to be manual because a sign-in made in this app
-was not accepted once you left the window that made it. That stopped being true when every
-browser context here was given one identity, and it was checked properly: signed out completely,
-signed back in headlessly from a saved password, and a members-only page then read from a
-separate headless context. Three boards, three times, all pass.
-
-One thing to know about it: **Hipo confirms nothing.** When an application goes through it
-removes the apply button and says nothing at all — no message, no badge, the word "aplică" gone
-from the page entirely. So the button's absence is the confirmation, and the app reads it that
-way. The same absence also appears when a posting simply closes, and those two cannot be told
-apart from the page, so a Hipo job with no apply button is reported as "either it closed or you
-already applied" rather than guessed at. *Import my Hipo applications* settles it.
-
-**A board application sends the CV stored on your board profile**, not the tailored PDF. Keep
-those profiles current — the links are under *Settings*.
-
-**Screening questions.** Some eJobs ads add their own questions. Salary, notice period and start
-date are answered from your *Application answers*; if every question is answered the
-application is sent, and if even one is left blank the app stops and opens it for you to finish.
-The salary figure you wrote goes to every employer that asks, so set one you would stand behind.
+Worth knowing before you do: a password is worth more than a cookie — it does not expire, it often
+opens other sites too, and it can change the account's email. Encryption protects a copied file, not
+something already running on your PC as you. **Not trusting a tool from the internet with your
+password is a perfectly sensible choice** — leave it empty and sign in by hand; nothing else
+changes.
 
 ## The scheduled run
 
 Under *Settings → Scheduled run*, Windows can run your search on its own, so the list is already
-searched and scored when you next open the app. It works with the app closed — the black window
-does not need to be open — and a run missed because the PC was off happens the next time it is on.
+searched and scored when you open the app. It works with the app closed, and a run missed because
+the PC was off happens the next time it is on.
 
-**Pick the days and the hour.** Any set of days from one to seven, with shortcuts for *Every
-day*, *Weekdays* and *Once a week*, and a time to start. The clock matches how Windows shows
-yours, so a PC set to 24 hours never offers you AM/PM. Worth thinking about rather than ticking
-everything: each run spends AI quota on the scoring whether or not you look at the result, and a
-posting appears once rather than daily — so seven days a week costs seven times one for mostly
-the same jobs. Daily suits a hard hunt in a fast market; it is not automatically better.
+Pick any days of the week and a time. By default it searches and scores, and leaves applying to you.
 
-By default it searches and scores, and leaves the applying to you.
+Worth thinking about rather than ticking every day: each run spends AI quota whether or not you look
+at the result, and a job is posted once rather than daily — so seven days a week costs seven times
+as much for mostly the same jobs.
 
-**Applying without you there** is a second switch, off until you turn it on, and it asks once
-more before it takes. When it is on the run also applies to the best of what it found:
+### Applying without you there
 
-| limit | default |
+A second switch, off until you turn it on, and it asks again before it takes effect. When it is on,
+the run also applies to the best of what it found:
+
+| | default |
 |---|---|
-| boards | eJobs, BestJobs and Hipo — never an employer form, never an ad that redirects to the employer's own site |
+| boards | eJobs, BestJobs and Hipo. Never an employer form |
 | score | 85 or above, your choice |
-| how many | 5 per run, anything from 1 to 50. The **score** usually decides this, not the cap — at 85 there are rarely more than single figures waiting, so asking for 50 sends however many qualify. 50 is a wall against a slipped keystroke: fifty applications are only twenty minutes, but fifty sent with a stale board profile is fifty employers who saw it. To send more, lower the score before raising the cap |
-| which rows | only ones nobody has touched; applied, opened, skipped and vetoed are left alone |
-| screening questions | marked and left for you — no browser window opens on an empty desk |
+| how many | 5 per run, up to 50 |
+| which jobs | only ones you have not touched |
+| screening questions | marked and left for you |
 
-Everything it sent is listed in the panel with its score, so the next time you open the app you
-see exactly what went out — along with what the search itself found, which is written down even
-on the runs that send nothing.
+Ticking the switch shows you **the actual jobs that would go out** at your current settings, by name
+and employer. If you change the score or the cap afterwards, it asks again.
 
-Ticking the switch does not just warn you in the abstract: it lists **the actual jobs that would
-go out** at your current score and cap, by name and employer, and tells you how many a stricter
-score would send. If you change the score or the cap afterwards, it asks again.
+Think about it first. **An application cannot be recalled.** It sends the salary figure from your
+profile and the CV on your board profile, not a tailored one, and you find out afterwards.
 
-Think about it before switching it on. An application cannot be recalled; it carries the salary
-figure from your profile and the CV stored on your **board** profile, not a tailored one; the
-score is a model's opinion; and you find out afterwards.
+Whatever it sent is listed in the panel next time you open the app, along with what the search
+found.
 
-## Applied history
+## The AI model
 
-Everything you applied to is kept, with the date and time, newest first, 20 to a page. Applied
-jobs cannot be deleted or changed — that list is your record of what you sent.
+Pick a provider under *Settings* and paste its key — the *Get a key* link beside each one goes
+straight to where they hand them out, and several are free. Press *Save & test* to check it works.
 
-*Mark applied* is for applications you sent yourself outside the app. If you click it by
-mistake, *Undo* works for two minutes.
+If you set up more than one, the app uses them in order and moves to the next whenever one is busy
+or out of quota, so a free tier running dry does not stop your search.
 
-**Import my Hipo applications** (under *Settings → Job board accounts*) reads the list Hipo
-keeps in your own account and copies it into this history, with Hipo's dates. Jobs you applied
-to by hand then stop showing up as still to do. It only ever adds.
+**Scores only compare within one model.** The same ad can score 85 from one model and 35 from
+another, so your score floor means something slightly different if you change model. The app records
+which model scored each job and quietly re-scores anything that came from a different one, so your
+list settles back onto one scale by itself.
+
+**If a model stops working**, the app finds a replacement for you: it asks the provider what it
+currently offers and tries them until one answers, then tells you in the AI panel which it picked. A
+free model is only ever replaced by another free one, so this never starts costing money.
+
+**Test which model is best** scores one real job from your list with each of that provider's models
+and shows which worked and how fast. It asks first, because it spends one call per model, and it
+changes nothing by itself — it fills in the box and you press *Save & test*. **Find one that works**,
+next to the model box, does the same on demand.
+
+Bigger is not better: an 8b model has done the same job correctly in 1.2 seconds where a 550b model
+took 30.
 
 ## After you apply
 
-**What the boards say happened.** All three publish their own verdict on each application, and
-*Ask the boards what happened* in the Applied view reads it and puts it on the card: **with them,
-not opened yet**, **opened by the employer**, or **closed**. The board's own word — *Vizualizată*,
-*Nevizualizat* — is on hover, along with when it was last asked, so an old answer cannot pose as
-today's.
+Everything you applied to is kept in the **Applied** view, newest first with the date it went out,
+20 to a page. Applied jobs cannot be deleted or changed — that list is your record of what you sent,
+and it is what stops the same job being offered back to you.
 
-This is the one thing in the app that comes from the employer's side rather than from you, and it is
-deliberately the opposite of the outcome buttons that used to live here: nobody presses anything.
-There are no states to keep up to date, because none of it is yours to maintain.
+**What the boards say happened.** Press *Ask the boards what happened* and the app reads each
+board's own verdict onto the card:
 
-Three states and no more, because three is what changes what you would do: it is in, somebody
-opened it, or it is over. A board inventing a fourth shows as its own word rather than being filed
-under the nearest of ours. Where a row carries two of them — boards routinely show when an
-application was sent *and* what became of it — the later one wins, so a rejection that also states its
-send date reads as closed rather than as still waiting.
+| | |
+|---|---|
+| **with them, not opened yet** | sent, nobody has looked |
+| **opened by the employer** | somebody has read it |
+| **closed** | rejected, withdrawn or the posting is over |
 
-Matched on the board's own posting id, never on a title, which would be guessing which application a
-status belongs to — and a wrong status is worse than none. The id rather than the whole link because
-one advert has more than one: eJobs stores a link its own application list writes differently, which
-cost half of them a status. But an id is not unique either — eJobs and Hipo reuse one across several
-adverts from the same employer — so where it names more than one of your saved jobs, the one you
-applied to wins, and failing that nothing is written at all.
+The board's own wording is on hover, with when it was last checked. Nothing here needs keeping up to
+date by you. On eJobs a very long history only reads the most recent page.
 
-One limit worth knowing: eJobs paginates, so a very long history reads only the recent page.
+**A nudge after ten days.** Every applied job shows how long it has been waiting — *sent today*,
+*waiting 4 days* — and after ten days the line turns amber to say it is worth following up.
 
-
-Pressing Apply is the start of the part that gets you hired, not the end. Every applied job says
-how long it has been waiting — *sent today*, *waiting 4 days* — and once that passes **ten days**
-the line turns amber and says it is worth a nudge. Long enough not to pester someone still
-reading, short enough that the job is not filled by the time you write.
-
-That is the whole of it, and deliberately so. There were buttons here for marking an application
-*seen*, *interview*, *rejected* or *offer*, and a **Waiting to hear** view built on them. They
-are gone. A tracker only tells the truth if every application is kept up to date by hand, and
-nobody does that for long — an out-of-date tracker saying "3 waiting to hear" is not a blank
-screen, it is a claim about the world that is false. What is left costs you nothing to keep
-honest, because the app already knows the date it sent each one.
-
-Applied jobs stay in the list for good. A board that already has your application will not take a
-second one, and that record is what stops the scheduled run offering the same employer back to
-you.
+*Mark applied* is for applications you sent outside the app; *Undo* works for two minutes if you
+click it by mistake. **Import my Hipo applications**, under *Settings → Job board accounts*, copies
+your Hipo history in with Hipo's own dates, so jobs you applied to by hand stop showing as still to
+do.
 
 ## Getting a newer version
 
