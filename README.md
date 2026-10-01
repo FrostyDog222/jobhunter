@@ -507,7 +507,9 @@ There are no states to keep up to date, because none of it is yours to maintain.
 
 Three states and no more, because three is what changes what you would do: it is in, somebody
 opened it, or it is over. A board inventing a fourth shows as its own word rather than being filed
-under the nearest of ours.
+under the nearest of ours. Where a row carries two of them — boards routinely show when an
+application was sent *and* what became of it — the later one wins, so a rejection that also states its
+send date reads as closed rather than as still waiting.
 
 Matched on the board's own posting id, never on a title, which would be guessing which application a
 status belongs to — and a wrong status is worse than none. The id rather than the whole link because

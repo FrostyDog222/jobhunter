@@ -3860,4 +3860,48 @@ assert "Nu inventa cuvinte" in _nat9, "nothing tells the model to stop inventing
 assert _nat9 in app.llm._reply_in("ro"), "NATIVE never reaches the prompt"
 assert app.llm._reply_in("en") == "" and app.llm.NATIVE.get("en") is None,     "an English UI pays for an instruction it does not need"
 
+
+# 9i. A board row carries more than one status word, and the least advanced one was winning. The table
+# was a dict ordered sent -> seen -> closed with first-match-wins, so a row stating both when it was
+# sent and that it was rejected - which is how boards normally render one - read as "sent". Tested on
+# 14 plausible Romanian phrasings, 8 were wrong and two of those were a rejection shown as waiting:
+# the same false claim about the world that the outcome tracker was deleted for making.
+_P9i = app.prefill
+assert [st for st, _ in _P9i.APPLICATION_STATES] == ["closed", "seen", "sent"],     "the states are no longer checked most-advanced-first"
+for _txt9, _want9 in (
+        # one word, both genders, because a board writes about "candidatura" and inflects it
+        ("Vizualizată", "seen"), ("Nevizualizat", "sent"), ("Nevizualizată", "sent"),
+        ("Trimis", "sent"), ("Trimisă", "sent"), ("În așteptare", "sent"),
+        ("Respins", "closed"), ("Respinsă", "closed"), ("Refuzată", "closed"),
+        ("Închis", "closed"), ("Închisă", "closed"),
+        ("Anulată", "closed"), ("Retrasă", "closed"),
+        # two states in one row: the later one is the true one
+        ("Trimisă pe 12 sept - Vizualizată", "seen"),
+        ("Trimisă pe 3 aug · Respinsă", "closed"),
+        ("Nevizualizat - candidatura închisă", "closed"),
+        # and a word none of ours covers stays uncategorised rather than guessed at
+        ("ceva ce nu cunoaștem", "")):
+    _got9 = _P9i._state_of(_txt9)
+    assert _got9["state"] == _want9,         f"{_txt9!r}: read as {_got9['state']!r}, should be {_want9!r}"
+    if _want9:
+        # the hover shows the board's OWN spelling, diacritics and casing intact
+        assert _got9["state_word"] and _P9i._fold_ro(_got9["state_word"]) in _P9i._fold_ro(_txt9),             f"{_txt9!r}: hover word {_got9['state_word']!r} is not in the row"
+
+# "nevizualizat" means NOT seen, and seen is now checked first - safe only because the pattern anchors
+# on a word boundary and there is none between "ne" and "vizualizat". If that anchor goes, every
+# unopened application silently becomes an opened one.
+assert _P9i._state_of("Nevizualizat")["state"] == "sent",     "the word meaning NOT seen is being read as seen"
+assert r"\b" in _iK.getsource(_P9i._state_of), "the word-boundary anchor is gone"
+
+# the fold has to be length-preserving, because the hover text is sliced out of the ORIGINAL row at
+# the offsets of a match found in the folded one. NFKD expanded ligatures and fractions, so a row
+# containing "1/2" shifted every later offset and the hover read a chopped word.
+for _s9 in ("Vizualizată", "½ zi - Vizualizată", "Oﬀerta Vizualizată",
+            "㎡ Vizualizată", "ÎNCHISĂ", ""):
+    assert len(_P9i._fold_ro(_s9)) == len(_s9),         f"the fold changed length on {_s9!r}, so hover offsets drift"
+assert _P9i._state_of("½ zi - Vizualizată")["state_word"] == "Vizualizată",     "a compatibility character still shifts the hover word"
+
+# the flat mapping stays, because the dashboard has wording per state and the suite pins them together
+assert set(_P9i.APPLICATION_STATE.values()) == {"sent", "seen", "closed"}
+
 print("ok")

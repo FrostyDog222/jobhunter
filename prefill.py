@@ -831,12 +831,26 @@ APPLICATIONS = {
 #   sent      it is in, nobody has opened it
 #   seen      a human on the employer's side opened it - a different silence from never looked
 #   closed    they said no, or withdrew the posting
-APPLICATION_STATE = {
-    "nevizualizat": "sent", "nevizualizata": "sent", "trimisa": "sent", "in asteptare": "sent",
-    "vizualizat": "seen", "vizualizata": "seen", "deschisa": "seen", "in curs": "seen",
-    "respins": "closed", "respinsa": "closed", "refuzat": "closed", "inchis": "closed",
-    "retras": "closed", "anulat": "closed",
-}
+# Most advanced first, and that order is the whole point: a board row routinely carries two of these
+# at once - "Trimisa pe 3 aug - Respinsa" is a rejection that also states when it was sent - and the
+# later state is the true one. This was a dict ordered the other way with first-match-wins, so a
+# rejection read as "with them, not opened yet": the exact false claim the outcome tracker was
+# deleted for making. Tested on 14 plausible board phrasings, 8 came out wrong.
+#
+# Checking "seen" before "sent" is safe only because the pattern anchors on a word boundary and there
+# is none inside "nevizualizat" - so the word meaning NOT seen cannot match "vizualizat". Asserted.
+APPLICATION_STATES = (
+    ("closed", ("respins", "refuzat", "inchis", "retras", "anulat", "finalizat")),
+    ("seen", ("vizualizat", "deschis", "in curs")),
+    ("sent", ("nevizualizat", "trimis", "in asteptare")),
+)
+# Romanian agrees its participles and a board writes about "candidatura", which is feminine - so the
+# feminine form is the one that actually turns up. One optional vowel covers trimis/trimisa/trimise
+# without listing every form; the diacritics are already gone by the time this is matched.
+INFLECTED = "[aei]?"
+# kept as a flat mapping too: the dashboard has its own wording for each state and the suite pins the
+# two against each other, so there has to be one place that answers "which states exist".
+APPLICATION_STATE = {w: st for st, words in APPLICATION_STATES for w in words}
 
 
 # What each board's own profile page shows, and how to read it. Measured by opening both pages
@@ -911,19 +925,35 @@ def _state_of(row):
     it is over. Finer than that is a tracker, and a tracker is what nobody maintains.
     """
     flat = _fold_ro(row)
-    for word, state in APPLICATION_STATE.items():
-        if re.search(r"\b" + re.escape(word) + r"\b", flat):
-            # the raw word, read back out of the row at its own casing, so an unexpected state is
-            # visible as itself and not translated into one of ours
-            raw = re.search(word, flat)
-            return {"state": state, "state_word": row[raw.start():raw.end()] if raw else word}
+    for state, words in APPLICATION_STATES:
+        for word in words:
+            hit = re.search(r"\b" + re.escape(word) + INFLECTED + r"\b", flat)
+            if hit:
+                # the board's own spelling, read back out of the row at the offsets of the match -
+                # which only works because _fold_ro cannot change length. The hover text is the
+                # point: a board inventing a fourth state shows as itself rather than as one of ours.
+                return {"state": state, "state_word": row[hit.start():hit.end()]}
     return {"state": "", "state_word": ""}
 
 
 def _fold_ro(s):
-    """lowercase with diacritics removed: Vizualizată and vizualizata are the same word."""
-    return "".join(c for c in unicodedata.normalize("NFKD", (s or "").lower())
-                   if not unicodedata.combining(c))
+    """lowercase with diacritics removed: Vizualizată and vizualizata are the same word.
+
+    One character in, one character out, always - because _state_of slices the ORIGINAL row at the
+    offsets of a match found in this string, to show the board's own spelling on hover. The previous
+    version normalised the whole string with NFKD, which expands compatibility characters: a row
+    containing a ligature or "1/2" grew, every later offset shifted, and the hover read "zualizata".
+    """
+    out = []
+    for ch in (s or ""):
+        low = ch.lower()
+        if len(low) != 1:                       # a few letters lowercase into two, e.g. Turkish I
+            out.append(ch.lower()[0])
+            continue
+        bare = "".join(c for c in unicodedata.normalize("NFD", low)
+                       if not unicodedata.combining(c))
+        out.append(bare[0] if bare else low)
+    return "".join(out)
 
 
 def board_applications(board, headless=True):
