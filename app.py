@@ -1526,7 +1526,7 @@ def terms_from_cv(body: dict = Body(default={})):
         raise HTTPException(400, "Fill in your profile first - there is nothing here to read yet.")
     already = [q.strip() for q in re.split(r"[,;]", body.get("already") or "") if q.strip()]
     dead = dead_words(int(settings().get("auto_min_fit", 75)))
-    out = llm.search_terms(p, already, dead)
+    out = llm.search_terms(p, already, dead, reply_in=ui_lang())
     if not isinstance(out, dict):
         out = {}                     # a salvaged bare array is a legitimate reply, not a traceback
     terms = [t for t in (out.get("terms") or [])
@@ -2000,7 +2000,7 @@ async def api_shortlist(body: dict = Body(default={})):
              "why": r["why"], "gaps": r["gaps"], "applicants": r["applicants"],
              "salary": r["salary"], "tailored": r["status"] == "ready"}
             for i, r in enumerate(rows)]
-    out = await off(lambda: llm.shortlist(profile(), jobs))
+    out = await off(lambda: llm.shortlist(profile(), jobs, reply_in=ui_lang()))
     # A reply can legitimately be a list - _parse_reply salvages bare arrays - and ids can come back
     # as strings, which nothing in the prompt forbids. Neither should be a traceback or a silently
     # empty panel, so both are coerced here rather than trusted.
@@ -2300,6 +2300,10 @@ async def _search(body, p):
     # score in small chunks: the pool is shared with tailoring, applying and PDF rendering,
     # and a partial result is worth keeping if a later chunk fails
     scored = []
+    # the language the model writes its reasons in. Read once here, not inside the worker: the
+    # answers land on the card, and the app translates its own 631 sentences only to print the one
+    # that matters most - why this job suits you - in English.
+    want_lang = ui_lang()
     step("scoring", 0, len(todo))
     # Six at a time measured twice as fast on a 12-ad sample, but a 144-ad run outran mistral's
     # free tier: 15 calls came back "spent", the breaker parked the provider for 300s each time,
@@ -2318,7 +2322,9 @@ async def _search(body, p):
             # for 300s and a batch can outlast the staleness rule that decides a search has
             # died. It had, twice, on a search that was working perfectly well.
             try:
-                return await off(llm.score, p, job)
+                # a lambda so reply_in goes by keyword: off() forwards positionals only, and
+                # a positional None for `send` makes every caller depend on the argument order
+                return await off(lambda: llm.score(p, job, reply_in=want_lang))
             finally:
                 _done[0] += 1
                 step("scoring", len(scored) + _done[0], len(todo))

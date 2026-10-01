@@ -214,6 +214,15 @@ RO = {
     "Suggest improvements": "Propune îmbunătățiri",
     "Application answers": "Răspunsuri la aplicare",
     "Salary expectation": "Salariul dorit",
+    "Can work weekends": "Pot lucra în weekend",
+    "Can work shifts or nights": "Pot lucra în ture sau noaptea",
+    "not stated": "nespecificat",
+    # the two option words beside it. Whole text nodes, so only a node that is exactly "yes" or
+    # exactly "no" is swapped - which is what these <option> elements are.
+    "yes": "da",
+    "no": "nu",
+    "Only used where a posting actually asks. Leave it blank and nothing is claimed either way.":
+        "Folosit doar acolo unde anunțul cere explicit. Lasă necompletat și nu se afirmă nimic.",
     "Notice period": "Perioada de preaviz",
     "Earliest start": "Cel mai devreme început",
     "currency": "moneda",

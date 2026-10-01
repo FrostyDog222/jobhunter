@@ -926,6 +926,11 @@ EMPTY = {
     "new_to_work": False,
     # your answers to the questions an employer asks that no CV contains. Filled in by you on
     # the profile page; the app never invents these.
+    # "", "yes" or "no". Tri-state on purpose: a tick box cannot tell "I cannot work weekends"
+    # from "nobody asked me", and those are opposite answers to an employer's question. Blank means
+    # the model says nothing about it - see score() and prefill.answer_questions.
+    "work_weekends": "",
+    "work_shifts": "",
     "salary_expectation": "", "notice_period": "", "earliest_start": "",
 }
 
@@ -1117,7 +1122,7 @@ def parse_cv(text):
     return {**EMPTY, **_obj(p, "parse_cv")}
 
 
-def search_terms(profile, already=(), never_worked=()):
+def search_terms(profile, already=(), never_worked=(), reply_in=""):
     """Read the CV and propose job titles to search for. -> {"terms": [{term, why, lang}]}
 
     The dashboard already offers the titles this person has HELD, which is a substring of the
@@ -1145,6 +1150,9 @@ def search_terms(profile, already=(), never_worked=()):
                 "shown, and NOT ONCE in one they scored highly. Do not build terms around them "
                 "unless the CV makes the case overwhelming:\n" + ", ".join(never_worked))
     return ask(
+        # only 'why'. The terms themselves are what gets typed into a Romanian board, and rule (3)
+        # below asks for both wordings on purpose - translating them would undo it.
+        _reply_in(reply_in, only="'why' fields") +
         "You turn a CV into job-board search terms for the Romanian market. You are not writing "
         "career advice and not describing the person: every term must be something a person would "
         "actually type into eJobs, BestJobs or Hipo and that a real advert would be titled. "
@@ -1216,7 +1224,7 @@ def best_of(rows):
     return sorted(usable, key=lambda r: (r["secs"], r["model"]))[0]["model"]
 
 
-def shortlist(profile, jobs, pick=3):
+def shortlist(profile, jobs, pick=3, reply_in=""):
     """Rank these jobs against each other and name the few worth doing today.
 
     -> {"order": [id, ...], "picks": [{"id": n, "why": "..."}], "note": "..."}
@@ -1248,7 +1256,7 @@ def shortlist(profile, jobs, pick=3):
             bits.append(f'gaps={str(j["gaps"])[:200]!r}')
         lines.append("- " + ", ".join(bits))
     return ask(
-        TRUST +
+        TRUST + _reply_in(reply_in) +
         "You are helping someone decide which job applications to send TODAY. They have already "
         "been scored individually and almost all scored the same, which is why you are being asked "
         "to compare them with each other instead. "
@@ -1522,7 +1530,10 @@ def language_gate(profile, job):
 # the candidate is, so it cannot tell a commute from a relocation. It was scoring on-site roles
 # 400km away at 85. The rest stay out - a phone number does not change whether you fit a job.
 SCORE_KEYS = ("title", "location", "summary", "experience", "education", "skills", "languages",
-              "certifications", "projects", "new_to_work")
+              "certifications", "projects", "new_to_work",
+              # their own answer about when they can work. Not CV content - it never reaches the
+              # page - but it decides whether a Saturday rota is a shortfall or a selling point.
+              "work_weekends", "work_shifts")
 
 
 # Only added when the person has said they are starting out, so the prompt every existing user
@@ -1547,7 +1558,31 @@ NEW_TO_WORK = (
 )
 
 
-def score(profile, job, send=None):
+LANGUAGE = {"ro": "Romanian", "en": "English"}
+
+
+def _reply_in(code, only=""):
+    """The sentence that makes the model write its prose in the language the app is set to.
+
+    Only prose. The JSON keys are read by code and stay English, and so does any entry that is the
+    employer's own name for a thing - translating "HACCP" or "SQL reporting" would stop it matching
+    the advert that asked for it, and those strings are compared across adverts.
+
+    `only` names the fields to translate, for a caller where translating the rest would break it:
+    search_terms puts its 'term' values into a Romanian job board and deliberately returns both
+    the Romanian and the English wording, so only its 'why' can move.
+    """
+    want = LANGUAGE.get(code or "")
+    if not want or want == "English":
+        return ""
+    what = f"the {only} of your answer" if only else "every sentence you output"
+    return (f"Write {what} in {want}, as a native speaker of it would. "
+            f"The JSON field NAMES stay exactly as specified, in English. Keep the employer's own "
+            f"name for a skill, tool, certificate or qualification in its original form - do not "
+            f"translate HACCP, ITIL, SQL or a job title the posting itself uses. ")
+
+
+def score(profile, job, send=None, reply_in=""):
     """Fit 0-100 for one job, plus what the CV is missing that the profile could actually back.
 
     `send` replaces ask() for this call only, so a caller that wants the PROMPT rather than an answer
@@ -1563,7 +1598,7 @@ def score(profile, job, send=None):
     starting_out = bool(profile.get("new_to_work"))
     profile = {k: v for k, v in profile.items() if k in SCORE_KEYS and k != "new_to_work"}
     out = (send or ask)(
-        TRUST + (NEW_TO_WORK if starting_out else "") +
+        TRUST + (NEW_TO_WORK if starting_out else "") + _reply_in(reply_in) +
         "You match candidates to jobs. Be strict and realistic - most jobs are not a great fit. "
         "Where the work happens counts. Compare the posting's location with the candidate's: a "
         "daily commute they could not make is a real shortfall, and belongs in 'gaps' and in the "
@@ -1572,6 +1607,16 @@ def score(profile, job, send=None):
         # Prevention, not repair: models write **bold** into the JSON and sometimes put the
         # asterisks outside the string - `**\"documentation\"**` - which no salvage can unpick,
         # because the inner quotes have already ended the string.
+        # An advert that wants Saturdays is a shortfall for somebody who cannot work them, and
+        # that is a yes/no the candidate has already answered - not something to infer from a CV.
+        # Blank means unanswered, and an unanswered question is not a gap: saying "no weekend
+        # availability stated" about every advert that mentions a rota is noise, not honesty.
+        "The candidate's 'work_weekends' and 'work_shifts' are their own answers: 'yes', 'no', or "
+        "blank for not stated. Use them only when the posting actually asks for weekend work or "
+        "shift/night work. 'no' against a posting that requires it is a real shortfall - put it in "
+        "'gaps' and in the score. 'yes' against a posting that requires it belongs in 'untapped', "
+        "because a generic CV never says it. Blank means they have not answered: say nothing about "
+        "it either way, and never treat it as a 'no'. "
         "Write plain text inside the JSON: no markdown, no asterisks, no quotation marks. "
         "Output ONLY JSON: {\"fit\": 0-100, \"why\": \"two sentences\", "
         # short and concrete, so the same shortfall from twenty ads reads as the same thing

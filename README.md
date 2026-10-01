@@ -235,6 +235,34 @@ Jobs you applied to, tailored, opened or skipped stay regardless of age, and so 
 holding a CV. When a search does drop something you would have wanted — scored at or above your
 own floor, with no closing date to go on — it now says so instead of only counting it.
 
+**When you can work.** Two answers on the profile page — *Can work weekends* and *Can work shifts
+or nights* — with three states each: yes, no, and **not stated**, which is where they start. Three
+states rather than a tick box, because a tick box cannot tell "I cannot work weekends" from "nobody
+asked me", and an employer's form needs those to be different answers.
+
+They are not CV content and never appear on a page. They do three things:
+
+- **The score uses them, but only where the ad raises it.** An ad that wants Saturdays is a real
+  shortfall for someone who cannot work them, and a selling point for someone who can — a generic CV
+  never says either. Measured on one cook's profile against one ad asking for weekend and two-shift
+  work: *not stated* 72, *no* 52 with `weekend` and `schimburi` added to the gaps, *yes* 80 with
+  `ture de weekend` moved into what you bring.
+- **Screening questions can be answered from them.** *Are you available to work weekends?* is the
+  question boards actually ask, and until now nothing in a CV answered it, so it came back blank and
+  waited for you.
+- **Blank stays blank.** An unanswered question is never read as a "no", and nothing is claimed
+  either way on an ad that never asked.
+
+**The reasons are written in your language.** The app translates every sentence of its own, and then
+used to print the one that matters most — why this job suits you — in English, because nothing told
+the model which language to write in. Scores, the shortlist reasons and the CV term suggestions now
+follow the language the app is set to.
+
+What does *not* get translated is deliberate: the JSON the model replies in, so code keeps reading
+it; an employer's own name for a thing, because a translated `HACCP` or `SQL reporting` stops
+matching the ad that asked for it and these are compared across ads; and the search terms
+themselves, which are typed into a Romanian board and are supposed to come back in both wordings.
+
 **Which model scored what.** Every score records the model that produced it, because a score is only
 comparable with scores from the same model. Measured on six adverts across three models: the same
 advert came back **85 from one and 35 from another**, and one model moved *every* advert tested across

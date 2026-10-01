@@ -434,7 +434,7 @@ try:
     app.llm.language_gate = lambda p, j: (True, "")
     app.llm.ad_language = lambda j: "en"
     _calls = {"n": 0}
-    def _fake_score(profile, job):
+    def _fake_score(profile, job, send=None, reply_in=""):   # mirrors llm.score's signature
         _calls["n"] += 1
         if 7 <= _calls["n"] <= 18:                  # a stretch of refusals, then recovery
             app.llm.QUOTA_EVENTS.append("test")     # ask() recovers; the provider still refused
@@ -2707,7 +2707,7 @@ _llmkeep = _llm6u.search_terms
 _pkeep6u = app.profile
 try:
     _seen6u = {}
-    _llm6u.search_terms = lambda prof, already=(), never_worked=(): (
+    _llm6u.search_terms = lambda prof, already=(), never_worked=(), reply_in='': (
         _seen6u.update(prof=prof, already=list(already), dead=list(never_worked)),
         {"terms": [{"term": "Suport clienti multicanal", "why": "handled chat and phone", "lang": "ro"},
                    {"term": "", "why": "blank, must be dropped", "lang": "en"}]})[1]
@@ -2752,7 +2752,7 @@ _keep6v = (app.llm.search_terms, app.profile, app.dead_words)
 try:
     app.dead_words = lambda floor=75, seen=6: ["engagement", "consultant"]
     app.profile = lambda: {"title": "Client Advisor"}
-    app.llm.search_terms = lambda prof, already=(), never_worked=(): {"terms": [
+    app.llm.search_terms = lambda prof, already=(), never_worked=(), reply_in='': {"terms": [
         {"term": "Customer Engagement Specialist", "why": "x", "lang": "en"},
         {"term": "Consultant tehnic", "why": "x", "lang": "ro"},
         {"term": "Agent suport clienti", "why": "x", "lang": "ro"}]}
@@ -3258,7 +3258,7 @@ try:
             _c8b.execute("INSERT INTO jobs(url,source,status,fit,title) VALUES(?,'ejobs','new',?,?)",
                          (f"https://x/{_i}", 85 if _i < 11 else 40, f"Job {_i}"))
     _calls8 = []
-    app.llm.shortlist = lambda prof, jobs, pick=3: (_calls8.append(len(jobs)), {
+    app.llm.shortlist = lambda prof, jobs, pick=3, reply_in='': (_calls8.append(len(jobs)), {
         "order": [j["id"] for j in jobs],
         "picks": [{"id": jobs[0]["id"], "why": "a specific reason"}],
         "note": ""})[1]
@@ -3543,9 +3543,9 @@ assert app.dead_words(101) == [], "with nothing above the floor it bans every co
 _k9b = (app.llm.shortlist, app.profile)
 try:
     app.profile = lambda: {"title": "x"}
-    app.llm.shortlist = lambda prof, jobs, pick=3: ["not", "a", "dict"]
+    app.llm.shortlist = lambda prof, jobs, pick=3, reply_in='': ["not", "a", "dict"]
     assert _cl.post("/api/shortlist", json={"refresh": True}).status_code == 200,         "a salvaged array from the model is a 500"
-    app.llm.shortlist = lambda prof, jobs, pick=3: {
+    app.llm.shortlist = lambda prof, jobs, pick=3, reply_in='': {
         "order": [str(j["id"]) for j in jobs],
         "picks": [{"id": str(jobs[0]["id"]), "why": "w"}, "junk"], "note": ""}
     _j9 = _cl.post("/api/shortlist", json={"refresh": True}).json()
@@ -3750,5 +3750,87 @@ _rj9 = app.recheck_jobs.__doc__
 assert "three answers" in _rj9 and "no advert at all" in _rj9,     "the docstring is back to naming two removal reasons where the code has three"
 # and it still spares anything holding a CV, which is what makes "tailored rows stay" true
 assert "cv IS NULL OR cv = ''" in _iK.getsource(app.recheck_jobs)
+
+
+# 9f. The app translates 631 of its own sentences and then printed the one that matters most - why
+# this job suits you - in English, because nothing told the model which language to write in.
+assert _L9a._reply_in("") == "" and _L9a._reply_in("en") == "",     "an English UI must not pay for an instruction it does not need"
+_ro9 = _L9a._reply_in("ro")
+assert "Romanian" in _ro9, _ro9
+# the keys are read by code, and a requirement's own name has to keep matching the advert that
+# asked for it - a translated "HACCP" stops being comparable across adverts
+assert "field NAMES stay exactly as specified" in _ro9 and "HACCP" in _ro9
+# search_terms is the caller where translating everything would break the feature: its terms get
+# typed into a Romanian board, and it deliberately returns both wordings with a 'lang' on each
+assert "'why' fields" in _L9a._reply_in("ro", only="'why' fields")
+assert "_reply_in(reply_in, only=" in _iK.getsource(_L9a.search_terms),     "search_terms translates its terms as well as its reasons, which undoes rule (3)"
+for _fn9 in (_L9a.score, _L9a.shortlist, _L9a.search_terms):
+    assert "reply_in" in _iK.signature(_fn9).parameters, f"{_fn9.__name__} cannot be told a language"
+# ...and every caller that puts that prose on the page actually passes it
+_app9 = (app.HERE / "app.py").read_text(encoding="utf-8")
+for _call9 in ("llm.shortlist(profile(), jobs, reply_in=ui_lang())",
+               "llm.search_terms(p, already, dead, reply_in=ui_lang())",
+               "llm.score(p, job, reply_in=want_lang)"):
+    assert _call9 in _app9, f"this caller still asks for English only: {_call9}"
+# resolved once per search, not once per advert: settings.json is a file read, and the scoring pool
+# runs six at a time
+assert "want_lang = ui_lang()" in _app9
+assert "reply_in=ui_lang()" not in _iK.getsource(app._search),     "ui_lang() is being read inside the scoring loop again"
+# the instruction reaches the prompt rather than only the signature
+_seen9f = {}
+_L9a.score({"title": "x"}, {"title": "t", "company": "c", "location": "l", "description": "d" * 200},
+           send=lambda sy, us, max_tokens=8000, tries=5: (_seen9f.update(sys=sy), {"fit": 1})[1],
+           reply_in="ro")
+assert "Romanian" in _seen9f["sys"], "reply_in never reaches the scoring prompt"
+
+# 9g. Whether someone can work weekends is their own answer, not something to read off a CV. Found
+# while testing a cook's profile: the model listed "weekend shifts" as a gap purely because nothing
+# in the profile spoke to it, which is the right answer to the wrong question.
+for _k9 in ("work_weekends", "work_shifts"):
+    assert _k9 in _L9a.EMPTY and _L9a.EMPTY[_k9] == "",         f"{_k9} is not a profile field, or does not start blank"
+    assert _k9 in _L9a.SCORE_KEYS, f"the scorer cannot see {_k9}, so it cannot affect a score"
+    # it is not CV content and must never be written onto a page
+    assert _k9 not in _L9a.CV_KEYS if hasattr(_L9a, "CV_KEYS") else True
+
+# Tri-state, because a tick box cannot tell "I cannot work weekends" from "nobody asked me", and an
+# employer's question needs those to be different answers.
+_prof9 = (app.HERE / "templates" / "profile.html").read_text(encoding="utf-8")
+for _k9 in ("work_weekends", "work_shifts"):
+    _sel9 = _prof9.split(f'data-f="{_k9}"')[1][:400]
+    for _opt9 in ('value=""', 'value="yes"', 'value="no"'):
+        assert _opt9 in _sel9, f"{_k9} has no {_opt9} option, so one of the three answers is unsayable"
+    assert "not stated" in _sel9, f"{_k9} does not offer 'not stated' as the default"
+# a <select> needs no new binder code: collect() reads el.value for anything that is not a checkbox
+assert "el.type === 'checkbox' ? el.checked" in _prof9
+
+# blank must never be read as "no" - saying "no weekend availability stated" about every advert
+# that mentions a rota is noise, not honesty
+_sc9 = _iK.getsource(_L9a.score)
+assert "never treat it as a 'no'" in _sc9, "a blank answer can be scored as a refusal again"
+assert "only when the posting actually asks" in _sc9,     "the scorer applies availability to adverts that never raised it"
+# the employer's own screening questions are answered from the profile, so they see it too
+assert "work_weekends" in _iK.getsource(app.prefill.answer_questions),     "a board asking about weekend availability still gets an empty answer"
+
+# ...and the Romanian for the two controls exists, including the option words
+for _s9 in ("Can work weekends", "Can work shifts or nights", "not stated", "yes", "no"):
+    assert _s9 in app.lang.RO, f"no Romanian for {_s9!r}"
+
+# the whole round trip: saved, read back, and visible to the scorer
+_pfile9 = app.PROFILE
+_tmp9f = pathlib.Path(_tf.mkdtemp()) / "profile.json"
+try:
+    app.PROFILE = _tmp9f
+    _tmp9f.write_text(json.dumps({"title": "Bucatar", "work_weekends": "no",
+                                 "work_shifts": "yes"}), encoding="utf-8")
+    _got9 = app.profile()
+    assert _got9["work_weekends"] == "no" and _got9["work_shifts"] == "yes",         f"the answers did not survive a read: {_got9.get('work_weekends')!r}"
+    _kept9 = {k: v for k, v in _got9.items() if k in _L9a.SCORE_KEYS}
+    assert _kept9.get("work_weekends") == "no",         "the field is filtered out before the scorer sees it"
+    # and a profile that has never answered reads blank rather than missing
+    _tmp9f.write_text("{}", encoding="utf-8")
+    assert app.profile()["work_weekends"] == ""
+finally:
+    app.PROFILE = _pfile9
+    _sh6.rmtree(_tmp9f.parent, ignore_errors=True)
 
 print("ok")

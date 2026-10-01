@@ -551,6 +551,11 @@ def answer_questions(profile, job_title, questions):
         "level, years of experience, whether they hold a given skill, their current role, their "
         "notice period if stated. 'Are you fluent in French?' is answerable No when the profile "
         "lists only English and Romanian. "
+        # the whole reason these two fields exist: this is the question boards actually ask, and
+        # before them it was unanswerable from a CV, so it came back empty and waited for a person
+        "'work_weekends' and 'work_shifts' are the candidate's own answers about when they can "
+        "work - 'yes' or 'no' answers a question about weekend, shift, rota or night availability "
+        "directly. Blank means they have not said: return empty for it, never a guess. "
         "(3) If 'options' is non-empty you must return EXACTLY one of those strings, or empty. "
         "(4) Free-text answers are short and concrete: one or two sentences, first person, no "
         "cliches, no em-dashes. "
