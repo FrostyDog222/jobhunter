@@ -2243,13 +2243,18 @@ async def _search(body, p):
         # and re-scoring nine hundred adverts to learn what they would say now is not a migration,
         # it is a bill. They stay on whatever scale they were on, and say nothing about it.
         #
-        # `here` is built from _entry, which is what score() stamps - NOT from cfg("LLM_MODEL").
-        # Those differ whenever the Model box is left blank, which its own placeholder invites:
-        # _entry falls back to LLM_MODEL_<PROVIDER> and then the built-in default, so "nvidia" never
-        # matched "nvidia/meta/llama-3.3-70b-instruct" and every scored row read as off-scale. That
-        # re-scored the entire backlog on every single search, rewriting fit each time, for ever.
-        entry = llm._entry(llm.cfg("LLM_PROVIDER")) if llm.cfg("LLM_PROVIDER") in llm.PROVIDERS \
-            else None
+        # `here` is the HEAD OF THE CHAIN, which is the only string that matches what score()
+        # stamps. Measured on the real database when this was built from _entry() instead: 33 of 33
+        # scored rows read as off-scale, because chain() builds the primary as
+        # _entry(provider, cfg("LLM_MODEL")) - the Model box overrides the per-provider default for
+        # the provider in charge - while _entry(provider) alone falls through to
+        # LLM_MODEL_<PROVIDER> and then the built-in default. Nothing ever matched, so every search
+        # re-scored the backlog and rewrote fit; the cap below is why that cost 25 rows and not 900.
+        #
+        # Not active(), which is chain() filtered by the breaker: while the primary rests that names
+        # the fallback, so "the correct scale" would become whichever provider happened to be up and
+        # every row the primary scored would queue for re-scoring. The scale is the model in charge.
+        entry = (llm.chain() or [None])[0]
         stale_scale = []
         if entry:
             here = f"{entry[0]}/{entry[1]}"

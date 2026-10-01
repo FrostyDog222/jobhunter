@@ -3488,7 +3488,45 @@ assert _seen9.get("hit"), "the send hook was ignored"
 # which its own placeholder invites, and "nvidia" never equals "nvidia/meta/llama-3.3-70b-instruct":
 # reproduced, 5 of 5 rows off-scale, so every search re-scored the whole backlog and rewrote fit.
 _s9 = _iK.getsource(app._search)
-assert "llm._entry(llm.cfg(\"LLM_PROVIDER\"))" in _s9,     "the comparison is built from cfg() again, so a blank model box re-scores everything for ever"
+assert "llm.chain() or [None]" in _s9,     "the reference scale is built from something other than the chain head again"
+
+# The invariant, not the implementation. Two wrong versions of this shipped: first cfg("LLM_MODEL")
+# (blank Model box -> nothing ever matched) and then _entry(provider), which IGNORES the box - and
+# chain() builds the primary as _entry(provider, cfg("LLM_MODEL")), so the box is exactly what
+# decides. Measured on the real database: 33 of 33 scored rows read as off-scale and queued for
+# re-scoring on every run, rewriting fit. Only the cap made that 25 rows a run instead of 900.
+#
+# Driven through score() -> ask() -> _call with only the network stubbed, so the stamp is the real
+# one rather than something this test made up.
+_env9b = pathlib.Path(_tf.mkdtemp())
+_keepenv9, _keepcall9 = _L9a.ENV, _L9a._call
+try:
+    _L9a.ENV = _env9b / ".env"
+    _L9a._call = lambda provider, model, key, system, user, max_tokens, tries: {"fit": 50}
+    for _shape9 in ({"LLM_PROVIDER": "nvidia", "NVIDIA_API_KEY": "nvapi-x",
+                     "LLM_MODEL": "nvidia/some-model-120b"},              # the Model box filled in
+                    {"LLM_PROVIDER": "nvidia", "NVIDIA_API_KEY": "nvapi-x"},   # left blank
+                    {"LLM_PROVIDER": "nvidia", "NVIDIA_API_KEY": "nvapi-x",
+                     "LLM_MODEL_NVIDIA": "nvidia/per-provider-70b"},      # a per-provider choice
+                    {"LLM_PROVIDER": "nvidia", "NVIDIA_API_KEY": "nvapi-x",
+                     "LLM_MODEL": "nvidia/box-wins-120b",
+                     "LLM_MODEL_NVIDIA": "nvidia/per-provider-70b"},      # both: the box wins
+                    {"LLM_PROVIDER": "groq", "GROQ_API_KEY": "gsk_x",
+                     "NVIDIA_API_KEY": "nvapi-x", "LLM_MODEL": "openai/gpt-oss-20b"}):
+        _L9a.ENV.write_text("\n".join(f"{k}={v}" for k, v in _shape9.items()), encoding="utf-8")
+        _L9a._BLOWN.clear()
+        _head9 = (_L9a.chain() or [None])[0]
+        assert _head9, f"no chain at all for {_shape9}"
+        _ref9 = f"{_head9[0]}/{_head9[1]}"          # what _search compares against
+        _by9 = _L9a.score({"title": "x"},
+                          {"title": "t", "company": "c", "location": "l",
+                           "description": "d" * 200}).get("_by")
+        assert _by9 == _ref9,             f"{_shape9}: the rule compares {_ref9!r} against a stamp of {_by9!r}"
+finally:
+    _L9a.ENV, _L9a._call = _keepenv9, _keepcall9
+    _L9a._BLOWN.clear()
+    _L9a._load_down()
+    _sh6.rmtree(_env9b, ignore_errors=True)
 assert "LIMIT {RESCALE_CAP}" in _s9, "the re-score query is unbounded again"
 assert app.RESCALE_CAP <= 50
 
