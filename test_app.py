@@ -4180,8 +4180,8 @@ assert "elif not isinstance(out, list)" in _sg9p
 # syntax has to parse. Tested end to end once before it was written down.
 _dl9q = _rm.split("## Getting it")[1].split("## Start")[0]
 assert "```powershell" in _dl9q, "the one-paste download command is gone from the README"
-assert "[Environment]::GetFolderPath('Desktop')" in _dl9q,     "$env:USERPROFILE\Desktop is wrong where the Desktop is redirected into OneDrive"
-assert f"github.com/{'FrostyDog222/jobhunter'}/archive/refs/heads/main.zip" in _dl9q,     "the download url does not point at this repository's main branch"
+assert "[Environment]::GetFolderPath('Desktop')" in _dl9q,     r"$env:USERPROFILE\Desktop is wrong where the Desktop is redirected into OneDrive"
+assert "github.com/FrostyDog222/jobhunter/archive/refs/heads/main.zip" in _dl9q,     "the download url does not point at this repository's main branch"
 assert "Expand-Archive" in _dl9q and "Remove-Item" in _dl9q,     "the command leaves the zip behind next to the folder"
 # the folder the zip unpacks into is named in the text, because it is not the repo name
 assert "jobhunter-main" in _dl9q
