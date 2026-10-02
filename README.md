@@ -14,12 +14,14 @@ whichever AI model you choose to score them — and if you run Ollama, not even 
 
 ## Getting it
 
-No GitHub account needed. Open
-[github.com/FrostyDog222/jobhunter](https://github.com/FrostyDog222/jobhunter), press **Code →
-Download ZIP**, and unzip it somewhere short like `C:\jobhunter` — **not** inside OneDrive.
+Two ways — pick either. No GitHub account needed for either one.
 
-Or paste this into **PowerShell** and it downloads and unpacks itself onto your Desktop, into a
-folder called `jobhunter-main`:
+**1. Download it yourself.** Open
+[github.com/FrostyDog222/jobhunter](https://github.com/FrostyDog222/jobhunter), press **Code →
+Download ZIP**, and unzip it somewhere short like `C:\jobhunter`.
+
+**2. Or let PowerShell do it.** Paste this in and it downloads and unpacks itself onto your Desktop,
+into a folder called `jobhunter-main`:
 
 ```powershell
 $d = [Environment]::GetFolderPath('Desktop'); $z = "$d\jobhunter.zip"
@@ -27,12 +29,13 @@ Invoke-WebRequest https://github.com/FrostyDog222/jobhunter/archive/refs/heads/m
 Expand-Archive $z -DestinationPath $d -Force; Remove-Item $z
 ```
 
-If you have git, `git clone https://github.com/FrostyDog222/jobhunter.git` does the same thing. The
-folder name does not matter — the app runs from whatever folder it is in.
+Either way, you end up with a folder of files. The name does not matter — the app runs from whatever
+folder it is in. Then carry on to **Start**, below. (If you have git, `git clone
+https://github.com/FrostyDog222/jobhunter.git` gets you the same thing.)
 
-One thing to check if your Desktop lives in OneDrive: move the folder somewhere local like
-`C:\jobhunter` afterwards. OneDrive syncs the database while the app is writing to it, which is how
-a job list gets corrupted.
+**Keep it out of OneDrive.** Windows often puts the Desktop inside OneDrive, and OneDrive syncs the
+database while the app is writing to it, which is how a job list gets corrupted. If yours is
+synced, move the folder somewhere local like `C:\jobhunter` before you start.
 
 ## Start
 
