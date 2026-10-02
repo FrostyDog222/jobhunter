@@ -637,7 +637,10 @@ def aliases(terms):
 
 
 def off_target(title, skip_families, my_terms):
-    """-> True if this ad is in a job family you do not work in, so it need not be read or scored.
+    """-> the family that matched, or "" - so a caller can say WHICH rule dropped an advert.
+
+    Truthy exactly where it used to be True. These adverts are never stored, so without the name
+    the only record is a count, and a rule quietly eating "Customer Success Engineer" is invisible.
 
     `skip_families` is the user's own list and is empty by default, so this returns False for
     everybody who has not filled it in. It holds job FAMILIES - welder, developer, accountant -
@@ -653,12 +656,16 @@ def off_target(title, skip_families, my_terms):
     """
     t = _fold(title)
     if not t:
-        return False                       # no title to judge - let the scorer decide
+        return ""                          # no title to judge - let the scorer decide
     # by family, not by the words you typed. Matching only the literal terms left thirteen of the
     # thirty-four jobs that had scored 75+ protected by nothing but luck.
     if any(m in t for m in (_fold(q) for q in aliases(my_terms)) if m):
-        return False
-    return any(re.search(r"\b" + re.escape(w), t) for w in (_fold(w) for w in skip_families) if w)
+        return ""
+    for raw in skip_families:
+        w = _fold(raw)
+        if w and re.search(r"\b" + re.escape(w), t):
+            return raw                     # the user's own spelling, for showing back to them
+    return ""
 
 
 def in_county(text, county):

@@ -3269,11 +3269,14 @@ try:
         "note": ""})[1]
 
     _r8 = _cl.post("/api/shortlist", json={}).json()
-    assert _calls8 == [10], f"the ranker was given {_calls8}, expected the top 10"
+    # bounded by SHORTLIST_IN, not by a number written here twice: 11 of the 12 rows are above the
+    # floor, so the ranker sees min(11, SHORTLIST_IN). The cap is what matters - this is one prompt.
+    assert _calls8 == [min(11, app.SHORTLIST_IN)],         f"the ranker was given {_calls8}, expected min(11, {app.SHORTLIST_IN})"
+    assert app.SHORTLIST_IN <= 60, "the ranking prompt is unbounded"
     assert _r8["picks"] and _r8["picks"][0]["url"].startswith("https://x/"), _r8
     assert _r8["cached"] is False
     # the 40 must not be in it: the shortlist is what clears your own floor
-    assert len(_r8["order"]) == 10
+    assert len(_r8["order"]) == min(11, app.SHORTLIST_IN)
 
     # cached on the SET of jobs, not a clock: ranking ten and then applying to one makes
     # yesterday's answer wrong however recent it is
@@ -4025,5 +4028,52 @@ assert "const out = guessing ? []" in _dash9l,     "the signed-out banner can fi
 assert "(r.unchecked || []).includes(board)" in _dash9l,     "the post-sign-in toast can accuse a board the check never reached"
 for _s9l in ("checking…", "Could not check {board} just now - its sign-in was left as it was."):
     assert _s9l in app.lang.RO, f"no Romanian for {_s9l!r}"
+
+
+# 9m. The filters remove a third of what the boards return and used to report a number. Measured on
+# one run: 68 adverts dropped purely on language, which grouped is Italian 16, German 15, French 11 -
+# sixteen more jobs would be open with one of them, and that is career advice the app can give for
+# free because it already stored the reason. The skip list is the same: 50 adverts dropped on their
+# title, and a rule quietly eating "Customer Success Engineer" was invisible.
+# off_target names the family now rather than answering yes
+assert scrape.off_target("Mechanical Design Engineer", ["engineer"], ["x"]) == "engineer"
+assert scrape.off_target("Sudor MIG MAG", ["engineer", "sudor"], ["x"]) == "sudor"
+# ...and is still falsy in exactly the places it was False, including the rescue
+assert scrape.off_target("Consilier Servicii Clienti", ["engineer"], ["servicii clienti"]) == ""
+assert scrape.off_target("Technical Support Engineer", ["engineer"], ["customer support"]) == "",     "the rule that never skips the job you searched for has stopped protecting it"
+assert scrape.off_target("", ["engineer"], ["x"]) == ""
+assert not scrape.off_target("Customer Support Officer", ["engineer"], ["x"])
+# the run reports which rule dropped what, bounded so one run cannot write an unbounded dict
+_src9m = _iK.getsource(app._search)
+assert "off_family_by" in _src9m and "[:8]" in _src9m,     "the search no longer says which skip rule dropped what"
+# the page groups the language rejections out of rows it already has - no call, no new state
+_dash9m = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "function filteredNote()" in _dash9m and "filteredNote();" in _dash9m
+assert "LANG_WANTED" in _dash9m, "the reason text is no longer parsed back into languages"
+# the parser has to match what language_gate actually writes, which is one line in one place
+_ok9m, _why9m = app.llm.language_gate(
+    {"languages": [{"name": "English", "level": "advanced"}]},
+    {"title": "x", "description": "Required: fluent German and Italian."})
+assert _ok9m is False and "not in your profile" in _why9m,     f"the gate's wording changed and the panel will stop grouping: {_why9m!r}"
+import re as _re9m
+assert _re9m.search(r"requires ([^-]+?)\s*-\s*not in your profile", _why9m, _re9m.I),     f"the page's pattern no longer matches the gate's wording: {_why9m!r}"
+
+# 9n. The top of the list has no order: 46 jobs at the floor holding two distinct scores, and only 6
+# of them carrying an applicant count to break a tie with. The ranking that answers this existed but
+# saw ten jobs and reported three, so it now sees the band and its position goes on every card.
+assert app.SHORTLIST_IN >= 20, "the ranking is back to seeing a fraction of the band"
+assert app.SHORTLIST_IN <= 60, "the ranking prompt is unbounded"
+# the prompt asks for the whole order, and says how many - the example used to show three ids and
+# the model copied the SHAPE, returning an order of 3 when given 40
+_sl9n = _iK.getsource(app.llm.shortlist)
+assert "all {len(jobs)} ids here" in _sl9n,     "the example in the output spec is a fixed length again, which the model copies"
+assert "not a selection" in _sl9n
+# the page shows the position but does NOT re-sort the list: the panel's promise is that it advises
+assert "let RANK = {}" in _dash9m and "RANK[j.url]" in _dash9m,     "the ranking position is no longer shown on the cards"
+assert "draw();                         // the cards were drawn before the ranking arrived" in _dash9m
+assert "JOBS.sort" not in _dash9m and "rows.sort((a,b)=>RANK" not in _dash9m,     "the ranking is silently re-sorting the list instead of annotating it"
+for _s9n in ("What the filters left out", "asked for a language you have not listed:",
+             "dropped by your skip list, last run:", "today"):
+    assert _s9n in app.lang.RO, f"no Romanian for {_s9n!r}"
 
 print("ok")

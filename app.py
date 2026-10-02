@@ -1947,7 +1947,11 @@ def recheck_due(s=None):
 SHORTLIST = HERE / ".shortlist.json"
 # How many of the waiting jobs go to the ranker. Ten because the question is "which of these today",
 # and a model asked to order forty produces an order nobody reads past the top of anyway.
-SHORTLIST_IN = 10
+# How many of the top band the ranking is asked about. Ten was enough when it only named three;
+# it now also supplies the order shown on each card, and the band is bigger than ten - measured, 46
+# jobs at the floor holding two distinct scores, with 40 of them carrying nothing to break a tie.
+# Capped, because this is one prompt and a job summary is a couple of hundred characters.
+SHORTLIST_IN = 40
 
 
 def shortlist_rows(floor=None):
@@ -2144,9 +2148,19 @@ async def _search(body, p):
     # readily as "Customer Support Officer". Measured: 28% of the wasted calls, and not one of the
     # 34 jobs that scored 75+ would have been dropped.
     fams = settings().get("skip_families") or []
-    kept = [j for j in new_urls
-            if not scrape.off_target(j.get("title", ""), fams, queries)] if fams else new_urls
-    off_family, new_urls = len(new_urls) - len(kept), kept
+    # by family, not just how many: a count cannot tell you that one rule is eating a job you want.
+    dropped_by = {}
+    kept = []
+    for j in (new_urls if fams else []):
+        hit = scrape.off_target(j.get("title", ""), fams, queries)
+        if hit:
+            dropped_by[hit] = dropped_by.get(hit, 0) + 1
+        else:
+            kept.append(j)
+    if fams:
+        off_family, new_urls = len(new_urls) - len(kept), kept
+    else:
+        off_family = 0
 
     # The ads we already have, brought up to date from phase 1 alone - no detail page, no extra
     # request. How many people have applied changes by the hour and was otherwise frozen at
@@ -2412,6 +2426,9 @@ async def _search(body, p):
             # ads never read or scored because they are in a job family you do not work in. Shown,
             # not silent: a filter you cannot see the effect of is a filter you cannot trust.
             "off_family": off_family,
+            # which rule dropped what. Named so a skip list that is quietly costing you a job you
+            # would have wanted is visible, instead of being one number in a log line.
+            "off_family_by": dict(sorted(dropped_by.items(), key=lambda kv: -kv[1])[:8]),
             "failed": failed, "vetoed": newly_vetoed, "queries": len(queries),
             "warnings": warnings}
 

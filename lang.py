@@ -230,6 +230,13 @@ RO = {
     "checking\u2026": "se verific\u0103\u2026",
     "Could not check {board} just now - its sign-in was left as it was.":
         "Nu am putut verifica {board} acum - autentificarea a r\u0103mas cum era.",
+    "What the filters left out": "Ce au lăsat deoparte filtrele",
+    "These never reached your list. Worth a look - a language keeps appearing for a reason, and a skip rule can quietly cost you a job you wanted.":
+        "Acestea nu au ajuns în lista ta. Merită o privire - o limbă apare mereu dintr-un motiv, iar o regulă de excludere te poate costa discret un job pe care îl voiai.",
+    "asked for a language you have not listed:": "cereau o limbă pe care nu ai trecut-o:",
+    "dropped by your skip list, last run:": "excluse de lista ta de excluderi, la ultima rulare:",
+    "Where this sits in the ranking, because the scores tie": "Locul în clasament, pentru că punctajele sunt egale",
+    "today": "azi",
     "Notice period": "Perioada de preaviz",
     "Earliest start": "Cel mai devreme început",
     "currency": "moneda",

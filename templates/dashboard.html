@@ -619,6 +619,9 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 <!-- shown only when the floor is above everything the model in charge has ever given: the tile
      above then reads as "nothing found" when it means "nothing clears your number" -->
 <div class="card muted" id="floornote" style="display:none;font-size:13px;margin:0 0 12px"></div>
+<!-- 68 adverts rejected on language in one run, reported as the number 68. Grouped, they are a
+     reason to take an Italian course. The data is already here; only the saying was missing. -->
+<div class="card muted" id="filterednote" style="display:none;font-size:13px;margin:0 0 12px"></div>
 
 <div class="viewbar">
   <select id="filter">
@@ -700,7 +703,8 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 {% endblock %}
 
 {% block js %}
-let JOBS = [], LLM = {}, S = {}, TPLS = {}, PAGE = 1, lastView = '', PROFILE = null, OFFLINE = false;   // null until the request lands: see drawAlerts
+let JOBS = [], LLM = {}, S = {}, TPLS = {}, PAGE = 1, lastView = '', PROFILE = null, OFFLINE = false;
+let LASTRUN = null;             // the last run's search report - what the skip list dropped, by family   // null until the request lands: see drawAlerts
 let BOARDS_IN = null;    // what the last sign-in check said, or null before it has run
 const PER_PAGE = 20;
 
@@ -949,6 +953,7 @@ async function loadAuto(){
     ? (next ? fill('Scheduled — next run <b>{when}</b>.', {when: esc(next)})
             : t('Scheduled with Windows.'))
     : 'Not scheduled. Tick the box and save to set it up.');
+  LASTRUN = (a.last && a.last.searched) || null;
   const l = a.last;
   if(l){
     const s = l.searched;
@@ -1343,7 +1348,15 @@ function boardState(j){
 //
 // Advisory and visibly so. The list below is unchanged, nothing is filtered, and no score is
 // rewritten - a ranking that edited `fit` would make the next ranking a ranking of its own opinion.
+// Where each job sits in that ranking, by url. The band holds two distinct scores and 40 of its
+// 46 jobs carry nothing to break a tie with, so without this somebody applying by hand faces twenty
+// adverts that look identical with no way to choose. The list is NOT re-sorted: the panel advises
+// and the list underneath stays as it is, which is the promise it makes above.
+let RANK = {};
 function drawToday(r){
+  RANK = {};
+  ((r && r.order) || []).forEach((u, i) => { RANK[u] = i + 1; });
+  draw();                         // the cards were drawn before the ranking arrived
   const box = $('#today');
   const picks = (r && r.picks) || [];
   box.style.display = picks.length ? '' : 'none';
@@ -1417,6 +1430,45 @@ function crowd(j){
 // the floor that ships is 75. Says so rather than lowering anybody's number for them: the floor is
 // the user's statement of what is worth their time, and moving it silently would undo itself every
 // time they set it back.
+// What the filters removed, and why. A count tells you the app is working; the breakdown tells
+// you something you can act on - measured on one database, 68 adverts dropped purely on language,
+// which is Italian 16, German 15, French 11. Sixteen more jobs would be open with one of them, and
+// that is career advice the app can give for free because it already stored the reason.
+//
+// The skip-list half comes from the last run's report, because those adverts are never saved: an
+// advert dropped on its title is never fetched, which is the whole point of dropping it.
+const LANG_WANTED = /requires ([^-]+?)\s*-\s*not in your profile/i;
+function filteredNote(){
+  const el = $('#filterednote');
+  if(!el) return;
+  const langs = {};
+  for(const j of JOBS){
+    if(j.status !== 'vetoed') continue;
+    const m = LANG_WANTED.exec(j.why || '');
+    if(!m) continue;
+    for(const raw of m[1].split(/,| and | or /)){
+      const name = raw.trim();
+      if(name && name.length < 24) langs[name] = (langs[name] || 0) + 1;
+    }
+  }
+  const top = Object.entries(langs).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const fams = Object.entries((LASTRUN && LASTRUN.off_family_by) || {})
+                     .sort((a, b) => b[1] - a[1]).slice(0, 6);
+  if(!top.length && !fams.length){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  const line = (label, pairs, unit) => pairs.length
+    ? `<div style="margin-top:6px"><b style="color:var(--fg)">${esc(label)}</b> ` + pairs.map(
+        ([k, n]) => `<span class="pill" style="margin:0 4px 4px 0">${esc(k)} · ${n}</span>`
+      ).join('') + `</div>` : '';
+  el.innerHTML =
+    `<b style="color:var(--fg)">${esc(t('What the filters left out'))}</b> `
+    + esc(t('These never reached your list. Worth a look - a language keeps appearing for a reason, '
+          + 'and a skip rule can quietly cost you a job you wanted.'))
+    + line(t('asked for a language you have not listed:'), top)
+    + line(t('dropped by your skip list, last run:'), fams);
+  localiseDOM(el);
+}
+
 const FLOOR_SAMPLE = 20;        // below this a first run's handful of scores would be read as proof
 function floorNote(floor){
   const el = $('#floornote');
@@ -1984,6 +2036,7 @@ function draw(){
   const n = s => shown.filter(j=>j.status===s).length;
   const FLOOR = +(S.auto_min_fit ?? 75);
   floorNote(FLOOR);
+  filteredNote();
 
   $('#stats').innerHTML = [
       // applied rows only appear under Applied, so counting them here made the card
@@ -2051,6 +2104,9 @@ function draw(){
       <div>
         <div class="fit ${cls(j.fit)}">${j.fit ?? '–'}<small>${j.fit == null ? 'not scored'
           : j.fit >= 75 ? 'strong' : j.fit >= 50 ? 'maybe' : 'weak'}</small></div>
+        ${RANK[j.url] ? `<div class="muted" style="font-size:11px;text-align:center;margin-top:5px"
+            title="${esc(t('Where this sits in the ranking, because the scores tie'))}"
+            >#${RANK[j.url]} ${esc(t('today'))}</div>` : ''}
         ${canPick ? `<label class="pick" title="Select for batch apply">
             <input type="checkbox" class="sel" data-url="${esc(j.url)}"></label>` : ''}
       </div>

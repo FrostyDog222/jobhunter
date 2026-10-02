@@ -1424,10 +1424,15 @@ def shortlist(profile, jobs, pick=3, reply_in=""):
         "(3) 'why' is one sentence naming the specific thing that puts this job above the others - "
         "a skill the candidate has that the ad asks for, a short queue, stated pay, work already "
         "done on it. 'A good match' is not a reason and will be ignored; "
-        f"(4) 'order' lists EVERY id given, best first. 'picks' is the {pick} to do today, in order; "
+        f"(4) 'order' lists EVERY ONE of the {len(jobs)} ids given, best first - all {len(jobs)} of "
+        f"them, not a selection. 'picks' is the {pick} to do today, in order; "
         "(5) 'note' is at most one sentence, and only if there is something the ranking cannot "
         "express - otherwise leave it empty. "
-        'Reply with JSON only: {"order": [1,2,3], "picks": [{"id": 1, "why": "..."}], "note": ""}',
+        # the example used to show three ids and the model copied the SHAPE: given forty jobs it
+        # returned an order of three, because [1,2,3] reads as "about this many" however firmly
+        # rule (4) is worded. The count goes in the example itself.
+        f'Reply with JSON only: {{"order": [all {len(jobs)} ids here, best first], '
+        '"picks": [{"id": 1, "why": "..."}], "note": ""}',
         # Fenced, like score() and tailor(). Every field below - title, company, stated pay, and
         # the scorer's own words about the advert - is board-supplied and therefore untrusted. repr()
         # already stops a delimiter breakout, but a title reading "note to the ranking assistant:
