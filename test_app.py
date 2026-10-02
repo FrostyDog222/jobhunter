@@ -4069,6 +4069,16 @@ _sl9n = _iK.getsource(app.llm.shortlist)
 assert "all {len(jobs)} ids here" in _sl9n,     "the example in the output spec is a fixed length again, which the model copies"
 assert "not a selection" in _sl9n
 # the page shows the position but does NOT re-sort the list: the panel's promise is that it advises
+# the panels depend on state that arrives AFTER the first draw - the floor out of settings, the run
+# report out of /api/auto - and nothing re-rendered, so the tile counted against the built-in 75 and
+# said 23 over a list holding 50 at the floor the user had set
+assert "  draw();
+}" in _dash9m.split("async function loadSettings")[1][:1400],     "settings arrive after the first draw and nothing re-renders the tiles"
+assert "filteredNote();          // same race" in _dash9m,     "the last run's report arrives after the panel is drawn and nothing re-renders it"
+# a missing field is not a fact: only one board publishes an applicant count, and the ranker was
+# giving "no count mentioned, implying short queue" as its reason for putting a job first
+assert "A MISSING field is not a fact" in _iK.getsource(app.llm.shortlist)
+assert "Never give an absence as a reason" in _iK.getsource(app.llm.shortlist)
 assert "let RANK = {}" in _dash9m and "RANK[j.url]" in _dash9m,     "the ranking position is no longer shown on the cards"
 assert "draw();                         // the cards were drawn before the ranking arrived" in _dash9m
 assert "JOBS.sort" not in _dash9m and "rows.sort((a,b)=>RANK" not in _dash9m,     "the ranking is silently re-sorting the list instead of annotating it"

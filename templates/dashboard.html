@@ -835,6 +835,10 @@ async function loadSettings(){
   $('#home_county').value = S.home_county || '';
   restoreSearch();
   drawTemplates();
+  // The tiles read your score floor out of S, and S arrives here - after the first draw(). Without
+  // this the "Best for you" count is computed against the built-in 75 and then never corrected:
+  // measured, it said 23 over a list holding 50 at the floor the user had actually set.
+  draw();
 }
 async function saveSettings(patch){
   S = await api('/api/settings', patch);
@@ -954,6 +958,7 @@ async function loadAuto(){
             : t('Scheduled with Windows.'))
     : 'Not scheduled. Tick the box and save to set it up.');
   LASTRUN = (a.last && a.last.searched) || null;
+  filteredNote();          // same race: the panel drew before the last run's report arrived
   const l = a.last;
   if(l){
     const s = l.searched;
