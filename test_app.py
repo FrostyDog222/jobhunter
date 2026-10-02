@@ -4174,4 +4174,18 @@ _sg9p = _iK.getsource(app.suggestions)
 assert 'isinstance(out, dict) and "path" in out' in _sg9p,     "a single suggestion object still breaks the panel"
 assert "elif not isinstance(out, list)" in _sg9p
 
+
+# 9q. The download command in the README is the first thing a stranger runs, and it is pasted
+# verbatim - so the repo name, the branch and the Desktop lookup all have to be right, and the
+# syntax has to parse. Tested end to end once before it was written down.
+_dl9q = _rm.split("## Getting it")[1].split("## Start")[0]
+assert "```powershell" in _dl9q, "the one-paste download command is gone from the README"
+assert "[Environment]::GetFolderPath('Desktop')" in _dl9q,     "$env:USERPROFILE\Desktop is wrong where the Desktop is redirected into OneDrive"
+assert f"github.com/{'FrostyDog222/jobhunter'}/archive/refs/heads/main.zip" in _dl9q,     "the download url does not point at this repository's main branch"
+assert "Expand-Archive" in _dl9q and "Remove-Item" in _dl9q,     "the command leaves the zip behind next to the folder"
+# the folder the zip unpacks into is named in the text, because it is not the repo name
+assert "jobhunter-main" in _dl9q
+# and the OneDrive warning survives, since the Desktop is exactly where OneDrive redirection bites
+assert "OneDrive" in _dl9q
+
 print("ok")
