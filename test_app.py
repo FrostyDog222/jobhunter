@@ -3962,4 +3962,25 @@ for _b9 in ("I cannot help with that", "", "<html>503</html>", "fit is 30 maybe"
 # the loosener declines anything that is not an object or array outright, rather than guessing
 assert app.llm._loosen("fit is 30 maybe") == "" and app.llm._loosen("") == ""
 
+
+# 9k. A score floor is a line on ONE model's scale, and a model need not reach it. Measured on 91
+# real jobs: mistral produced twelve distinct scores and never once passed 75, while the floor that
+# ships is 75 - so somebody installing this and picking mistral gets a "Best for you" holding only
+# the adverts that hit the exact ceiling. It does not look broken, it looks like the app found
+# nothing, and there is no way to tell the number is the problem rather than the market.
+_dash9k = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert 'id="floornote"' in _dash9k and "function floorNote(" in _dash9k,     "the empty-list-because-of-your-floor hint is gone"
+assert "floorNote(FLOOR)" in _dash9k, "nothing calls it"
+# judged against the head of the chain, not the live entry: while the primary rests active() names
+# whoever is covering for it, and the floor belongs to the model in charge
+assert "(LLM.chain || [])[0]" in _dash9k,     "the hint judges the floor against a fallback provider"
+# and not off a handful of scores - a first run would otherwise have its four results read as proof
+assert "FLOOR_SAMPLE = 20" in _dash9k and "mine.length >= FLOOR_SAMPLE" in _dash9k,     "the hint will fire on a brand-new database with almost nothing scored"
+# It tells, it does not act. The floor is the user's statement of what is worth their time, so the
+# hint only ever reads it - a silent adjustment would undo itself every time they set it back.
+_body9k = _dash9k.split("function floorNote(")[1].split("const fmtWhen")[0]
+assert "auto_min_fit" not in _body9k and "api(" not in _body9k,     "the hint writes a setting instead of reporting one"
+for _s9k in ("Nothing has scored above {top} on this model.",):
+    assert _s9k in app.lang.RO, f"no Romanian for {_s9k!r}"
+
 print("ok")

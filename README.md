@@ -247,6 +247,9 @@ straight to where they hand them out, and several are free. Press *Save & test* 
 If you set up more than one, the app uses them in order and moves to the next whenever one is busy
 or out of quota, so a free tier running dry does not stop your search.
 
+If your floor sits above anything the current model has ever given, the dashboard says so instead of
+just showing you an empty list — that is a setting to lower, not a market with no jobs in it.
+
 **Scores only compare within one model.** The same ad can score 85 from one model and 35 from
 another, so your score floor means something slightly different if you change model. The app records
 which model scored each job and quietly re-scores anything that came from a different one, so your

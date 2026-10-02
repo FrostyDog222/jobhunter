@@ -616,6 +616,9 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 </div>
 
 <div class="stats" id="stats"></div>
+<!-- shown only when the floor is above everything the model in charge has ever given: the tile
+     above then reads as "nothing found" when it means "nothing clears your number" -->
+<div class="card muted" id="floornote" style="display:none;font-size:13px;margin:0 0 12px"></div>
 
 <div class="viewbar">
   <select id="filter">
@@ -1408,6 +1411,33 @@ function crowd(j){
   return `<span class="pill" style="border-color:var(--${colour});color:var(--${colour})"
     title="${esc(why)}">${fill('{n} applied', {n})}</span>`;
 }
+// A score only means something next to scores from the same model, so a floor is a line on one
+// model's scale. Where that model has never reached the line, the list looks empty for a reason
+// nobody can see - measured, one model produced twelve distinct scores and never passed 75 while
+// the floor that ships is 75. Says so rather than lowering anybody's number for them: the floor is
+// the user's statement of what is worth their time, and moving it silently would undo itself every
+// time they set it back.
+const FLOOR_SAMPLE = 20;        // below this a first run's handful of scores would be read as proof
+function floorNote(floor){
+  const el = $('#floornote');
+  if(!el) return;
+  // the head of the chain, not the live entry: while the primary rests, active() names whoever is
+  // covering for it, and the floor belongs to the model in charge
+  const head = (LLM.chain || [])[0];
+  const ref = head ? head.provider + '/' + head.model : '';
+  const mine = ref ? JOBS.filter(j => j.scored_by === ref && j.fit != null) : [];
+  const top = mine.length ? Math.max(...mine.map(j => +j.fit)) : null;
+  const show = mine.length >= FLOOR_SAMPLE && top !== null && floor > top;
+  el.style.display = show ? '' : 'none';
+  if(show)
+    el.innerHTML = `<b style="color:var(--fg)">${esc(fill(
+      'Nothing has scored above {top} on this model.', {top}))}</b> ` + esc(fill(
+      'Your score floor is {floor}, so Best for you is empty for that reason rather than because '
+      + 'there is nothing out there. Lower it under Settings. Scores only compare within one '
+      + 'model, so a floor that suited another one can sit above everything this one gives.',
+      {floor}));
+}
+
 const fmtWhen = s => { const d = new Date(String(s).replace(' ', 'T'));
   return isNaN(d) ? s : d.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'})
     + ', ' + hhmm(d); };
@@ -1937,6 +1967,7 @@ function draw(){
       || fold(`${j.title} ${j.company} ${j.location} ${j.lang || ''}`).includes(needle));
   const n = s => shown.filter(j=>j.status===s).length;
   const FLOOR = +(S.auto_min_fit ?? 75);
+  floorNote(FLOOR);
 
   $('#stats').innerHTML = [
       // applied rows only appear under Applied, so counting them here made the card

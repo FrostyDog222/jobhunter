@@ -223,6 +223,10 @@ RO = {
     "no": "nu",
     "Only used where a posting actually asks. Leave it blank and nothing is claimed either way.":
         "Folosit doar acolo unde anunțul cere explicit. Lasă necompletat și nu se afirmă nimic.",
+    "Nothing has scored above {top} on this model.":
+        "Nimic nu a primit un punctaj peste {top} pe acest model.",
+    "Your score floor is {floor}, so Best for you is empty for that reason rather than because there is nothing out there. Lower it under Settings. Scores only compare within one model, so a floor that suited another one can sit above everything this one gives.":
+        "Pragul tău este {floor}, deci Cele mai potrivite e gol din acest motiv, nu pentru că nu ar exista joburi. Coboară-l în Setări. Punctajele se compară doar în cadrul aceluiași model, așa că un prag potrivit pentru alt model poate sta peste tot ce dă acesta.",
     "Notice period": "Perioada de preaviz",
     "Earliest start": "Cel mai devreme început",
     "currency": "moneda",
