@@ -1712,14 +1712,20 @@ async function loadSignins(){
     recheckedOnce = true;
     api('/api/signin/check', {}).then(() => loadSignins()).catch(()=>{});
   }
+  // Until a live check has run, st.boards is a cookie-name guess rather than an answer, and that
+  // guess has been wrong for both boards before. Show it as unsettled instead of asserting a
+  // sign-out: the stale branch below is already asking the boards for real, and it takes seconds.
+  const guessing = st.verified === false;
   $('#boardstate').innerHTML = Object.entries(SBOARDS).map(([k,name]) => {
     const on = st.boards && st.boards[k];
-    return `<span style="margin-right:12px"><span class="dot ${on?'on':'off'}"></span>${name}</span>`;
+    return `<span style="margin-right:12px"><span class="dot ${
+      guessing ? '' : (on ? 'on' : 'off')}"></span>${name}</span>`;
   }).join('');
   $('#signinrow').innerHTML = Object.entries(SBOARDS).map(([k,name]) => {
     const on = st.boards && st.boards[k];
-    return `<div class="boardcard ${on ? 'on' : 'off'}">
-      <span class="who"><b>${esc(name)}</b><span>${on ? '✓ signed in' : '✕ signed out'}</span></span>
+    return `<div class="boardcard ${guessing ? '' : (on ? 'on' : 'off')}">
+      <span class="who"><b>${esc(name)}</b><span>${
+        guessing ? esc(t('checking…')) : (on ? '✓ signed in' : '✕ signed out')}</span></span>
       <button class="${on ? 'quiet' : ''}" data-signin="${k}"
         title="${on ? 'Opens ' + esc(name) + ' so you can sign in again' : 'Sign in so the app can apply for you'}"
         >${on ? 'Re-sign in' : 'Sign in'}</button></div>`;
@@ -1729,7 +1735,10 @@ async function loadSignins(){
   // scheduled run just sends nothing that day.
   BOARDS_IN = st.boards || null;
   drawAlerts();
-  const out = Object.entries(SBOARDS).filter(([k]) => st.boards && !st.boards[k]).map(([,n]) => n);
+  // never while guessing: a red "you are signed out" is the one thing that must not be said on
+  // an unverified answer, because it sends somebody to re-enter a password they did not need to
+  const out = guessing ? []
+    : Object.entries(SBOARDS).filter(([k]) => st.boards && !st.boards[k]).map(([,n]) => n);
   $('#signedout').style.display = out.length ? 'block' : 'none';
   if(out.length)
     $('#signedoutwho').textContent = fill('You are signed out of {who}',
@@ -1754,6 +1763,13 @@ document.addEventListener('click', async e => {
         const r = await api('/api/signin/check', {});
         await loadSignins();
         const on = r.boards && r.boards[board];
+        // a board the check could not reach kept its old answer rather than being probed, so it is
+        // not evidence of anything - saying "still not signed in" there is a guess with a red face
+        if((r.unchecked || []).includes(board)){
+          toast(fill('Could not check {board} just now - its sign-in was left as it was.',
+                     {board: SBOARDS[board]}), 9000);
+          return;
+        }
         toast(on ? fill('Signed in to {board}.', {board: SBOARDS[board]})
                  : fill('Still not signed in to {board}. Sign in inside the window this app'
                         + ' opened — a session in your normal Chrome is not shared with it.',

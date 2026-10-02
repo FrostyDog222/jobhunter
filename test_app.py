@@ -3983,4 +3983,47 @@ assert "auto_min_fit" not in _body9k and "api(" not in _body9k,     "the hint wr
 for _s9k in ("Nothing has scored above {top} on this model.",):
     assert _s9k in app.lang.RO, f"no Romanian for {_s9k!r}"
 
+
+# 9l. "You are signed out of BestJobs and Hipo", in red, over sessions with six hours and six months
+# left on them. Reproduced exactly: with no live check recorded, board_status() falls back to a
+# cookie-NAME guess, and that guess returns ejobs True, hipo False, bestjobs False - which is the
+# screenshot. The comments in prefill already call that guess a dead end; it got both boards wrong
+# before, which is why verify_boards exists. It was being served to the page as a fact.
+_SIGN9 = app.prefill.BOARD_STATE
+_tmp9l = pathlib.Path(_tf.mkdtemp()) / "boards.json"
+_sh6.copy(_SIGN9, _tmp9l)
+try:
+    # a verified answer says so
+    assert _cl.get("/api/signin").json()["verified"] is True
+    # and an unverified one says THAT, so the page can show "checking" instead of asserting
+    _SIGN9.unlink()
+    _d9l = _cl.get("/api/signin").json()
+    assert _d9l["verified"] is False, "a cookie-name guess is being served as a verified answer"
+    assert _d9l["stale"] is True, "an unverified answer must also trigger the live re-check"
+
+    # a board the probe could not reach keeps its last answer rather than reading as signed out.
+    # verify_boards omits it on purpose so the file merge preserves it; the endpoint used to serve
+    # the partial dict instead, and a missing key is falsy in the page.
+    _keep9l = app.prefill.verify_boards
+    _SIGN9.write_text(json.dumps({"ejobs": True, "hipo": True, "bestjobs": True}), encoding="utf-8")
+    app.prefill.verify_boards = lambda boards=tuple(app.prefill.BOARD_UI): {"ejobs": True}
+    try:
+        _r9l = _cl.post("/api/signin/check").json()
+    finally:
+        app.prefill.verify_boards = _keep9l
+    assert _r9l["boards"]["hipo"] is True and _r9l["boards"]["bestjobs"] is True,         f"a board that was never probed came back as signed out: {_r9l['boards']}"
+    assert _r9l["unchecked"] == ["bestjobs", "hipo"],         f"the boards that were not reached are not named: {_r9l.get('unchecked')}"
+finally:
+    _sh6.copy(_tmp9l, _SIGN9)
+    _sh6.rmtree(_tmp9l.parent, ignore_errors=True)
+
+# the page must never print the red banner on an unverified answer - that is the one message that
+# sends somebody to re-enter a password they did not need to
+_dash9l = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "const guessing = st.verified === false;" in _dash9l,     "the page no longer distinguishes a guess from a verified answer"
+assert "const out = guessing ? []" in _dash9l,     "the signed-out banner can fire on a guess again"
+assert "(r.unchecked || []).includes(board)" in _dash9l,     "the post-sign-in toast can accuse a board the check never reached"
+for _s9l in ("checking…", "Could not check {board} just now - its sign-in was left as it was."):
+    assert _s9l in app.lang.RO, f"no Romanian for {_s9l!r}"
+
 print("ok")

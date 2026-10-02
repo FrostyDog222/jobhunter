@@ -2932,14 +2932,29 @@ def signin_status():
     ago = prefill.board_checked_ago()
     return {"saved": prefill.STATE.exists(), "boards": prefill.board_status(),
             "checked_ago": ago,
+            # Has a live check ever actually run? Without one, board_status() is a cookie-NAME
+            # guess, and that guess has been wrong for both boards before - which is the whole
+            # reason verify_boards exists. The page needs to tell a guess from an answer, or it
+            # prints "You are signed out" in red over a session with six months left on it.
+            "verified": ago is not None,
             "stale": ago is None or ago > prefill.BOARD_CHECK_STALE}
 
 
 @app.post("/api/signin/check")
 async def signin_check():
     """Actually load each board and look. Slower, so it runs when you come back from signing
-    in rather than on every dashboard load."""
-    return {"ok": True, "boards": await off(prefill.verify_boards)}
+    in rather than on every dashboard load.
+
+    Returns the MERGED state, not the raw probe. verify_boards deliberately leaves out a board it
+    could not reach so that the file keeps that board's last verified answer; handing the partial
+    dict to the page threw that away again, because a missing key is falsy there. It is read
+    straight after a sign-in to choose the message, so a probe that timed out announced "Still not
+    signed in to Hipo" to somebody who had just signed in to Hipo.
+    """
+    probed = await off(prefill.verify_boards)
+    return {"ok": True, "boards": prefill.board_status(),
+            # named rather than hidden: these kept their previous answer instead of being checked
+            "unchecked": sorted(b for b in prefill.BOARD_UI if b not in probed)}
 
 
 @app.post("/api/signin")

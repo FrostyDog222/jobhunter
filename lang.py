@@ -227,6 +227,9 @@ RO = {
         "Nimic nu a primit un punctaj peste {top} pe acest model.",
     "Your score floor is {floor}, so Best for you is empty for that reason rather than because there is nothing out there. Lower it under Settings. Scores only compare within one model, so a floor that suited another one can sit above everything this one gives.":
         "Pragul tău este {floor}, deci Cele mai potrivite e gol din acest motiv, nu pentru că nu ar exista joburi. Coboară-l în Setări. Punctajele se compară doar în cadrul aceluiași model, așa că un prag potrivit pentru alt model poate sta peste tot ce dă acesta.",
+    "checking\u2026": "se verific\u0103\u2026",
+    "Could not check {board} just now - its sign-in was left as it was.":
+        "Nu am putut verifica {board} acum - autentificarea a r\u0103mas cum era.",
     "Notice period": "Perioada de preaviz",
     "Earliest start": "Cel mai devreme început",
     "currency": "moneda",
