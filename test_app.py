@@ -4072,8 +4072,8 @@ assert "not a selection" in _sl9n
 # the panels depend on state that arrives AFTER the first draw - the floor out of settings, the run
 # report out of /api/auto - and nothing re-rendered, so the tile counted against the built-in 75 and
 # said 23 over a list holding 50 at the floor the user had set
-assert "  draw();
-}" in _dash9m.split("async function loadSettings")[1][:1400],     "settings arrive after the first draw and nothing re-renders the tiles"
+_setup9m = _dash9m.split("async function loadSettings")[1][:1400]
+assert "drawTemplates();" in _setup9m and "draw();" in _setup9m,     "settings arrive after the first draw and nothing re-renders the tiles"
 assert "filteredNote();          // same race" in _dash9m,     "the last run's report arrives after the panel is drawn and nothing re-renders it"
 # a missing field is not a fact: only one board publishes an applicant count, and the ranker was
 # giving "no count mentioned, implying short queue" as its reason for putting a job first
