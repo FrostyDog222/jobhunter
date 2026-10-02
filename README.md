@@ -74,7 +74,9 @@ The dashboard shows a checklist until all three are done.
 2. **Fill in your profile.** On the *Profile* tab, upload your current CV (PDF, DOCX or TXT) and
    the app reads it into the fields. Check them: it copies, it does not invent, so anything it
    could not find stays blank. *Suggest improvements* proposes rewrites one at a time; take the
-   ones you like.
+   ones you like. It may only sharpen what you wrote — a suggestion that adds a number your profile
+   does not contain, or a skill you never listed, is dropped before you see it. Where a number is
+   genuinely missing it leaves `[X]` for you to fill in rather than inventing one.
 
    Declare every language you work in. A job that demands a language you have not listed is
    skipped before it is scored.

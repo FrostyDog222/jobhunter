@@ -1485,7 +1485,11 @@ def suggest(profile, market=None, avoid=()):
         "suggestion with the literal placeholder [X] - exactly that, every time, never X%, [Y], Z "
         "or M - so the person can see at a glance what they still have to fill in; "
         "(3) plain text only: no markdown, no asterisks, no bold. This goes straight into a CV; "
-        "(4) 6-12 suggestions, highest impact first. "
+        "(4) a 'skills' suggestion may only REMOVE, MERGE or REORDER what is listed. Never add a "
+        "tool, platform, metric or specialism that is not already there, and never elaborate an "
+        "entry into a claim - 'CRM Systems' may not become 'CRM administration with ticket routing "
+        "and automation'. A skills line is read as a flat statement of competence; "
+        "(5) 6-12 suggestions, highest impact first. "
         "Output ONLY a JSON array of objects: "
         '{"path": "dotted path into the profile e.g. summary or experience.0.bullets.2", '
         '"label": "short human label of what this is", '

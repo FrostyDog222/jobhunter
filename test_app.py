@@ -4139,4 +4139,39 @@ assert app._no_invented_numbers("not a list", _me9o) == "not a list"
 assert app._no_invented_numbers([None, "x", {"value": "30%"}], _me9o) == [{"value": "30%"}]
 assert "_no_invented_numbers(out, me)" in _iK.getsource(app.suggestions),     "the reviewer's output reaches the page unchecked again"
 
+
+# 9p. A skills line is a flat claim of competence with no sentence around it to soften it, and the
+# reviewer was rewriting them into claims the profile cannot support. Measured over three runs: 20 of
+# 20 proposed skills introduced something absent from the profile - API errors, cloud services,
+# CSAT/NPS analysis, automation, data analytics - for somebody whose skills read "Technical Support",
+# "CRM Systems", "Salesforce", "Troubleshooting".
+#
+# Checkable exactly, unlike prose, because the only honest edit to a skills list is to merge, drop or
+# reorder what is there. So a proposed skill may use the profile's words and no others.
+_p9p = {"skills": ["Customer Support", "CRM Systems", "Salesforce", "Troubleshooting"],
+        "summary": "phone and email work"}
+_keep9p = lambda v, path="skills": bool(
+    app._no_invented_skills([{"path": path, "value": v}], _p9p))
+assert _keep9p(["Customer Support", "CRM Systems (Salesforce)", "Troubleshooting"]),     "merging a redundant list is the honest edit and must survive"
+assert _keep9p(["Salesforce", "Customer Support"]), "reordering must survive"
+assert _keep9p(["Customer Support (phone, email)"]),     "words from elsewhere in the profile are the candidate's own"
+for _bad9p in (["CRM system administration (Salesforce) with ticket routing and automation"],
+               ["Technical troubleshooting for enterprise software (API errors, cloud services)"],
+               ["Customer Satisfaction metrics analysis (CSAT/NPS)"],
+               ["Data-driven support analytics"]):
+    assert not _keep9p(_bad9p), f"an invented competence reached the panel: {_bad9p}"
+# prose is deliberately NOT filtered this way - rephrasing legitimately introduces ordinary words,
+# and the same rule over a summary would reject every honest rewrite
+assert _keep9p("Anything at all, including entirely new words", path="summary")
+assert _keep9p(["new words here"], path="experience.0.bullets")
+# the words come from a real tokeniser: _fold keeps punctuation, so splitting a JSON blob on
+# whitespace gives '"customer' and '(salesforce)' and every honest suggestion looks invented
+assert "re.findall(r\"[a-z0-9]+\"" in _iK.getsource(app._no_invented_skills)
+
+# and "ONLY a JSON array" came back as a single object on one run in four. The page does list.map(),
+# so the panel died with a TypeError and showed nothing at all.
+_sg9p = _iK.getsource(app.suggestions)
+assert 'isinstance(out, dict) and "path" in out' in _sg9p,     "a single suggestion object still breaks the panel"
+assert "elif not isinstance(out, list)" in _sg9p
+
 print("ok")

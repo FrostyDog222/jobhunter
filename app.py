@@ -1562,12 +1562,62 @@ async def suggestions():
               # the search itself filters out is advice against their own stated choice
               and not any(f in g["gap"].lower() for f in skip)]
     out = await off(lambda: llm.suggest(profile(), market, avoid=skip))
-    return _no_invented_numbers(out, me)
+    # a model asked for "ONLY a JSON array" returned a single object on one run in four, and the
+    # page does list.map() on this - so the panel died with a TypeError and showed nothing
+    if isinstance(out, dict) and "path" in out:
+        out = [out]
+    elif isinstance(out, dict):
+        out = next((v for v in out.values() if isinstance(v, list)), [])
+    elif not isinstance(out, list):
+        out = []
+    return _no_invented_skills(_no_invented_numbers(out, me), profile())
 
 
 # Every digit-run the profile contains. A suggestion may reuse these - rephrasing that keeps "30%"
 # is the whole point - but it may not introduce one.
 _DIGITS = re.compile(r"\d+")
+
+
+# Words that carry no claim on their own, so a skill written as "Customer Support (phone)" is not
+# refused over the bracket. Everything else in a skills line is a competence being asserted.
+_SKILL_FILLER = {"and", "or", "with", "for", "the", "of", "in", "on", "to", "a", "an", "using",
+                 "including", "e", "g", "etc", "systems", "system", "skills", "level", "advanced"}
+
+
+def _no_invented_skills(out, prof):
+    """A proposed skill may use the profile's own words and no others.
+
+    Measured across three runs: 20 of 20 proposed skills introduced something the profile does not
+    contain - API errors, cloud services, CSAT/NPS analysis, automation, data analytics - for a
+    profile whose skills are "Technical Support", "CRM Systems", "Salesforce", "Troubleshooting".
+    A skills line is read as a flat claim of competence, with no sentence around it to soften it,
+    so an addition here is the baldest kind of invention this app can produce.
+
+    Checkable exactly, because the only honest edit to a skills list is to merge, drop or reorder
+    what is already there. The redundant-list suggestion that prompted all this still passes.
+
+    Prose is deliberately not treated this way: rephrasing a bullet legitimately introduces ordinary
+    words, and the same filter over a summary would reject every honest rewrite.
+    """
+    # words, not whitespace-split tokens: _fold lowercases and drops diacritics but keeps
+    # punctuation, so splitting a JSON blob gives '"customer' and '(salesforce)' and every honest
+    # suggestion looked like an invention
+    words = lambda t: set(re.findall(r"[a-z0-9]+", scrape._fold(t)))
+    known = words(json.dumps(prof, ensure_ascii=False))
+    kept = []
+    for s in out:
+        path = str(s.get("path") or "")
+        if not path.startswith("skills"):
+            kept.append(s)
+            continue
+        vals = s["value"] if isinstance(s.get("value"), list) else [s.get("value")]
+        new = sorted({w for v in vals for w in words(str(v))
+                      if w not in known and w not in _SKILL_FILLER and not w.isdigit()})
+        if new:
+            print(f"[suggest] dropped a skills rewrite: words not in the profile {new[:8]}")
+            continue
+        kept.append(s)
+    return kept
 
 
 def _no_invented_numbers(out, me):
