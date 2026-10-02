@@ -117,9 +117,18 @@ Lists show 20 jobs to a page. The filter box narrows what is already found, and 
 | **salary** | marked `(est.)` and dimmed when it is the board's guess rather than the employer's figure. **Do not quote an estimate back to an employer** |
 
 The **Few applicants** tile shows just the quiet ones. *What should I do today?* picks three jobs
-worth sending now and says why — advice only, nothing is hidden or rewritten.
+worth sending now and says why, and puts a **#1, #2, #3** on every card above your floor so you can
+see the order while you work down the list. It exists because the score cannot separate the top:
+scoring rates each ad on its own, so the best are routinely all the same number. Advice only — the
+list is not re-sorted, nothing is hidden and no score is rewritten.
 
 ### Narrowing it down
+
+**What the filters left out.** A panel under the tiles names what never reached your list: the
+languages that keep being asked for, and which of your own skip rules dropped the most. A count tells
+you the app is working — this tells you something you can act on. On one run, 68 ads were dropped
+purely on language: Italian 16, German 15, French 11. Sixteen more jobs would have been open with
+one of them.
 
 **Skip job families you do not work in.** Under *Settings*, list families like `engineer`, `sudor`,
 `contabil` or `sofer`. Ads whose title names one are never opened or scored. It starts empty.
