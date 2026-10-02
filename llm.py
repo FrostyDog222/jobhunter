@@ -1447,7 +1447,7 @@ def shortlist(profile, jobs, pick=3, reply_in=""):
         max_tokens=2000)
 
 
-def suggest(profile, market=None):
+def suggest(profile, market=None, avoid=()):
     """Review the profile and propose concrete improvements the user can accept one by one.
 
     `market` is [(thing employers asked for, how many ads)] taken from the jobs already scored.
@@ -1457,29 +1457,41 @@ def suggest(profile, market=None):
     """
     demand = ""
     if market:
+        # Every item here is already supported by the profile - the caller filters it - so the only
+        # thing to do with one is lift it. The unfiltered list was a roll-call of what the candidate
+        # LACKS, and a model handed that writes it in however firmly it is told not to.
         demand = ("\n\nEmployers in THIS candidate's own search results kept asking for the "
-                  "following, with the number of ads that asked:\n"
+                  "following, and the profile already supports each one somewhere:\n"
                   + "\n".join(f"- {t} ({n} ads)" for t, n in market[:15])
-                  + "\nUse this ONLY to decide what is worth surfacing. Where the profile "
-                    "already contains something that answers one of these and buries it, say so "
-                    "and lift it. Where the profile does not contain it, say NOTHING about it - "
-                    "do not add it, do not hint at it, do not write a bullet 'ready to learn' it. "
-                    "A suggestion that puts an unsupported skill into this CV is a lie the "
-                    "candidate will have to defend in an interview.")
+                  + "\nUse this ONLY to decide what is worth surfacing: where the profile answers "
+                    "one of these and buries it, say so and lift it using the candidate's OWN "
+                    "wording. Never present any of it as more experience than the profile states.")
+    steer = ""
+    if avoid:
+        # the families they have told the app to skip. Recommending a CV be pointed at work the
+        # search itself filters out is advice against their own stated choice.
+        steer = ("\n\nThis candidate has excluded these kinds of work from their search: "
+                 + ", ".join(sorted(set(avoid))[:20])
+                 + ". Do not suggest reframing the CV towards any of them.")
     return ask(
         "You are a blunt, experienced technical recruiter reviewing someone's CV data. "
         "Find the weakest points and propose concrete rewrites. Rules: "
-        "(1) NEVER invent experience, employers, dates, metrics or skills - you may only rephrase, "
-        "sharpen, restructure or shorten what is already there; "
+        "(1) NEVER invent experience, employers, dates, metrics, industries or skills - you may "
+        "only rephrase, sharpen, restructure or shorten what is already there. This binds the "
+        "summary most of all: 'too generic' is fixed by naming what the person HAS done more "
+        "precisely, never by naming a sector, tool or domain the profile does not mention. If you "
+        "cannot sharpen it from the profile's own content, say that in 'issue' and leave it; "
         "(2) if a bullet is vague because a number is missing, say so in 'issue' and write the "
-        "suggestion with a [X] placeholder for the user to fill; "
-        "(3) 6-12 suggestions, highest impact first. "
+        "suggestion with the literal placeholder [X] - exactly that, every time, never X%, [Y], Z "
+        "or M - so the person can see at a glance what they still have to fill in; "
+        "(3) plain text only: no markdown, no asterisks, no bold. This goes straight into a CV; "
+        "(4) 6-12 suggestions, highest impact first. "
         "Output ONLY a JSON array of objects: "
         '{"path": "dotted path into the profile e.g. summary or experience.0.bullets.2", '
         '"label": "short human label of what this is", '
         '"issue": "one sentence on what is wrong", '
         '"value": "the replacement value - a string, or an array of strings if the path points at a list"}',
-        "Profile:\n" + json.dumps(profile, ensure_ascii=False, indent=1) + demand,
+        "Profile:\n" + json.dumps(profile, ensure_ascii=False, indent=1) + demand + steer,
     )
 
 

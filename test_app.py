@@ -480,15 +480,40 @@ for _name in ("cv.doc", "cv.txt"):
     except _HE:
         pass
 
-# 2a. suggest() is handed what employers in the candidate's own results kept asking for. Showing
-# a model a list of wanted skills is exactly how a CV grows things the candidate cannot defend in
-# an interview, so the no-invention rule names that list specifically, and an empty market must
-# leave the prompt completely unchanged rather than mentioning an empty list.
+# 2a. suggest() is handed what employers in the candidate's own results kept asking for, and that
+# list comes from recurring_gaps - which is BY CONSTRUCTION what the scorer said this candidate is
+# missing. Measured: 14 of 15 entries appeared nowhere in the profile, and the model duly wrote a
+# summary claiming banking, ERP and financial advisory experience for somebody with none of it. An
+# instruction not to mention them was never going to hold, so the caller now only passes the entries
+# the profile already supports - the "buried" case the rule was written for. A model cannot write in
+# a skill it was never shown.
 import inspect as _i5
 _ssrc3 = _i5.getsource(app.llm.suggest)
-assert "say NOTHING about it" in _ssrc3, "the rule against adding missing skills must be explicit"
+_scall3 = _i5.getsource(app.suggestions)
+assert 'g["gap"].lower() in me' in _scall3,     "the market list is unfiltered again, so it is a roll-call of what the candidate lacks"
+assert "already supports each one somewhere" in _ssrc3,     "the prompt no longer states that every item passed is supported"
 assert "market[:15]" in _ssrc3, "the list has to be capped"
 assert 'demand = ""' in _ssrc3, "no market means no extra prompt at all"
+# ...and the rule that binds it names the summary, which is where it broke
+# anchored on fragments that survive the string concatenation the prompt is written as
+assert "This binds the " in _ssrc3 and "summary most of all" in _ssrc3
+assert "never by naming a sector, tool or domain the profile does not mention" in _ssrc3
+
+# it is also told which families the user excluded, having recommended a rewrite towards sales,
+# banking and account management - all of which were in this user's skip list
+assert "avoid=skip" in _scall3 and "excluded these kinds of work" in _ssrc3,     "the reviewer can steer the CV at work the search itself filters out"
+assert "not any(f in g[\"gap\"].lower() for f in skip)" in _scall3
+
+# plain text, both as an instruction and as a rule: this text goes into a CV an employer reads
+assert "no markdown, no asterisks, no bold" in _ssrc3
+assert "_tidy(s.get(\"value\"))" in _i5.getsource(app.apply_suggestion),     "markdown reaches profile.json and then the PDF"
+assert app._tidy("**Customer Engagement** Specialist") == "Customer Engagement Specialist"
+
+# the [X] placeholder is deliberate - a blank beats an invented number - but it has to be the same
+# marker every time, and the person has to be told before they accept a half-finished line
+assert "never X%, [Y], Z" in _ssrc3, "the placeholder is not pinned to one form"
+_prof3 = (app.HERE / "templates" / "profile.html").read_text(encoding="utf-8")
+assert "Fill in the [X] before you use this" in _prof3,     "a suggestion with a blank in it is accepted with nothing on screen saying so"
 # and the endpoint only passes things more than one ad asked for
 assert 'g["jobs"] > 1' in _i5.getsource(app.suggestions)
 
@@ -4085,5 +4110,33 @@ assert "JOBS.sort" not in _dash9m and "rows.sort((a,b)=>RANK" not in _dash9m,   
 for _s9n in ("What the filters left out", "asked for a language you have not listed:",
              "dropped by your skip list, last run:", "today"):
     assert _s9n in app.lang.RO, f"no Romanian for {_s9n!r}"
+
+
+# 9o. A suggested number the profile does not contain is a number somebody made up. Measured across
+# two runs of the same reviewer on the same profile: one wrote "[X]% of customer enquiries", which is
+# the design, and the next wrote "Resolved 150+ monthly enquiries, escalating 10% of cases with a 98%
+# satisfaction score". The profile's only digits are dates, a phone number and a salary. The prompt
+# has forbidden invented metrics the whole time - the behaviour simply varies run to run, which is
+# why this is a fact about the program rather than advice to a model.
+_me9o = '{"summary": "Worked 2021-2024, cut handling time by 30%"}'
+_sug9o = [
+    {"path": "summary", "label": "keeps the profile's own numbers", "issue": "x",
+     "value": "Cut handling time by 30% between 2021 and 2024"},
+    {"path": "summary", "label": "leaves a blank instead", "issue": "x",
+     "value": "Resolved [X] enquiries a month with a [X]% resolution rate"},
+    {"path": "summary", "label": "invents a metric", "issue": "x",
+     "value": "Resolved 150+ monthly enquiries with a 98% satisfaction score"},
+    {"path": "experience.0.bullets", "label": "invents inside a list", "issue": "x",
+     "value": ["Trained 20 new hires", "Cut time by 30%"]},
+]
+_kept9o = app._no_invented_numbers(_sug9o, _me9o)
+assert [k["label"] for k in _kept9o] == ["keeps the profile's own numbers", "leaves a blank instead"],     f"the guard let an invented number through, or dropped an honest one: {[k['label'] for k in _kept9o]}"
+# [X] has no digits, so a blank the person fills in always survives - which is what the model is
+# meant to write when it has no number
+assert any("[X]" in k["value"] for k in _kept9o)
+# and it never raises on a shape the model got wrong
+assert app._no_invented_numbers("not a list", _me9o) == "not a list"
+assert app._no_invented_numbers([None, "x", {"value": "30%"}], _me9o) == [{"value": "30%"}]
+assert "_no_invented_numbers(out, me)" in _iK.getsource(app.suggestions),     "the reviewer's output reaches the page unchecked again"
 
 print("ok")

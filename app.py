@@ -1545,15 +1545,71 @@ def terms_from_cv(body: dict = Body(default={})):
 async def suggestions():
     # What employers actually asked for, from the jobs already scored. Counted locally, so this
     # costs nothing extra and the advice stops being generic CV polish.
+    #
+    # Filtered to what the profile can ALREADY back, which is the only use the prompt sanctions:
+    # lifting something the CV mentions and buries. recurring_gaps returns what the scorer said was
+    # MISSING, so left unfiltered it is a list of things this candidate does not have - measured, 14
+    # of 15 - handed to a model with "do not mention these", which is about the least reliable
+    # instruction there is. It produced a summary claiming banking, ERP and financial advisory
+    # experience for somebody whose profile contains none of those words. A model cannot write in a
+    # skill it was never shown.
+    me = json.dumps(profile(), ensure_ascii=False).lower()
+    skip = [f.lower() for f in (settings().get("skip_families") or []) if f.strip()]
     top = recurring_gaps(min_fit=50, limit=15)["gaps"]
-    market = [(g["gap"], g["jobs"]) for g in top if g["jobs"] > 1]
-    return await off(lambda: llm.suggest(profile(), market))
+    market = [(g["gap"], g["jobs"]) for g in top
+              if g["jobs"] > 1 and g["gap"].lower() in me
+              # and never towards work they have told the app to skip: steering a CV at a family
+              # the search itself filters out is advice against their own stated choice
+              and not any(f in g["gap"].lower() for f in skip)]
+    out = await off(lambda: llm.suggest(profile(), market, avoid=skip))
+    return _no_invented_numbers(out, me)
+
+
+# Every digit-run the profile contains. A suggestion may reuse these - rephrasing that keeps "30%"
+# is the whole point - but it may not introduce one.
+_DIGITS = re.compile(r"\d+")
+
+
+def _no_invented_numbers(out, me):
+    """Drop suggestions that put a number in the CV which the profile does not contain.
+
+    Measured on one profile across two runs of the same reviewer: the first wrote "[X]% of customer
+    enquiries", which is the design, and the second wrote "Resolved 150+ monthly enquiries,
+    escalating 10% of cases with a 98% satisfaction score". None of those numbers exist anywhere in
+    the profile - its only digits are dates, a phone number and a salary. That is a fabricated
+    achievement going to an employer, and the prompt has forbidden it the whole time.
+
+    The behaviour varies run to run, which is exactly why this is here: an instruction is advice to
+    a model, and "the CV contains nothing the person cannot defend" has to be a fact about the
+    program. 7 of 10 survived on a live run, so it trims the dishonest ones rather than the feature.
+
+    [X] passes, having no digits - a blank the person fills in beats a number nobody can account for.
+    """
+    if not isinstance(out, list):
+        return out
+    mine = set(_DIGITS.findall(me))
+    kept = []
+    for s in out:
+        if not isinstance(s, dict):
+            continue
+        made_up = [n for n in _DIGITS.findall(json.dumps(s.get("value"), ensure_ascii=False))
+                   if n not in mine]
+        if made_up:
+            print(f"[suggest] dropped {str(s.get('label'))[:40]!r}: invented {made_up}")
+            continue
+        kept.append(s)
+    return kept
 
 
 @app.post("/api/suggest/apply")
 def apply_suggestion(s: dict = Body(...)):
     if not isinstance(s, dict) or not isinstance(s.get("path"), str):
         raise HTTPException(400, "path must be a dotted string into the profile")
+    # Models write **bold** into text they were asked to keep plain, and this text goes into the
+    # profile and from there into a PDF an employer reads. _tidy is what the scorer's words already
+    # go through; the prompt below also bans it, and both is deliberate - one is an instruction and
+    # the other is a rule.
+    s = {**s, "value": _tidy(s.get("value"))}
     """Write one accepted suggestion into the profile at its dotted path.
 
     The path and the value are both model output, so both are checked before anything is

@@ -703,6 +703,10 @@ $('#sug').onclick = e => busy(e.target, async () => {
       <b>${esc(s.label)}</b> <span class="pill">${esc(s.path)}</span>
       <div class="muted">${esc(s.issue)}</div>
       <div class="val">${esc(Array.isArray(s.value) ? s.value.map(v=>'• '+v).join('\n') : s.value)}</div>
+      ${/\[X\]/.test(JSON.stringify(s.value || '')) ? `<div class="muted"
+        style="font-size:12.5px;margin:4px 0 0">${esc(t('Fill in the [X] before you use this - the '
+        + 'model leaves a blank rather than inventing a number, and an [X] left in your profile '
+        + 'goes into the CV an employer reads.'))}</div>` : ''}
       <button data-acc="${i}">Use this</button>
       <button class="ghost" data-skip="${i}">Skip</button>
     </div>`).join('') || '<p class="muted">No suggestions — looks solid.</p>';

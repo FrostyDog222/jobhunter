@@ -237,6 +237,8 @@ RO = {
     "dropped by your skip list, last run:": "excluse de lista ta de excluderi, la ultima rulare:",
     "Where this sits in the ranking, because the scores tie": "Locul în clasament, pentru că punctajele sunt egale",
     "today": "azi",
+    "Fill in the [X] before you use this - the model leaves a blank rather than inventing a number, and an [X] left in your profile goes into the CV an employer reads.":
+        "Completează [X] înainte de a folosi asta - modelul lasă un gol în loc să inventeze o cifră, iar un [X] rămas în profil ajunge în CV-ul pe care îl citește un angajator.",
     "Notice period": "Perioada de preaviz",
     "Earliest start": "Cel mai devreme început",
     "currency": "moneda",
