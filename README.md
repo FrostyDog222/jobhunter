@@ -243,6 +243,8 @@ searched and scored when you open the app. It works with the app closed, and a r
 the PC was off happens the next time it is on.
 
 Pick any days of the week and a time. By default it searches and scores, and leaves applying to you.
+Its search box has the same role-family picker as the one at the top, plus *Use my job titles* and
+*Suggest terms from my CV*, so you are not retyping what you already set up above.
 
 Worth thinking about rather than ticking every day: each run spends AI quota whether or not you look
 at the result, and a job is posted once rather than daily — so seven days a week costs seven times

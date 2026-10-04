@@ -241,6 +241,9 @@ RO = {
         "Completează [X] înainte de a folosi asta - modelul lasă un gol în loc să inventeze o cifră, iar un [X] rămas în profil ajunge în CV-ul pe care îl citește un angajator.",
     "Just pulled in": "Tocmai aduse",
     "All of these": "Toate acestea",
+    "Loaded into the scheduled run. Press Save the schedule to keep it.":
+        "Încărcat în rularea programată. Apasă Salvează programarea ca să rămână.",
+    "Preset": "Presetare",
     "Recent runs": "Rulări recente",
     "failed": "a eșuat",
     "{found} seen, {fresh} new, {scored} scored": "{found} văzute, {fresh} noi, {scored} punctate",

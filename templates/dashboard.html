@@ -422,8 +422,9 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <div class="row">
       <div style="flex:3"><label for="auto_query">Job titles to search for</label>
         <input id="auto_query" list="qterms"
-          placeholder="customer support, suport clienti, technical support"
           title="Job titles, separated by commas. Each one is searched on its own."></div>
+      <div class="small"><label for="auto_preset">Preset</label>
+        <select id="auto_preset" title="Load a role family into the box"></select></div>
       <div class="small"><label for="auto_location">City</label><select id="auto_location"></select></div>
       <div class="small"><label for="auto_county">County</label><select id="auto_county"></select></div>
       <div class="small"><label for="auto_country">Country</label><select id="auto_country"></select></div>
@@ -1606,6 +1607,7 @@ function drawPresets(){
     + '<optgroup label="Examples">'
     + Object.keys(PRESETS).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')
     + '</optgroup>';
+  mirrorPreset();
 }
 drawPresets();
 
@@ -1619,10 +1621,37 @@ function searchHint(){
                             ...((PROFILE || {}).experience || []).map(e => e.role)]
                   .map(x => (x || '').trim()).filter(Boolean))].slice(0, 3);
   if(mine.length) q.placeholder = mine.join(', ');
+  // the scheduled box said "customer support, suport clienti, technical support" to everybody as
+  // well, and it is the one somebody fills in once and leaves running
+  const a = $('#auto_query');
+  if(a && !a.value.trim() && mine.length) a.placeholder = mine.join(', ');
 }
 
 // The scheduled run searches the same boards with the same rules, so it gets the same controls -
 // cloned from the ones above rather than a second copy of 42 counties to keep in step.
+// The scheduled box gets the same role families as the search bar at the top. Only the profile
+// half was reachable here, through "Use my job titles" - the examples meant scrolling up, picking
+// one, copying it out and coming back. Same list, filling the other box.
+function mirrorPreset(){
+  const src = $('#preset'), dst = $('#auto_preset');
+  if(!src || !dst) return;
+  dst.innerHTML = src.innerHTML;
+  dst.value = '';
+}
+
+$('#auto_preset').onchange = e => {
+  const v = e.target.value;
+  const terms = v.startsWith('@') ? v.slice(1) : PRESETS[v];
+  if(!terms) return;
+  const box = $('#auto_query');
+  box.value = terms;
+  // 'change' does not fire when a script sets .value, and this box is remembered on change - so
+  // without this the terms sit on screen and are gone on the next reload
+  box.dispatchEvent(new Event('change'));
+  e.target.value = '';
+  toast(t('Loaded into the scheduled run. Press Save the schedule to keep it.'), 6000);
+};
+
 function mirrorControls(){
   for(const [from, to] of [['loc','auto_location'], ['county','auto_county'],
                            ['country','auto_country']]){

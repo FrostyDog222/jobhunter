@@ -4275,4 +4275,20 @@ import share as _sh9s, update as _up9s
 assert "auto_runs.json" in _sh9s.PRIVATE and "auto_runs.json" in _up9s.KEEP
 assert "auto_runs.json" in (app.HERE / ".gitignore").read_text(encoding="utf-8")
 
+
+# 9t. The scheduled run's box had the profile half of the role families, through "Use my job titles",
+# and not the examples - so setting up the unattended search meant scrolling up to the search bar,
+# picking a family, copying it out and coming back. Same control, same contents, other box.
+assert 'id="auto_preset"' in _d9r, "the scheduled run has no role-family picker"
+assert "function mirrorPreset()" in _d9r
+# built from the list above rather than a second copy, which is what mirrorControls already does
+# for city/county/country a few lines away
+assert "dst.innerHTML = src.innerHTML" in _d9r.split("function mirrorPreset()")[1][:300],     "the scheduled picker keeps its own list, which will drift from the one above"
+assert "mirrorPreset();" in _d9r.split("function drawPresets()")[1][:900],     "the picker is never filled after the profile lands"
+# setting .value from a script does not fire change, and this box is remembered on change - so
+# without the dispatch the terms sit on screen and vanish on the next reload
+assert "box.dispatchEvent(new Event('change'))" in _d9r,     "a preset loaded into the scheduled box is not remembered"
+# and the scheduled box hinted at one person's trade too
+assert "a.placeholder = mine.join" in _d9r,     "the scheduled box still suggests customer support to everybody"
+
 print("ok")
