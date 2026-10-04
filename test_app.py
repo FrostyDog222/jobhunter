@@ -4466,4 +4466,49 @@ assert _only("onsite") == ["office job"], _only("onsite")
 assert sorted(_only("")) == ["home job", "office job"], "no work mode must change nothing"
 assert sorted(_only("hybrid")) == ["home job", "office job"], "hybrid must not be post-filtered"
 
+
+# 9z. Found by reading all 443 real adverts rather than by imagining cases: three phrasings the
+# pattern missed, and two holes in how it handled what it was given.
+#
+# "completely remote" fell through because the stem was `complet`, which matched and then wanted
+# "remote" where "ely remote" stood - the commonest phrasing of all.
+for _d9z in ("completely remote", "complete remote setup", "program complet remote"):
+    assert scrape.remote_job({"location": "Cluj", "description": _d9z}), _d9z
+# and three real phrasings out of the database
+for _d9z in ("This role can be based remotely anywhere in the EU.",
+             "Permanent WAH/Remote",
+             "Remote full-time working arrangement."):
+    assert scrape.remote_job({"location": "Cluj", "description": _d9z}), _d9z
+# none of which may flip a true negative - these are all real advert text too
+for _d9z in ("The possibility to work remotely.",
+             "Non ci sono posizioni di remote working aperte; si richiede presenza fisica",
+             "networking, software applications, and remote support tools",
+             "activitatea nu poate fi desfasurata remote",
+             "support to B2B customers via phone, email, remote sessions",
+             "This is a full-time, on-site position based in Sibiu. Remote work is not available",
+             "Hybrid working model with 40% remote work."):
+    assert not scrape.remote_job({"location": "Cluj", "description": _d9z}),         f"the word was read as an arrangement: {_d9z[:50]!r}"
+
+# a column holding something other than text must not stop a search. .lower() on an int was an
+# AttributeError out of _slug rather than a job that simply does not match.
+for _j9z in ({"location": 123}, {"description": ["a"]}, {"title": None, "location": None}, {}):
+    assert scrape.remote_job(_j9z) is False
+    assert scrape.job_in_area(_j9z, "bucuresti", "ilfov") is False
+assert scrape.remote_job("not a dict") is False
+
+# a place name sitting inside a longer one is not a match - both of these used to report the wrong
+# county, which shows a job as near when it is hours away
+assert scrape.in_county("Campulung Moldovenesc", "arges") is False
+assert scrape.in_county("Turnu Magurele", "ilfov") is False
+assert scrape.in_county("Magurele", "ilfov") is True
+# and a city filter must not match a fragment of another word
+assert scrape.reachable("Clujana", "cluj-napoca", "") is False
+assert scrape.reachable("Sector 3, Bucuresti", "bucuresti", "") is True
+
+# city and county are OR, not AND: Bucuresti sits inside Ilfov county and people commute across
+# them, so asking for both means either. AND would return nothing, since nothing is in both.
+assert scrape.job_in_area({"location": "Bucuresti"}, "Bucuresti", "ilfov")
+assert scrape.job_in_area({"location": "Otopeni"}, "Bucuresti", "ilfov")
+assert not scrape.job_in_area({"location": "Cluj-Napoca"}, "Bucuresti", "ilfov")
+
 print("ok")

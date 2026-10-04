@@ -678,11 +678,20 @@ REMOTE = re.compile(r"(^|-)(remote|telemunca|munca-de-acasa|work-from-home|anywh
 # turns up as "the possibility to work remotely" (a perk), "experience with remote support tools"
 # (the job, on a support profile) and "activitatea nu poate fi desfasurata remote" (the opposite).
 REMOTE_TEXT = re.compile(
-    r"(100\s*%|fully|complet|entirely|totally)\s*[- ]?\s*(remote|remotely|telemunca)"
+    # complet\w*, not the bare stem: it matched "complet" in "completely remote" and then wanted
+    # "remote" where "ely remote" stood, so the commonest phrasing of all fell through
+    r"(100\s*%|fully|complet\w*|entirely|totally)\s*[- ]?\s*(remote|remotely|telemunca)"
     r"|remote[- ]first"
     r"|work(ing)?\s+from\s+home"
     r"|munc[\u0103a]\s+de\s+acas[\u0103a]"
     r"|telemunc[\u0103a]"
+    # "Remote full-time working arrangement" - the arrangement named as such
+    r"|remote[^.]{0,20}\s+work(ing)?\s+arrangement"
+    # "can be based remotely anywhere in the EU"
+    r"|based\s+remotely"
+    # WAH is work-at-home, and the boards write "Permanent WAH/Remote". Specific enough to be safe:
+    # it is not a word in either language.
+    r"|\bWAH\b"
     r"|remote\s+(position|role|job)", re.I)
 # A denial just before one of those turns it inside out, and adverts do say "this role is not fully
 # remote" and "nu poate fi desfasurata remote".
@@ -703,9 +712,14 @@ def remote_job(job):
     """
     if not isinstance(job, dict):
         return False
-    if REMOTE.search(_slug(job.get("location") or "")):
+    # str(), not the value as it arrives: a column can hold a number, and .lower() on an int is an
+    # AttributeError in the middle of a search rather than a job that simply does not match.
+    def txt(k):
+        return str(job.get(k) or "")
+
+    if REMOTE.search(_slug(txt("location"))):
         return True
-    text = f"{job.get('title') or ''}\n{job.get('description') or ''}"
+    text = f"{txt('title')}\n{txt('description')}"
     for m in REMOTE_TEXT.finditer(text):
         if not NOT_REMOTE.search(text[max(0, m.start() - 60):m.start()]):
             return True
@@ -720,7 +734,7 @@ def job_in_area(job, city="", county=""):
     """
     if not (city or "").strip() and not (county or "").strip():
         return True
-    return remote_job(job) or reachable(job.get("location") or "", city, county)
+    return remote_job(job) or reachable(str(job.get("location") or ""), city, county)
 
 
 def reachable(text, city="", county=""):
