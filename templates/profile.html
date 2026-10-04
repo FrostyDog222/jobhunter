@@ -696,13 +696,25 @@ $('#pasteBtn').onclick = e => busy(e.target, async () => {
   P = await api('/api/profile/paste', {text: $('#paste').value}); render(); toast('Parsed — review the fields.');
 }, 'parsing...');
 
+// Half the profile is lists of OBJECTS - a language is {name, level}, education carries a degree,
+// a school and dates - and a bulleted list of those rendered as "[object Object]", which was the
+// whole of what somebody saw before deciding whether to accept it.
+function showValue(v){
+  if(Array.isArray(v)) return v.map(x => '• ' + showValue(x)).join('\n');
+  if(v && typeof v === 'object')
+    // its own fields, in the order the profile keeps them, skipping the empty ones
+    return Object.values(v).filter(x => x !== null && x !== undefined && String(x).trim() !== '')
+                 .map(String).join(' — ');
+  return v === null || v === undefined ? '' : String(v);
+}
+
 $('#sug').onclick = e => busy(e.target, async () => {
   await api('/api/profile', collect());
   const list = await api('/api/suggest', {});
   $('#sugs').innerHTML = list.map((s,i) => `<div class="sug" id="s${i}">
       <b>${esc(s.label)}</b> <span class="pill">${esc(s.path)}</span>
       <div class="muted">${esc(s.issue)}</div>
-      <div class="val">${esc(Array.isArray(s.value) ? s.value.map(v=>'• '+v).join('\n') : s.value)}</div>
+      <div class="val">${esc(showValue(s.value))}</div>
       ${/\[X\]/.test(JSON.stringify(s.value || '')) ? `<div class="muted"
         style="font-size:12.5px;margin:4px 0 0">${esc(t('Fill in the [X] before you use this - the '
         + 'model leaves a blank rather than inventing a number, and an [X] left in your profile '

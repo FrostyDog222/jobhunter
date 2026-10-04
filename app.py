@@ -1587,7 +1587,7 @@ async def suggestions():
         out = next((v for v in out.values() if isinstance(v, list)), [])
     elif not isinstance(out, list):
         out = []
-    return _no_invented_skills(_no_invented_numbers(out, me), profile())
+    return _applicable(_no_invented_skills(_no_invented_numbers(out, me), profile()), profile())
 
 
 # Every digit-run the profile contains. A suggestion may reuse these - rephrasing that keeps "30%"
@@ -1599,6 +1599,43 @@ _DIGITS = re.compile(r"\d+")
 # refused over the bracket. Everything else in a skills line is a competence being asserted.
 _SKILL_FILLER = {"and", "or", "with", "for", "the", "of", "in", "on", "to", "a", "an", "using",
                  "including", "e", "g", "etc", "systems", "system", "skills", "level", "advanced"}
+
+
+def _applicable(out, prof):
+    """Drop suggestions that apply_suggestion would refuse anyway.
+
+    It compares the type at the path before writing, so a string proposed for `education` - which is
+    a list of objects - is rejected. Correct, and the person finds out by pressing Use this and
+    getting a 400 on a suggestion that was never applicable. Checked here instead, with the same
+    walk, so what reaches the panel is what can actually be accepted.
+    """
+    kept = []
+    for s in out:
+        node, parts = prof, str(s.get("path") or "").split(".")
+        if not parts or not all(parts):
+            continue
+        for k in parts[:-1]:
+            if isinstance(node, list) and k.isdecimal() and int(k) < len(node):
+                node = node[int(k)]
+            elif isinstance(node, dict) and k in node:
+                node = node[k]
+            else:
+                node = None
+                break
+        last = parts[-1]
+        if isinstance(node, list):
+            old = node[int(last)] if last.isdecimal() and int(last) < len(node) else None
+        elif isinstance(node, dict):
+            old = node.get(last)
+        else:
+            print(f"[suggest] dropped {str(s.get('label'))[:40]!r}: path is not in the profile")
+            continue
+        if old is not None and type(old) is not type(s.get("value")):
+            print(f"[suggest] dropped {str(s.get('label'))[:40]!r}: would change {s.get('path')} "
+                  f"from {type(old).__name__} to {type(s.get('value')).__name__}")
+            continue
+        kept.append(s)
+    return kept
 
 
 def _no_invented_skills(out, prof):

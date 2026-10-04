@@ -4411,4 +4411,29 @@ assert scrape.job_in_area(_J9w("anywhere at all"), "", "")
 # did once, which is how applications went to other cities
 assert "job_in_area" in _iK.getsource(app._search) and "job_in_area" in _iK.getsource(_aa.candidates)
 
+
+# 9x. Half the profile is lists of OBJECTS - a language is {name, level}, education carries a degree,
+# a school and dates - and the panel rendered a proposed list by putting a bullet in front of each
+# item, which for an object is the words "[object Object]". That was the whole of what somebody saw
+# before deciding whether to accept it.
+_pf9x = (app.HERE / "templates" / "profile.html").read_text(encoding="utf-8")
+assert "function showValue(" in _pf9x and "showValue(s.value)" in _pf9x,     "a proposed object still renders as [object Object]"
+assert "typeof x === 'object'" in _pf9x or "typeof v === 'object'" in _pf9x
+
+# and a suggestion that could never be applied was shown as though it could. apply_suggestion
+# compares the type at the path before writing - correct, and the person finds out by pressing
+# Use this and getting a 400. Checked before it is shown instead.
+_prof9x = {"education": [{"degree": "x"}], "skills": ["a"], "languages": [{"name": "English"}],
+           "experience": [{"bullets": ["one"]}], "summary": "s"}
+_keep9x = lambda path, value: bool(app._applicable([{"path": path, "value": value}], _prof9x))
+assert not _keep9x("education", "a plain string"),     "a string for a list-of-objects path reaches the panel and 400s when accepted"
+assert _keep9x("languages", [{"name": "English"}]), "a legitimate object list was dropped"
+assert _keep9x("skills", ["a", "b"]) and _keep9x("summary", "new text")
+assert _keep9x("experience.0.bullets.0", "a rewritten bullet")
+assert not _keep9x("nonsense.4", "x"), "a path outside the profile reaches the panel"
+assert not _keep9x("experience.9.bullets.0", "x"), "an index past the end reaches the panel"
+# a value for a key the profile does not have yet is allowed - old is None, nothing to contradict
+assert _keep9x("hobbies", ["reading"])
+assert "_applicable(" in _iK.getsource(app.suggestions)
+
 print("ok")
