@@ -169,6 +169,14 @@ nothing is claimed either way.
 Ads are cleared out as they close. Where the employer published a closing date, that date decides.
 Where they did not, the ad is dropped **thirty days** after it was posted.
 
+**Where a job is.** Pick a city, a county, or neither — and remote work counts as reachable from
+anywhere, so a remote job still shows up under any county. Whatever you choose is enforced twice: ads
+from somewhere else are dropped as they are found, **and the scheduled run will not apply to them**.
+That second half used to be missing: it applied to anything above your score floor wherever it was,
+because the search only filters what it *discovers* and your list is full of ads found before you set
+a filter. A job whose location cannot be read is not applied to while a filter is set, and the run
+says how many it held back.
+
 **Anything at or above your score floor is never dropped for being old**, and neither is anything
 you applied to, tailored, opened or skipped. A search tells you if it dropped something you would
 have wanted.
@@ -244,7 +252,9 @@ the PC was off happens the next time it is on.
 
 Pick any days of the week and a time. By default it searches and scores, and leaves applying to you.
 Its search box has the same role-family picker as the one at the top, plus *Use my job titles* and
-*Suggest terms from my CV*, so you are not retyping what you already set up above.
+*Suggest terms from my CV*, so you are not retyping what you already set up above — and the same
+city, county and freehire filters, so the unattended run searches for what you actually asked for
+rather than a subset of it.
 
 Worth thinking about rather than ticking every day: each run spends AI quota whether or not you look
 at the result, and a job is posted once rather than daily — so seven days a week costs seven times
