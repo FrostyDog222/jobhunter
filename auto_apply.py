@@ -25,7 +25,7 @@ EXTERNAL_NOTE = "apply on the employer site"
 import datetime
 
 
-def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", held=None):
+def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode="", held=None):
     """-> the jobs this run may apply to, best score first. Pure selection, no side effects.
 
     `boards` limits it to the ones signed in right now. Without that a signed-out board's jobs
@@ -57,8 +57,18 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", held
             return None
 
     def here(r):
-        if scrape.job_in_area({"location": col(r, "location"), "title": col(r, "title"),
-                               "description": col(r, "description")}, city, county):
+        job = {"location": col(r, "location"), "title": col(r, "title"),
+               "description": col(r, "description")}
+        # Work mode, for the same reason as the city: the search only filters what it DISCOVERS,
+        # so a list built before the setting was chosen is full of adverts that contradict it -
+        # and an application to an on-site job is just as unrecallable when you need remote.
+        # hybrid is left alone: the remote test counts hybrid as remote, so enforcing it here
+        # would answer a different question from the one that was asked.
+        if mode in ("remote", "onsite") and scrape.remote_job(job) != (mode == "remote"):
+            if held is not None:
+                held.append(f'{col(r, "title")} (wrong work mode)')
+            return False
+        if scrape.job_in_area(job, city, county):
             return True
         if held is not None:
             held.append(f'{r["title"]} ({r["location"] or "no location given"})')
@@ -162,7 +172,8 @@ def run(app, prefill, settings, log):
     held = []
     picks = candidates(app, prefill, settings["auto_apply_min_fit"], settings["auto_apply_cap"],
                        usable, city=settings.get("auto_location") or "",
-                       county=settings.get("auto_county") or "", held=held)
+                       county=settings.get("auto_county") or "",
+                       mode=(settings.get("auto_work_mode") or "").strip().lower(), held=held)
     report["considered"] = len(picks)
     report["held_for_location"] = len(held)
     if held:

@@ -2375,6 +2375,20 @@ async def _search(body, p):
         keep = [j for j in fresh if scrape.job_in_area(j, city, county)]
         off_area, fresh = len(fresh) - len(keep), keep
 
+    # Work mode reaches all four boards, not just the one that implements it. Measured, one pass
+    # each: freehire honours it (2 of 20 remote on Any, 12 on Remote, 0 on On-site), BestJobs
+    # returns the identical mix whatever is asked, and eJobs and Hipo never receive it - it is a
+    # freehire API facet. So picking Remote filtered one source in four.
+    #
+    # hybrid is deliberately not enforced here: the remote pattern counts hybrid AS remote, so a
+    # post-filter would answer a different question from the one that was asked.
+    mode = (filters.get("work_mode") or "").strip().lower()
+    off_mode = 0
+    if mode in ("remote", "onsite"):
+        want_remote = mode == "remote"
+        keep = [j for j in fresh if scrape.remote_job(j) == want_remote]
+        off_mode, fresh = len(fresh) - len(keep), keep
+
     for b in boards:
         rows = [j for j in fresh if j["source"] == b]
         complaint = scrape.health(b, rows, prior.get(b, 0)) if rows else ""
@@ -2594,6 +2608,8 @@ async def _search(body, p):
             # dropped for being somewhere other than the city or county asked for. The boards
             # answer a city search with other cities, so without this the filter did nothing.
             "off_area": off_area,
+            # dropped for being the wrong work mode, on the three boards that ignore the filter
+            "off_mode": off_mode,
             # which rule dropped what. Named so a skip list that is quietly costing you a job you
             # would have wanted is visible, instead of being one number in a log line.
             "off_family_by": dict(sorted(dropped_by.items(), key=lambda kv: -kv[1])[:8]),

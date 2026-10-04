@@ -4436,4 +4436,34 @@ assert not _keep9x("experience.9.bullets.0", "x"), "an index past the end reache
 assert _keep9x("hobbies", ["reading"])
 assert "_applicable(" in _iK.getsource(app.suggestions)
 
+
+# 9y. Work mode reached one board in four. Measured, one discovery pass per board per setting:
+# freehire honours it (2 of 20 remote on Any, 12 on Remote, 0 on On-site), BestJobs returns the
+# identical mix whatever is asked, and eJobs and Hipo never receive it at all - it is a freehire API
+# facet. So picking Remote filtered a quarter of the sources, which is the same shape as the city
+# filter that sent applications to other cities.
+_s9y = _iK.getsource(app._search)
+assert 'filters.get("work_mode")' in _s9y, "the search does not enforce the work mode itself"
+assert "off_mode" in _s9y, "the search does not say how many it dropped for the wrong work mode"
+# hybrid is deliberately NOT enforced: the remote pattern counts hybrid as remote, so a post-filter
+# would answer a different question from the one asked
+assert 'mode in ("remote", "onsite")' in _s9y, "hybrid is being post-filtered, which conflates two answers"
+
+# the unattended run too, for the same reason - the search only filters what it DISCOVERS, and a
+# list built before the setting was chosen is full of adverts that contradict it
+_c9y = _iK.getsource(_aa.candidates)
+assert 'mode in ("remote", "onsite")' in _c9y, "the unattended run ignores the work mode"
+assert 'settings.get("auto_work_mode")' in _iK.getsource(_aa.run)
+
+_rows9y = [{"url": "a", "title": "office job", "company": "c", "source": "ejobs", "fit": 90,
+            "note": "", "location": "Bucuresti", "description": "on site, five days"},
+           {"url": "b", "title": "home job", "company": "c", "source": "ejobs", "fit": 90,
+            "note": "", "location": "Spain", "description": "This is a fully remote position."}]
+_only = lambda mode: [r["title"] for r in _aa.candidates(
+    _FakeApp(_rows9y), _FakeBoards({}, {}), 70, 10, mode=mode)]
+assert _only("remote") == ["home job"], _only("remote")
+assert _only("onsite") == ["office job"], _only("onsite")
+assert sorted(_only("")) == ["home job", "office job"], "no work mode must change nothing"
+assert sorted(_only("hybrid")) == ["home job", "office job"], "hybrid must not be post-filtered"
+
 print("ok")

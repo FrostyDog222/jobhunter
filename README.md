@@ -169,6 +169,12 @@ nothing is claimed either way.
 Ads are cleared out as they close. Where the employer published a closing date, that date decides.
 Where they did not, the ad is dropped **thirty days** after it was posted.
 
+**Work mode** is honoured on every board. Only freehire can filter it at source — BestJobs returns
+the same mix whatever you ask, and eJobs and Hipo never see it — so *Remote* and *On-site* are
+applied to the rest once each ad has been read, in the search and before the scheduled run applies.
+*Hybrid* is left to freehire alone, because "hybrid" reads as remote to that test and the two are
+different answers.
+
 **Where a job is.** Pick a city, a county, or neither — and a genuinely remote job shows up whatever
 you picked, even when the ad names an office in another country. It reads the wording, not the word:
 *fully remote*, *remote-first*, *work from home*, *telemunca* count; *"the possibility to work
