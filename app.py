@@ -3065,6 +3065,46 @@ def save_signin(body: dict = Body(...)):
     return {"ok": True, "boards": creds.status()}
 
 
+@app.post("/api/signin/now")
+async def signin_now(body: dict = Body(...)):
+    """Use a just-saved sign-in straight away, if that board has signed the person out.
+
+    The moment somebody types their password and presses Save is the moment the app both knows the
+    credentials and knows the board is not letting it in - and it used to sit on both until the next
+    scheduled run, hours away.
+
+    Through auto_apply.sign_back_in, which the keep-alive and the applying step also use: one
+    attempt and never a loop, because an unattended retry posting a wrong password is how an account
+    gets locked. Already signed in is not an error, it is nothing to do.
+    """
+    board = (body or {}).get("board")
+    if board not in prefill.LOGIN_FORM:
+        raise HTTPException(400, f"not a board this app can sign in to: {board}")
+    if not creds.status().get(board):
+        raise HTTPException(400, "no saved sign-in for that board")
+
+    def work():
+        # a LIVE look, not the cached file: the whole point is that this runs the moment somebody
+        # hands over a password because a board is refusing them, and a stale "signed in" would
+        # make it do nothing at all
+        try:
+            live = prefill.verify_boards([board]).get(board, prefill.board_status().get(board))
+        except Exception:
+            live = prefill.board_status().get(board)
+        if live:
+            return {"already": True, "signed_in": True}
+        said = []
+        import auto_apply                  # imported here: app.py has no module-level use for it
+        back = auto_apply.sign_back_in(prefill, [board], said.append)
+        return {"already": False, "signed_in": board in back,
+                "note": " ".join(said)[:300]}
+
+    out = await off(work)
+    # whatever happened, hand back what the panel needs so it can redraw without a page load
+    out["boards"] = prefill.board_status()
+    return out
+
+
 @app.delete("/api/signin/saved")
 def forget_signin(board: str = ""):
     creds.forget(board)

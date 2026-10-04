@@ -246,6 +246,10 @@ stored in one file on this PC, encrypted so only your Windows account can read i
 sent anywhere except the board's own login page. It is left out of the shared zip and the
 repository.
 
+When you press **Save**, it uses the sign-in straight away if that board has signed you out — it
+checks the board first, and does nothing if you were already in. The dots update there and then; no
+page reload.
+
 Worth knowing before you do: a password is worth more than a cookie — it does not expire, it often
 opens other sites too, and it can change the account's email. Encryption protects a copied file, not
 something already running on your PC as you. **Not trusting a tool from the internet with your

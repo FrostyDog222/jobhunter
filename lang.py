@@ -246,6 +246,12 @@ RO = {
     "Preset": "Presetare",
     "The same four as the search bar above, and the same limit: they narrow the freehire results only — the Romanian boards have no equivalent, so they come back unfiltered.":
         "Aceleași patru ca în bara de căutare de mai sus, cu aceeași limită: restrâng doar rezultatele de pe freehire — site-urile românești nu au echivalent, așa că vin nefiltrate.",
+    "Saved. You were already signed in to this board.":
+        "Salvat. Erai deja autentificat pe acest site.",
+    "Saved, and signed you in to {board}.":
+        "Salvat, și te-am autentificat pe {board}.",
+    "Saved. Signing in to {board} did not work this time - the panel above says whether it is still signed out.":
+        "Salvat. Autentificarea pe {board} nu a funcționat acum - panoul de mai sus arată dacă încă ești deconectat.",
     "Recent runs": "Rulări recente",
     "failed": "a eșuat",
     "{found} seen, {fresh} new, {scored} scored": "{found} văzute, {fresh} noi, {scored} punctate",

@@ -1844,7 +1844,16 @@ document.addEventListener('click', e => {
     // out of the page the moment it is on disk: nothing should be able to read it back
     $('#cu_' + save).value = ''; $('#cp_' + save).value = '';
     await loadCreds();
-    toast(t('Saved, encrypted to this Windows account.'));
+    // and use it now, if that board has signed you out. The app knows the password and knows the
+    // board is refusing it - waiting for a scheduled run hours away helps nobody.
+    let r = null;
+    try { r = await api('/api/signin/now', {board: save}); } catch(e){}
+    await loadSignins();                 // the dot moves without a page reload either way
+    toast(!r ? t('Saved, encrypted to this Windows account.')
+         : r.already ? t('Saved. You were already signed in to this board.')
+         : r.signed_in ? fill('Saved, and signed you in to {board}.', {board: SBOARDS[save] || save})
+         : fill('Saved. Signing in to {board} did not work this time - the panel above says '
+              + 'whether it is still signed out.', {board: SBOARDS[save] || save}), 9000);
   }, 'saving...');
   const forget = e.target.dataset && e.target.dataset.forgetcred;
   if(forget) return busy(e.target, async () => {

@@ -2063,9 +2063,23 @@ for _who, _src in (("the applying step", _iK.getsource(_aa.run)),
                    ("the keep-alive", _iK.getsource(_auto.touch))):
     assert _src.index("verify_boards") < _src.index("sign_back_in("),         f"{_who} uses a saved password before anything checked whether it is needed"
 assert "if not ok]" in _iK.getsource(_auto.touch),     "the keep-alive hands sign_back_in boards it has not established are signed out"
-for _f in ("app.py", "templates/dashboard.html", "templates/profile.html"):
+# The pages themselves never trigger one. A sign-in from the browser means the window the app opens
+# and the person typing into the board's own page.
+for _f in ("templates/dashboard.html", "templates/profile.html"):
     _t = (app.HERE / _f).read_text(encoding="utf-8")
     assert "auto_signin" not in _t and "sign_back_in" not in _t,         f"{_f} can trigger an unattended sign-in"
+# app.py may use it in exactly one place: the endpoint behind Save, where the person has just typed
+# the password themselves and the board has just refused them. That is the opposite of unattended -
+# but it is still a stored password going to a login form, so it goes through sign_back_in like the
+# other two callers rather than around it, and inherits the one-attempt and two-strike guards.
+_appsrc5k = (app.HERE / "app.py").read_text(encoding="utf-8")
+# calls, not mentions - the docstring beside it names the function too
+assert _appsrc5k.count("sign_back_in(") == 1,     "a second caller in app.py bypasses the sign-in rules"
+assert "auto_signin" not in _appsrc5k, "app.py reaches past sign_back_in to the raw sign-in"
+_now5k = _iK.getsource(app.signin_now)
+assert "sign_back_in" in _now5k, "the one permitted caller is no longer the Save endpoint"
+assert "verify_boards" in _now5k and _now5k.index("verify_boards") < _now5k.index("sign_back_in("),     "the Save endpoint uses a saved password before checking whether it is needed"
+assert "creds.status().get(board)" in _now5k,     "it would try to sign in with a password that was never saved"
 # one attempt, never a loop
 _assrc = _iK.getsource(_pfm.auto_signin)
 assert "for " not in _assrc.split("btn.click()")[0].split("query_selector_all")[-1] or True
@@ -4510,5 +4524,53 @@ assert scrape.reachable("Sector 3, Bucuresti", "bucuresti", "") is True
 assert scrape.job_in_area({"location": "Bucuresti"}, "Bucuresti", "ilfov")
 assert scrape.job_in_area({"location": "Otopeni"}, "Bucuresti", "ilfov")
 assert not scrape.job_in_area({"location": "Cluj-Napoca"}, "Bucuresti", "ilfov")
+
+
+# 10a. Typing a board password and pressing Save is the moment the app both knows the credentials
+# and knows the board is refusing it - and it used to sit on both until the next scheduled run,
+# hours away. Now it tries straight away, and the dot moves without a page reload.
+#
+# This is the ONE place app.py may use a saved password. The rule above it still holds for
+# everything else: the saved sign-in is for when nobody is at the keyboard. Here somebody just
+# typed it, which is the opposite - but it is still a stored password going to a login form, so it
+# goes through sign_back_in rather than around it and inherits the one-attempt and two-strike guards.
+_kv10a, _kb10a = app.prefill.verify_boards, _aa.sign_back_in
+_kc10a = app.creds.status
+_used10a = []
+try:
+    # a board this app cannot sign in to at all
+    assert _cl.post("/api/signin/now", json={"board": "freehire"}).status_code == 400
+    assert _cl.post("/api/signin/now", json={"board": ""}).status_code == 400
+
+    # no saved password -> refused before anything is attempted
+    app.creds.status = lambda: {b: False for b in app.prefill.LOGIN_FORM}
+    _r10a = _cl.post("/api/signin/now", json={"board": "ejobs"})
+    assert _r10a.status_code == 400 and "no saved" in _r10a.json()["detail"]
+    app.creds.status = lambda: {b: True for b in app.prefill.LOGIN_FORM}
+
+    # already signed in -> the password is never used
+    app.prefill.verify_boards = lambda b: {x: True for x in b}
+    _aa.sign_back_in = lambda p, out, log: _used10a.append(out) or []
+    _r10a = _cl.post("/api/signin/now", json={"board": "ejobs"}).json()
+    assert _r10a["already"] is True and not _used10a,         "a saved password was used on a board that was already signed in"
+
+    # signed out -> exactly one attempt, for exactly that board, and the panel gets fresh status
+    app.prefill.verify_boards = lambda b: {x: False for x in b}
+    _aa.sign_back_in = lambda p, out, log: (_used10a.append(tuple(out)), log("tried"), list(out))[2]
+    _r10a = _cl.post("/api/signin/now", json={"board": "ejobs"}).json()
+    assert _r10a["already"] is False and _r10a["signed_in"] is True
+    assert _used10a == [("ejobs",)], f"more than one attempt, or the wrong board: {_used10a}"
+    assert isinstance(_r10a.get("boards"), dict),         "the page has nothing to redraw the dot with, so it still needs a reload"
+finally:
+    app.prefill.verify_boards, _aa.sign_back_in = _kv10a, _kb10a
+    app.creds.status = _kc10a
+
+# the page uses what comes back instead of waiting for F5
+_d10a = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+_save10a = _d10a.split("dataset.savecred")[1][:1400]
+assert "/api/signin/now" in _save10a, "saving a password no longer tries it"
+assert "loadSignins()" in _save10a, "the sign-in dots are not redrawn after saving"
+# a failure to sign in must not look like a failure to save - the password IS saved either way
+assert "try { r = await api('/api/signin/now'" in _save10a,     "a sign-in that fails would throw away the fact that the password was saved"
 
 print("ok")
