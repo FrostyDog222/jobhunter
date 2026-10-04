@@ -26,6 +26,11 @@ import prefill                         # noqa: E402
 
 LOG = HERE / "auto.log"
 LAST = HERE / "auto_last.json"
+# The last twenty runs, oldest first. auto_last.json answers "did last night work"; this answers
+# "has it been working all week", which is the question somebody actually has about something that
+# runs while they are asleep. Twenty because a person scrolls this, not a report.
+RUNS = HERE / "auto_runs.json"
+KEEP_RUNS = 20
 KEEP_LINES = 400                       # the log covers the last few runs, not for ever
 
 
@@ -45,6 +50,44 @@ def _write(report):
         LAST.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     except OSError:
         pass
+    _remember(report)
+
+
+def _remember(report):
+    """Append this run to the rolling history. Never lets a history problem cost the run anything.
+
+    Written after auto_last.json rather than instead of it: the summary is what the panel needs to
+    draw at all, and a failure here must not take it with it.
+    """
+    try:
+        old = json.loads(RUNS.read_text(encoding="utf-8")) if RUNS.exists() else []
+        if not isinstance(old, list):
+            old = []
+    except (OSError, ValueError):
+        old = []                       # a damaged history starts again rather than ending the run
+    ap = report.get("applied") or {}
+    s = report.get("searched") or {}
+    try:
+        old.append({
+            "when": report.get("when"),
+            "error": report.get("error"),
+            "note": report.get("note") or (ap.get("note") if isinstance(ap, dict) else None),
+            "found": s.get("found"), "new": s.get("new"), "scored": s.get("scored"),
+            "waiting": report.get("waiting"),
+            # one line per application, with the reason where there is one. The panel drew a cross
+            # and dropped the text, which is the half that says what to do about it.
+            "sent": [{"title": r.get("title"), "fit": r.get("fit"), "board": r.get("source"),
+                      "ok": bool(r.get("submitted")),
+                      "why": (None if r.get("submitted") else
+                              "already applied" if r.get("already") else
+                              "needs you - screening questions" if r.get("needs_you") else
+                              str(r.get("error") or "did not send")[:200])}
+                     for r in (ap.get("applied") or [] if isinstance(ap, dict) else [])],
+        })
+        RUNS.write_text(json.dumps(old[-KEEP_RUNS:], ensure_ascii=False, indent=1),
+                        encoding="utf-8")
+    except (OSError, TypeError, ValueError) as e:
+        print(f"[auto] could not write the run history: {type(e).__name__}: {e}")
 
 
 def run():

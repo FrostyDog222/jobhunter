@@ -20,7 +20,7 @@ PRIVATE = {".env", ".creds.json", "profile.json", "profile.previous.json", "sett
            "db.sqlite-wal", "db.sqlite-shm",
            "signin.log", "srv.log", "srv.err.log",
            # what the scheduled run did, including the jobs it applied to
-           "auto.log", "auto_last.json"}
+           "auto.log", "auto_last.json", "auto_runs.json"}
 PRIVATE_DIRS = {".venv", "__pycache__", ".browser", "out", ".claude", ".git", "graphify-out",
                 "backup"}
 # rebuilt or irrelevant on the other machine

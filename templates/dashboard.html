@@ -477,7 +477,9 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <button class="ghost" id="autonow">Run it now</button>
       <button class="ghost" id="autocopy" title="Copy what is in the search bar above into these boxes">Use my current search</button>
     </div>
-    <div id="autostate" class="muted"></div>
+    <div id="autohistory" class="card muted"
+     style="display:none;font-size:12.5px;margin:10px 0 0;max-height:280px;overflow:auto"></div>
+<div id="autostate" class="muted"></div>
 
     <div class="warn-box">
       <b>⚠ Read this before you switch it on</b>
@@ -632,6 +634,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <option value="@soon">Closing within a week</option>
     <option value="skipped">Skipped</option>
     <option value="vetoed">Vetoed on language</option>
+    <option value="@fresh">Just pulled in</option>
     <option value="@quiet">Few applicants so far</option>
     <option value="@manual">You apply yourself</option>
   </select>
@@ -834,6 +837,7 @@ async function loadSettings(){
   $('#cvask').checked = !!S.cv_ask;
   $('#home_county').value = S.home_county || '';
   restoreSearch();
+  rememberEdits();
   drawTemplates();
   // The tiles read your score floor out of S, and S arrives here - after the first draw(). Without
   // this the "Best for you" count is computed against the built-in 75 and then never corrected:
@@ -975,15 +979,53 @@ async function loadAuto(){
     // what it sent, one line each - the point of an unattended run is seeing it afterwards
     const ap = l.applied;
     if(ap && (ap.applied || []).length){
+      // the reason comes too. A red cross on its own tells somebody something went wrong and
+      // nothing about what, on a run that happened while they were asleep.
       bits.push('Sent: ' + ap.applied.map(r => `${
           r.submitted ? '✓' : r.already ? '•' : r.needs_you ? '!' : '✗'} ${
-          esc(String(r.fit ?? ''))} ${esc(r.title || '')}`).join('<br>&nbsp;&nbsp;&nbsp;&nbsp;'));
+          esc(String(r.fit ?? ''))} ${esc(r.title || '')}${
+          r.submitted ? '' : `<span class="muted"> — ${esc(
+            r.already ? t('already applied')
+            : r.needs_you ? t('needs you - screening questions')
+            : String(r.error || t('did not send')).slice(0, 120))}</span>`}`)
+        .join('<br>&nbsp;&nbsp;&nbsp;&nbsp;'));
     } else if(ap && ap.note){
       bits.push(esc(ap.note));
     }
   }
   $('#autostate').innerHTML = bits.join('<br>');
+  drawRunHistory(a.runs || []);
   localiseDOM();   // this panel is innerHTML, so the server pass never saw it
+}
+
+// One line per run, newest first. The panel above answers "did last night work"; this answers
+// "has it been working at all", which is the question somebody has about a thing that runs while
+// they are asleep - and a run that silently stopped applying looks identical to a quiet week until
+// you can see the week.
+function drawRunHistory(runs){
+  const box = $('#autohistory');
+  if(!box) return;
+  box.style.display = runs.length ? '' : 'none';
+  if(!runs.length) return;
+  box.innerHTML = `<b style="color:var(--fg)">${esc(t('Recent runs'))}</b>`
+    + runs.map(r => {
+        const sent = (r.sent || []);
+        const ok = sent.filter(x => x.ok).length;
+        const head = r.error
+          ? `<span style="color:var(--bad)">${esc(t('failed'))} — ${esc(friendly(r.error))}</span>`
+          : fill('{found} seen, {fresh} new, {scored} scored',
+                 {found: r.found ?? 0, fresh: r.new ?? 0, scored: r.scored ?? 0})
+            + (sent.length ? fill(', {n} sent', {n: ok}) : '');
+        return `<div style="margin-top:7px;padding-top:7px;border-top:1px solid var(--line)">
+          <span style="color:var(--fg)">${esc(r.when || '')}</span> · ${head}
+          ${r.note && !r.error ? `<div class="muted">${esc(r.note)}</div>` : ''}
+          ${sent.map(x => `<div style="margin-left:10px">${x.ok ? '✓' : '✗'} ${
+              esc(String(x.fit ?? ''))} ${esc(x.title || '')}${
+              x.board ? `<span class="muted"> · ${esc(x.board)}</span>` : ''}${
+              x.why ? `<span class="muted"> — ${esc(x.why)}</span>` : ''}</div>`).join('')}
+        </div>`;
+      }).join('');
+  localiseDOM(box);
 }
 
 $('#autocopy').onclick = () => {
@@ -1555,12 +1597,29 @@ function drawPresets(){
                   .map(x => (x || '').trim()).filter(Boolean))].slice(0, 6);
   $('#preset').innerHTML = '<option value="">Pick a role family…</option>'
     + (mine.length ? '<optgroup label="From your profile">'
+        // all of them in one go, and first: searching every title you have held is a normal thing
+        // to want, and one at a time meant copying each into the box by hand
+        + (mine.length > 1
+            ? `<option value="@${esc(mine.join(', '))}">${esc(t('All of these'))} (${mine.length})</option>`
+            : '')
         + mine.map(r => `<option value="@${esc(r)}">${esc(r)}</option>`).join('') + '</optgroup>' : '')
     + '<optgroup label="Examples">'
     + Object.keys(PRESETS).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')
     + '</optgroup>';
 }
 drawPresets();
+
+// The box suggested "customer support, suport clienti, relatii clienti" to everybody, which is one
+// person's trade offered to a cook. Their own titles are the better hint. Still a placeholder and
+// not a value: nothing is ever searched that the person did not type.
+function searchHint(){
+  const q = $('#q');
+  if(!q || q.value.trim()) return;
+  const mine = [...new Set([(PROFILE || {}).title,
+                            ...((PROFILE || {}).experience || []).map(e => e.role)]
+                  .map(x => (x || '').trim()).filter(Boolean))].slice(0, 3);
+  if(mine.length) q.placeholder = mine.join(', ');
+}
 
 // The scheduled run searches the same boards with the same rules, so it gets the same controls -
 // cloned from the ones above rather than a second copy of 42 counties to keep in step.
@@ -2001,13 +2060,32 @@ async function loadGaps(){
 }
 
 /* ---------- the list ---------- */
+// The jobs the most recent search brought in. `found` is a timestamp rather than a batch number,
+// so this takes everything within ten minutes of the newest: a search writes its rows over a few
+// seconds and the gap to the run before is hours. Two searches ten minutes apart read as one, which
+// is a fair price for not adding a column to say what the timestamps already say.
+//
+// found is stored in UTC - SQLite's datetime('now') - so the Z matters. Without it a machine three
+// hours ahead of UTC calls the newest batch three hours old and the tile reads nothing.
+const PULL_WINDOW = 10 * 60 * 1000;
+let NEWEST_PULL = 0;
+const pulledAt = j => j.found ? Date.parse(j.found.replace(' ', 'T') + 'Z') : NaN;
+function justPulled(j){
+  const t = pulledAt(j);
+  return NEWEST_PULL > 0 && !isNaN(t) && t >= NEWEST_PULL;
+}
+
 function draw(){
   const f = $('#filter').value, mf = +$('#minfit').value;
+  // recomputed every draw, because a search finishing mid-session moves it
+  const times = JOBS.map(pulledAt).filter(t => !isNaN(t));
+  NEWEST_PULL = times.length ? Math.max(...times) - PULL_WINDOW : 0;
   // no need to harvest the DOM any more - SELECTED already holds it, across pages and filters
   const needle = fold($('#find').value.trim());
   let rows = JOBS.filter(j => (!f || (f === '@manual' ? HAND(j)
                               : f === '@quiet' ? (quiet(j) && j.status !== 'applied')
                                     : f === '@near' ? j.far === false
+                              : f === '@fresh' ? (justPulled(j) && j.status !== 'applied')
                               : f === '@soon' ? (daysLeft(j) !== null && daysLeft(j) <= 7
                                                  && daysLeft(j) >= 0 && j.status !== 'applied')
                               : j.status===f))
@@ -2053,7 +2131,11 @@ function draw(){
        '', String(FLOOR)],
       ['Closing this week', shown.filter(j => { const d = daysLeft(j);
           return d !== null && d >= 0 && d <= 7 && j.status !== 'applied'; }).length, '@soon', '0'],
-      ['CV ready', n('ready'), 'ready', '0'],
+      // what the last search brought in. "CV ready" sat here counting work already done - it is
+      // still in the filter dropdown - where the question somebody has on pressing Search is what
+      // just arrived.
+      ['Just pulled in', shown.filter(j => justPulled(j) && j.status !== 'applied').length,
+       '@fresh', '0'],
       ['Applied', n('applied'), 'applied', '0'],
       // Only BestJobs publishes the count, so this tile is about a subset of the list and
       // says so on hover rather than looking like a count of everything.
@@ -2420,6 +2502,24 @@ const SEARCH_FIELDS = {q: 'search_query', loc: 'search_location',
                        county: 'search_county', country: 'search_country',
                        fresh: 'search_fresh', work_mode: 'search_work_mode',
                        seniority: 'search_seniority', ats: 'search_ats'};
+// Both search boxes only saved themselves when the big button was pressed - Search & score for the
+// manual one, Save the schedule for the scheduled one. Edit the terms, get distracted, come back and
+// the edit is gone. 'change' rather than 'input': it fires when you leave the field, so this is one
+// write per edit rather than one per keystroke, and a <select> fires it immediately.
+function rememberEdits(){
+  const bind = (id, key) => {
+    const el = $('#' + id);
+    if(!el || el.dataset.remember) return;
+    el.dataset.remember = '1';
+    el.addEventListener('change', () => {
+      const v = el.type === 'checkbox' ? el.checked : el.value;
+      saveSettings({[key]: v}).catch(() => {});   // a failed save is not worth a toast here
+    });
+  };
+  for(const [id, key] of Object.entries(SEARCH_FIELDS)) bind(id, key);
+  for(const k of ['auto_query', 'auto_location', 'auto_county', 'auto_country']) bind(k, k);
+}
+
 function restoreSearch(){
   for(const [id, key] of Object.entries(SEARCH_FIELDS)){
     const el = $('#' + id);
@@ -2612,7 +2712,7 @@ api('/api/cv/templates', undefined, 'GET')
   .finally(() => loadSettings());
 loadGaps();
 api('/api/profile', undefined, 'GET')
-  .then(p => { PROFILE = p || {}; drawPresets(); drawTerms(); steps(); drawAlerts(); })
+  .then(p => { PROFILE = p || {}; drawPresets(); searchHint(); drawTerms(); steps(); drawAlerts(); })
   .catch(e => { toast(t('Could not read your profile, so the checklist and the alerts above are '
                       + 'not showing. The app itself is fine - reload the page.'), 9000); });
 loadAuto();

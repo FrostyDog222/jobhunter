@@ -485,6 +485,19 @@ def keep_signed_in(on):
     return "" if code == 0 else f"Windows refused to create the keep-alive task: {err[:200]}"
 
 
+
+def _run_history(limit=20):
+    """The last scheduled runs, newest first. [] when there has never been one.
+
+    auto.py writes this; nothing here does. A damaged or missing file is an empty list rather than
+    an error, because this is one panel on a dashboard and the rest of it still works.
+    """
+    try:
+        runs = json.loads((HERE / "auto_runs.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return list(reversed(runs))[:limit] if isinstance(runs, list) else []
+
 @app.get("/api/auto")
 def get_auto():
     s = settings()
@@ -505,7 +518,9 @@ def get_auto():
              if want and not got]
     return {"settings": {k: v for k, v in s.items()
                          if k.startswith("auto_") or k == "keep_signed_in"},
-            "task": task, "keep": keep, "drift": drift, "last": last}
+            "task": task, "keep": keep, "drift": drift, "last": last,
+            # the rolling history, newest first for the panel. Absent until the first run writes it.
+            "runs": _run_history()}
 
 
 @app.post("/api/auto")

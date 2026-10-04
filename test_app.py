@@ -2257,9 +2257,14 @@ assert not _untranslated, ("the page asks for these at runtime and Romanian has 
 # Caught by an audit, not by this suite, because the deletion was inside a cut range.
 import auto as _au
 _rundir = pathlib.Path(_tf.mkdtemp())
-_keep = (_au.LAST, _au.LOG, app.settings, app.search)
+# RUNS as well as LAST: a new state file that this block does not know about gets written to the
+# real folder, and the suite then appends test runs to the user's own history. It did exactly that
+# the day auto_runs.json was added.
+_keep = (_au.LAST, _au.LOG, _au.RUNS, app.settings, app.search)
+_before_runs = _au.RUNS.read_text(encoding="utf-8") if _au.RUNS.exists() else None
 try:
     _au.LAST, _au.LOG = _rundir / "auto_last.json", _rundir / "auto.log"
+    _au.RUNS = _rundir / "auto_runs.json"
     app.settings = lambda: {**app.DEFAULTS, "auto_enabled": True, "auto_query": "x",
                             "auto_apply": False, "auto_min_fit": 75}
 
@@ -2276,7 +2281,8 @@ try:
     assert _got["error"] is None and _got["when"], _got
     assert _r["applied"] is None, "applying ran with the switch off"
 finally:
-    _au.LAST, _au.LOG, app.settings, app.search = _keep
+    _au.LAST, _au.LOG, _au.RUNS, app.settings, app.search = _keep
+    assert (_au.RUNS.read_text(encoding="utf-8") if _au.RUNS.exists() else None) == _before_runs,         "the suite wrote test runs into the real auto_runs.json"
     _sh.rmtree(_rundir, ignore_errors=True)
 
 
@@ -4187,5 +4193,86 @@ assert "Expand-Archive" in _dl9q and "Remove-Item" in _dl9q,     "the command le
 assert "jobhunter-main" in _dl9q
 # and the OneDrive warning survives, since the Desktop is exactly where OneDrive redirection bites
 assert "OneDrive" in _dl9q
+
+
+# 9r. The tiles answer "what should I look at", so one of them counting work already done - CV ready,
+# which is rows holding a tailored PDF - was a slot spent on the past. What somebody wants the moment
+# they press Search is what just arrived.
+_d9r = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "'CV ready', n('ready')" not in _d9r, "the CV ready tile is back"
+assert "'Just pulled in'" in _d9r and "justPulled(j)" in _d9r
+# still reachable, because a tailored CV is worth finding again - just not worth a tile
+assert '<option value="ready">CV ready</option>' in _d9r,     "CV ready has gone from the filter dropdown too, so tailored jobs cannot be found"
+assert '<option value="@fresh">' in _d9r, "the new tile has no filter behind it"
+assert "f === '@fresh' ?" in _d9r, "the @fresh filter is not wired into the row filter"
+# found is stored UTC - SQLite's datetime('now') - so the Z is load-bearing: without it a machine
+# east of UTC calls the newest batch hours old and the tile reads zero
+assert "'T') + 'Z')" in _d9r, "the UTC suffix is gone and the tile will be empty outside UTC"
+
+# every title from the profile at once, because picking them one at a time meant copying each out
+assert "t('All of these')" in _d9r and "mine.join(', ')" in _d9r
+assert "mine.length > 1" in _d9r, "a single-title profile gets a pointless 'all of these' entry"
+
+# the search box hinted at one person's trade - "customer support, suport clienti" - to everybody
+assert "function searchHint()" in _d9r
+assert "placeholder = mine.join" in _d9r
+assert "searchHint();" in _d9r.split("api('/api/profile'")[1][:400],     "the hint is never drawn, because it needs the profile and nothing calls it after that lands"
+# a hint, not a value: nothing is searched that the person did not type
+_hint9r = _d9r.split("function searchHint()")[1].split("\n}")[0]
+assert ".value =" not in _hint9r, "the search box is being filled in rather than hinted at"
+
+# an edit to either search box survived only if the big button was pressed afterwards
+assert "function rememberEdits()" in _d9r and "rememberEdits();" in _d9r
+assert "addEventListener('change'" in _d9r.split("function rememberEdits()")[1][:700],     "saving on 'input' writes once per keystroke"
+for _k9r in ("auto_query", "auto_location", "auto_county", "auto_country"):
+    assert _k9r in _d9r.split("function rememberEdits()")[1][:900],         f"the scheduled search's {_k9r} is not remembered"
+
+# 9s. Only the last run was kept, so "did last night work" was answerable and "has it been working
+# all week" was not - and where a send failed the panel drew a red cross and dropped the reason,
+# which is the half that says what to do about it.
+import auto as _au9s
+_dir9s = pathlib.Path(_tf.mkdtemp())
+_was9s = _au9s.RUNS
+try:
+    _au9s.RUNS = _dir9s / "auto_runs.json"
+    _au9s._write({"when": "1", "searched": {"found": 9, "new": 2, "scored": 2}, "applied": {
+        "applied": [{"title": "Sent one", "fit": 80, "source": "ejobs", "submitted": True},
+                    {"title": "Needs you", "fit": 75, "source": "hipo", "needs_you": True},
+                    {"title": "Broke", "fit": 70, "source": "bestjobs", "error": "button missing"}]}})
+    _au9s._write({"when": "2", "error": "the search failed: ReadTimeout", "searched": None})
+    _h9s = json.loads(_au9s.RUNS.read_text(encoding="utf-8"))
+    assert [r["when"] for r in _h9s] == ["1", "2"], "the history is not in order, or not appending"
+    _sent9s = _h9s[0]["sent"]
+    assert [x["ok"] for x in _sent9s] == [True, False, False]
+    # the reason, which is the whole point - a cross on its own says something went wrong and
+    # nothing about what, on a run that happened while nobody was watching
+    assert _sent9s[1]["why"] == "needs you - screening questions"
+    assert "button missing" in _sent9s[2]["why"]
+    assert _sent9s[0]["why"] is None, "a successful send does not need a reason"
+    assert _h9s[1]["error"] == "the search failed: ReadTimeout"
+    # bounded, and a damaged file starts again rather than ending the run
+    for _i in range(_au9s.KEEP_RUNS + 5):
+        _au9s._write({"when": f"x{_i}", "searched": None})
+    assert len(json.loads(_au9s.RUNS.read_text(encoding="utf-8"))) == _au9s.KEEP_RUNS
+    _au9s.RUNS.write_text("{ not json", encoding="utf-8")
+    _au9s._write({"when": "after the damage", "searched": None})
+    assert [r["when"] for r in json.loads(_au9s.RUNS.read_text(encoding="utf-8"))] == ["after the damage"],         "a damaged history was not started over"
+finally:
+    _au9s.RUNS = _was9s
+    _sh6.rmtree(_dir9s, ignore_errors=True)
+
+# served newest first, and absent until there has been a run
+assert "runs" in _iK.getsource(app.auto_state) if hasattr(app, "auto_state") else True
+assert "_run_history()" in (app.HERE / "app.py").read_text(encoding="utf-8")
+assert app._run_history.__doc__ and "newest first" in app._run_history.__doc__
+assert "function drawRunHistory(" in _d9r and "drawRunHistory(a.runs" in _d9r
+# and the single-run line shows the reason now too
+assert "t('already applied')" in _d9r and "t('did not send')" in _d9r,     "the last-run line still draws a cross with no explanation"
+
+# the history is this person's own data: out of the shared zip, out of the repository, kept by an
+# update. It is also a file the suite's own run test has to redirect, which it did not at first.
+import share as _sh9s, update as _up9s
+assert "auto_runs.json" in _sh9s.PRIVATE and "auto_runs.json" in _up9s.KEEP
+assert "auto_runs.json" in (app.HERE / ".gitignore").read_text(encoding="utf-8")
 
 print("ok")

@@ -25,6 +25,7 @@ jobhunter.zip
 auto.log
 .auto.lock
 auto_last.json
+auto_runs.json
 backup/
 .llm_down.json
 .shortlist.json

@@ -116,7 +116,9 @@ Every job gets a score out of 100, a one-line reason, what you **bring** to it a
 *Settings*.
 
 **The search box suggests as you type** but never restricts — type anything and it is searched
-exactly as typed. *Settings → Suggest terms from my CV* reads your profile and proposes job titles
+exactly as typed. It starts from your own job titles rather than anybody else's, and the *Pick a role
+family* list offers them one at a time or **All of these** at once. Whatever you type is remembered
+as you leave the box, so an edit is not lost if you never press Search. *Settings → Suggest terms from my CV* reads your profile and proposes job titles
 you might not think of, each showing the line in your CV it came from. Nothing is filled in until
 you click it.
 
@@ -128,13 +130,15 @@ Lists show 20 jobs to a page. The filter box narrows what is already found, and 
 | | |
 |---|---|
 | **score and reason** | out of 100, with what you bring and what is missing |
+| **#N today** | where this sits in the ranking, when the scores tie |
 | **applicants** | how many have already applied. Green under 25, red over 150. BestJobs only |
 | **replies** | a green badge where the employer is known to answer applications. BestJobs only |
 | **new / old** | green for the first week after posting, amber after |
 | **closes in N days** | the employer's own closing date, where they published one |
 | **salary** | marked `(est.)` and dimmed when it is the board's guess rather than the employer's figure. **Do not quote an estimate back to an employer** |
 
-The **Few applicants** tile shows just the quiet ones. *What should I do today?* picks three jobs
+**Just pulled in** shows what the last search brought in, so you can see today's arrivals without
+reading the whole list. The **Few applicants** tile shows just the quiet ones. *What should I do today?* picks three jobs
 worth sending now and says why, and puts a **#1, #2, #3** on every card above your floor so you can
 see the order while you work down the list. It exists because the score cannot separate the top:
 scoring rates each ad on its own, so the best are routinely all the same number. Advice only — the
@@ -264,7 +268,9 @@ Think about it first. **An application cannot be recalled.** It sends the salary
 profile and the CV on your board profile, not a tailored one, and you find out afterwards.
 
 Whatever it sent is listed in the panel next time you open the app, along with what the search
-found.
+found — and under it, **Recent runs**: the last twenty, each with what it found, what it sent, and
+**why anything failed**. A run that quietly stops applying looks exactly like a quiet week until you
+can see the week.
 
 ## The AI model
 
