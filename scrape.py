@@ -674,6 +674,55 @@ REMOTE = re.compile(r"(^|-)(remote|telemunca|munca-de-acasa|work-from-home|anywh
                     r"|toata-tara|nationwide|hybrid|hibrid)($|-)")
 
 
+# Phrases that assert the ARRANGEMENT. The bare word is never enough: in one real database it
+# turns up as "the possibility to work remotely" (a perk), "experience with remote support tools"
+# (the job, on a support profile) and "activitatea nu poate fi desfasurata remote" (the opposite).
+REMOTE_TEXT = re.compile(
+    r"(100\s*%|fully|complet|entirely|totally)\s*[- ]?\s*(remote|remotely|telemunca)"
+    r"|remote[- ]first"
+    r"|work(ing)?\s+from\s+home"
+    r"|munc[\u0103a]\s+de\s+acas[\u0103a]"
+    r"|telemunc[\u0103a]"
+    r"|remote\s+(position|role|job)", re.I)
+# A denial just before one of those turns it inside out, and adverts do say "this role is not fully
+# remote" and "nu poate fi desfasurata remote".
+NOT_REMOTE = re.compile(r"\b(not|isn'?t|never|no|nu|fara|f[\u0103a]r[\u0103a]|cannot|can'?t)\b"
+                        r"[^.]{0,40}$", re.I)
+
+
+def remote_job(job):
+    """Is this advert actually remote, as opposed to using the word?
+
+    Reads the location field first - "Remote", "Telemunca" - and then the title and description for
+    a phrase that states the arrangement. Measured on one database: 24 said so in the location and
+    another 19 only in the text, every one of them genuinely remote, while 17 others used the word
+    some other way and are correctly ignored.
+
+    Conservative by choice. "Junior Remote Technical Customer Support" is probably remote and does
+    not match, because the alternative is treating "remote support" as a location.
+    """
+    if not isinstance(job, dict):
+        return False
+    if REMOTE.search(_slug(job.get("location") or "")):
+        return True
+    text = f"{job.get('title') or ''}\n{job.get('description') or ''}"
+    for m in REMOTE_TEXT.finditer(text):
+        if not NOT_REMOTE.search(text[max(0, m.start() - 60):m.start()]):
+            return True
+    return False
+
+
+def job_in_area(job, city="", county=""):
+    """The whole location question for one advert: is this somewhere this person asked for?
+
+    One function so the search and the unattended run cannot answer it differently - they already
+    did once, which is how applications went to other cities.
+    """
+    if not (city or "").strip() and not (county or "").strip():
+        return True
+    return remote_job(job) or reachable(job.get("location") or "", city, county)
+
+
 def reachable(text, city="", county=""):
     """Is a job at `text` within the city or county somebody asked for? True when they asked for
     neither.

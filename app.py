@@ -2335,7 +2335,7 @@ async def _search(body, p):
     # so a city on its own did nothing at all.
     off_area = 0
     if city or county:
-        keep = [j for j in fresh if scrape.reachable(j.get("location", ""), city, county)]
+        keep = [j for j in fresh if scrape.job_in_area(j, city, county)]
         off_area, fresh = len(fresh) - len(keep), keep
 
     for b in boards:

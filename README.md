@@ -169,8 +169,10 @@ nothing is claimed either way.
 Ads are cleared out as they close. Where the employer published a closing date, that date decides.
 Where they did not, the ad is dropped **thirty days** after it was posted.
 
-**Where a job is.** Pick a city, a county, or neither — and remote work counts as reachable from
-anywhere, so a remote job still shows up under any county. Whatever you choose is enforced twice: ads
+**Where a job is.** Pick a city, a county, or neither — and a genuinely remote job shows up whatever
+you picked, even when the ad names an office in another country. It reads the wording, not the word:
+*fully remote*, *remote-first*, *work from home*, *telemunca* count; *"the possibility to work
+remotely"*, *"remote support tools"* and *"nu poate fi desfășurată remote"* do not. Whatever you choose is enforced twice: ads
 from somewhere else are dropped as they are found, **and the scheduled run will not apply to them**.
 That second half used to be missing: it applied to anything above your score floor wherever it was,
 because the search only filters what it *discovers* and your list is full of ads found before you set

@@ -34,7 +34,10 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", held
     """
     with app.db() as c:
         rows = [dict(r) for r in c.execute(
-            "SELECT url, title, company, source, fit, note, location FROM jobs "
+            # description too, because a fully remote job often names the employer's head
+            # office as its location - Spain, Germany - and is reachable from anywhere regardless.
+            # Bounded by the score floor in the WHERE below, so this is the shortlist, not the table.
+            "SELECT url, title, company, source, fit, note, location, description FROM jobs "
             "WHERE status IN ('new','ready') AND fit >= ? "
             # same tie-break as the dashboard: a job with fewer people already in the queue is
             # the better use of one of this week's five
@@ -54,7 +57,8 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", held
             return None
 
     def here(r):
-        if scrape.reachable(col(r, "location") or "", city, county):
+        if scrape.job_in_area({"location": col(r, "location"), "title": col(r, "title"),
+                               "description": col(r, "description")}, city, county):
             return True
         if held is not None:
             held.append(f'{r["title"]} ({r["location"] or "no location given"})')

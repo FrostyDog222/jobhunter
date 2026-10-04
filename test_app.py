@@ -4328,7 +4328,8 @@ assert scrape.reachable("", "", "ilfov") is False
 
 # the gate is wired into the picker, and the run passes what the person saved
 _ac9u = _iK.getsource(_aa.candidates)
-assert "scrape.reachable(" in _ac9u, "the unattended run does not check where a job is"
+assert "scrape.job_in_area(" in _ac9u, "the unattended run does not check where a job is"
+assert "description" in _ac9u.split("SELECT")[1][:260],     "the description is not read, so a fully remote job with an office elsewhere is dropped"
 assert "location" in _ac9u.split("SELECT")[1][:120], "location is not even selected"
 # rows are sqlite3.Row in production and plain dicts in this suite; neither shares .get()
 assert "except (KeyError, IndexError)" in _ac9u
@@ -4355,7 +4356,7 @@ assert len(_aa.candidates(_FakeApp(_rows9u), _FakeBoards({}, {}), 70, 10)) == 3
 # and Timisoara, and freehire returned Skopje - and only the county was ever checked, so a city on
 # its own did nothing at all.
 _s9u = _iK.getsource(app._search)
-assert "scrape.reachable(j.get(\"location\", \"\"), city, county)" in _s9u,     "the search still only enforces the county"
+assert "scrape.job_in_area(j, city, county)" in _s9u,     "the search still only enforces the county, or no longer honours a remote advert"
 assert "off_area" in _s9u, "the search does not say how many it dropped for being elsewhere"
 
 # 9v. The scheduled run searched without the four filters the search bar has, so Work mode set to
@@ -4372,5 +4373,42 @@ assert '"work_mode": s.get("auto_work_mode"' in _au9v,     "the scheduled run st
 assert '"reality": s.get("auto_fresh"' in _au9v
 # the manual controls are untouched - they were working and were not the complaint
 assert '<option value="remote">Remote</option>' in _d9r
+
+
+# 9w. A job that is actually remote is reachable from anywhere, whatever city its head office is in.
+# The gate read the location field alone, so "fully remote" adverts naming Spain, Germany or Galati
+# were dropped by anybody filtering to their own city - 19 of them on one database, every one
+# genuinely remote.
+#
+# The bare word is never enough, which is the whole difficulty. In that same database it also reads
+# "the possibility to work remotely" (a perk), "experience with remote support tools" (the job
+# itself, on a support profile) and "activitatea nu poate fi desfasurata remote" - the opposite.
+_J9w = lambda l="", d="", t="": {"location": l, "description": d, "title": t}
+for _d9w in ("This is a fully remote position.", "a 100% remote role", "remote-first environment",
+             "Work from home, equipment provided", "telemunca permisa", "munca de acasa"):
+    assert scrape.remote_job(_J9w("Spain", _d9w)), f"missed a real remote advert: {_d9w!r}"
+for _d9w in ("the possibility to work remotely", "experience with remote support tools",
+             "Non ci sono posizioni di remote working aperte"):
+    assert not scrape.remote_job(_J9w("Cluj-Napoca", _d9w)),         f"the bare word was treated as an arrangement: {_d9w!r}"
+# a denial in front of the phrase turns it off again - adverts really do say both of these
+for _d9w in ("activitatea nu poate fi desfasurata remote", "this role is not fully remote",
+             "no work from home for this role", "acest rol nu este complet remote"):
+    assert not scrape.remote_job(_J9w("Cluj", _d9w)), f"a denial was read as an offer: {_d9w!r}"
+# the location field alone still counts, as it always did
+assert scrape.remote_job(_J9w("Remote")) and scrape.remote_job(_J9w("Telemunca"))
+assert not scrape.remote_job(_J9w("Bucuresti"))
+assert not scrape.remote_job("not a dict")
+
+# and the gate as a whole: somebody filtering to Bucuresti still gets the genuinely remote ones
+assert scrape.job_in_area(_J9w("Spain", "This is a fully remote position."), "Bucuresti", "")
+assert not scrape.job_in_area(_J9w("Cluj-Napoca", "the possibility to work remotely"), "Bucuresti", "")
+assert scrape.job_in_area(_J9w("Bucuresti"), "Bucuresti", "")
+assert not scrape.job_in_area(_J9w("Otopeni"), "Bucuresti", "")
+assert scrape.job_in_area(_J9w("Otopeni"), "", "ilfov")
+# asked for nothing, hold them to nothing
+assert scrape.job_in_area(_J9w("anywhere at all"), "", "")
+# one function, so the search and the unattended run cannot answer it differently - they already
+# did once, which is how applications went to other cities
+assert "job_in_area" in _iK.getsource(app._search) and "job_in_area" in _iK.getsource(_aa.candidates)
 
 print("ok")
