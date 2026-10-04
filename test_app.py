@@ -4284,7 +4284,10 @@ assert "function mirrorPreset()" in _d9r
 # built from the list above rather than a second copy, which is what mirrorControls already does
 # for city/county/country a few lines away
 assert "dst.innerHTML = src.innerHTML" in _d9r.split("function mirrorPreset()")[1][:300],     "the scheduled picker keeps its own list, which will drift from the one above"
-assert "mirrorPreset();" in _d9r.split("function drawPresets()")[1][:900],     "the picker is never filled after the profile lands"
+# the whole function body, not a fixed number of characters: drawPresets builds two optgroups and
+# the call sits after them
+_dp9t = _d9r.split("function drawPresets()")[1].split("drawPresets();")[0]
+assert "mirrorPreset();" in _dp9t,     "the picker is never filled after the profile lands"
 # setting .value from a script does not fire change, and this box is remembered on change - so
 # without the dispatch the terms sit on screen and vanish on the next reload
 assert "box.dispatchEvent(new Event('change'))" in _d9r,     "a preset loaded into the scheduled box is not remembered"
