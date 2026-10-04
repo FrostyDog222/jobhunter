@@ -4232,9 +4232,14 @@ for _k9r in ("auto_query", "auto_location", "auto_county", "auto_country"):
 # which is the half that says what to do about it.
 import auto as _au9s
 _dir9s = pathlib.Path(_tf.mkdtemp())
-_was9s = _au9s.RUNS
+# LAST as well as RUNS. _write() writes both, and redirecting only the new one sent this block's
+# test reports into the real auto_last.json - so the dashboard's "Last run" line read
+# "after the damage". Every file a function writes has to be redirected, not just the one the test
+# is about; that is twice now with this same function.
+_was9s = (_au9s.RUNS, _au9s.LAST)
 try:
     _au9s.RUNS = _dir9s / "auto_runs.json"
+    _au9s.LAST = _dir9s / "auto_last.json"
     _au9s._write({"when": "1", "searched": {"found": 9, "new": 2, "scored": 2}, "applied": {
         "applied": [{"title": "Sent one", "fit": 80, "source": "ejobs", "submitted": True},
                     {"title": "Needs you", "fit": 75, "source": "hipo", "needs_you": True},
@@ -4258,8 +4263,11 @@ try:
     _au9s._write({"when": "after the damage", "searched": None})
     assert [r["when"] for r in json.loads(_au9s.RUNS.read_text(encoding="utf-8"))] == ["after the damage"],         "a damaged history was not started over"
 finally:
-    _au9s.RUNS = _was9s
+    _au9s.RUNS, _au9s.LAST = _was9s
     _sh6.rmtree(_dir9s, ignore_errors=True)
+# and prove it: this block must leave no trace in the real folder
+assert not (app.HERE / "auto_runs.json").exists() or         json.loads((app.HERE / "auto_runs.json").read_text(encoding="utf-8")) != [],         "the suite wrote its own runs into the real history"
+assert json.loads((app.HERE / "auto_last.json").read_text(encoding="utf-8")).get("when")         != "after the damage" if (app.HERE / "auto_last.json").exists() else True,         "the suite overwrote the real last-run summary" 
 
 # served newest first, and absent until there has been a run
 assert "runs" in _iK.getsource(app.auto_state) if hasattr(app, "auto_state") else True
@@ -4293,5 +4301,76 @@ assert "mirrorPreset();" in _dp9t,     "the picker is never filled after the pro
 assert "box.dispatchEvent(new Event('change'))" in _d9r,     "a preset loaded into the scheduled box is not remembered"
 # and the scheduled box hinted at one person's trade too
 assert "a.placeholder = mine.join" in _d9r,     "the scheduled box still suggests customer support to everybody"
+
+
+# 9u. The unattended run applied to jobs anywhere in the country whatever city or county was set.
+# Reported by somebody whose friend set county Ilfov and city Bucuresti and had applications sent to
+# other cities; reproduced here - of 49 candidates on one database, 44 were outside the county.
+# candidates() selected on status, score, board and external-redirect and never read `location`.
+#
+# The search filters what it DISCOVERS, which does nothing about everything already stored from
+# before those filters existed - and that is most of the table.
+assert scrape.reachable("Otopeni", "", "ilfov") is True
+assert scrape.reachable("Bucuresti", "", "ilfov") is False, "Bucuresti is not in Ilfov county"
+assert scrape.reachable("Targu Mures", "", "ilfov") is False
+assert scrape.reachable("Sector 3, Bucuresti", "bucuresti", "") is True, "a city must match inside a longer location"
+assert scrape.reachable("Cluj-Napoca", "bucuresti", "") is False
+# remote is reachable from anywhere, which is what this function asks. Whether somebody WANTS remote
+# work is the Work mode filter's question.
+assert scrape.reachable("Remote", "bucuresti", "") is True
+assert scrape.reachable("Telemunca", "", "ilfov") is True
+# asked for nothing, hold them to nothing
+assert scrape.reachable("Cluj-Napoca", "", "") is True
+# fails CLOSED where the location cannot be read: an application cannot be recalled, and "we could
+# not tell" is not a reason to send one
+assert scrape.reachable("", "bucuresti", "") is False
+assert scrape.reachable("", "", "ilfov") is False
+
+# the gate is wired into the picker, and the run passes what the person saved
+_ac9u = _iK.getsource(_aa.candidates)
+assert "scrape.reachable(" in _ac9u, "the unattended run does not check where a job is"
+assert "location" in _ac9u.split("SELECT")[1][:120], "location is not even selected"
+# rows are sqlite3.Row in production and plain dicts in this suite; neither shares .get()
+assert "except (KeyError, IndexError)" in _ac9u
+_ar9u = _iK.getsource(_aa.run)
+assert 'settings.get("auto_location")' in _ar9u and 'settings.get("auto_county")' in _ar9u,     "the run does not pass the city and county the person saved"
+assert "held_for_location" in _ar9u,     "a run that sends nothing because everything was elsewhere looks like a run that found nothing"
+
+# end to end on rows that carry a location
+_rows9u = [{"url": "u1", "title": "near", "company": "c", "source": "ejobs", "fit": 90,
+            "note": "", "location": "Otopeni"},
+           {"url": "u2", "title": "far", "company": "c", "source": "ejobs", "fit": 90,
+            "note": "", "location": "Targu Mures"},
+           {"url": "u3", "title": "remote", "company": "c", "source": "ejobs", "fit": 90,
+            "note": "", "location": "Remote"}]
+_held9u = []
+_got9u = _aa.candidates(_FakeApp(_rows9u), _FakeBoards({}, {}), 70, 10,
+                        county="ilfov", held=_held9u)
+assert [r["title"] for r in _got9u] == ["near", "remote"], [r["title"] for r in _got9u]
+assert len(_held9u) == 1 and "Targu Mures" in _held9u[0]
+# and with nothing asked for, nothing is held back - the old behaviour, unchanged
+assert len(_aa.candidates(_FakeApp(_rows9u), _FakeBoards({}, {}), 70, 10)) == 3
+
+# the search enforces the city too. Measured: asking BestJobs for Bucuresti returned Fagaras, Codlea
+# and Timisoara, and freehire returned Skopje - and only the county was ever checked, so a city on
+# its own did nothing at all.
+_s9u = _iK.getsource(app._search)
+assert "scrape.reachable(j.get(\"location\", \"\"), city, county)" in _s9u,     "the search still only enforces the county"
+assert "off_area" in _s9u, "the search does not say how many it dropped for being elsewhere"
+
+# 9v. The scheduled run searched without the four filters the search bar has, so Work mode set to
+# Remote gave remote results by hand and everything by schedule.
+for _f9v in ("auto_fresh", "auto_work_mode", "auto_seniority", "auto_ats"):
+    assert _f9v in app.DEFAULTS, f"{_f9v} is not a setting"
+    assert f'id="{_f9v}"' in _d9r, f"{_f9v} has no control"
+    assert _f9v in _d9r.split("const AUTO_FIELDS")[1][:300], f"{_f9v} is not saved with the schedule"
+# cloned from the manual controls rather than written twice, like city/county/country already are
+assert "['work_mode','auto_work_mode']" in _d9r and "['fresh','auto_fresh']" in _d9r
+# and the run actually sends them
+_au9v = _iK.getsource(app.auto) if hasattr(app, "auto") else (app.HERE / "auto.py").read_text(encoding="utf-8")
+assert '"work_mode": s.get("auto_work_mode"' in _au9v,     "the scheduled run still searches without the work-mode filter"
+assert '"reality": s.get("auto_fresh"' in _au9v
+# the manual controls are untouched - they were working and were not the complaint
+assert '<option value="remote">Remote</option>' in _d9r
 
 print("ok")

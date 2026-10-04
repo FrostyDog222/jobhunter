@@ -110,7 +110,13 @@ def run():
         found = asyncio.run(app.search({
             "query": s["auto_query"], "location": s.get("auto_location", ""),
             "county": s.get("auto_county", ""),
-            "country": s.get("auto_country", "ro"), "filters": {"reality": "fresh"}}))
+            "country": s.get("auto_country", "ro"),
+            # the same four the search bar sends. "reality" is freshness; it defaulted to fresh
+            # here and was the only one the scheduled run had at all.
+            "filters": {"reality": s.get("auto_fresh", "fresh"),
+                        "work_mode": s.get("auto_work_mode", ""),
+                        "seniority": s.get("auto_seniority", ""),
+                        "auto_apply_available": s.get("auto_ats", "")}}))
         report["searched"] = found
         log(f"search: {found['found']} ads seen, {found['new']} new, {found['scored']} scored"
             + (f", {found['vetoed']} skipped on language" if found.get("vetoed") else "")

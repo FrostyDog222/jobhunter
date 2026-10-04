@@ -244,6 +244,8 @@ RO = {
     "Loaded into the scheduled run. Press Save the schedule to keep it.":
         "Încărcat în rularea programată. Apasă Salvează programarea ca să rămână.",
     "Preset": "Presetare",
+    "The same four as the search bar above, and the same limit: they narrow the freehire results only — the Romanian boards have no equivalent, so they come back unfiltered.":
+        "Aceleași patru ca în bara de căutare de mai sus, cu aceeași limită: restrâng doar rezultatele de pe freehire — site-urile românești nu au echivalent, așa că vin nefiltrate.",
     "Recent runs": "Rulări recente",
     "failed": "a eșuat",
     "{found} seen, {fresh} new, {scored} scored": "{found} văzute, {fresh} noi, {scored} punctate",

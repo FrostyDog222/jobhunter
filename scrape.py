@@ -668,6 +668,43 @@ def off_target(title, skip_families, my_terms):
     return ""
 
 
+# A job you can do from home is open to somebody in any county, and the boards pad their county
+# pages with them. Shared by in_county and reachable, so "remote counts everywhere" is one rule.
+REMOTE = re.compile(r"(^|-)(remote|telemunca|munca-de-acasa|work-from-home|anywhere"
+                    r"|toata-tara|nationwide|hybrid|hibrid)($|-)")
+
+
+def reachable(text, city="", county=""):
+    """Is a job at `text` within the city or county somebody asked for? True when they asked for
+    neither.
+
+    Written for the unattended run, which used to apply to anything above the score floor wherever
+    it was: measured on one database, 44 of 49 candidates were outside the county that had been set.
+    The search filters what it DISCOVERS, which does nothing about everything already stored from
+    before the filters existed - and that is most of the table.
+
+    Fails CLOSED where a location cannot be read, because an application cannot be recalled and
+    "we could not tell" is not a reason to send one. Remote passes, being reachable from anywhere.
+    """
+    city, county = (city or "").strip(), (county or "").strip()
+    if not city and not county:
+        return True                       # nothing was asked for, so nothing to hold them to
+    flat = _slug(text)
+    # Remote is reachable from anywhere, which is what this function asks. Whether somebody WANTS
+    # remote work is the Work mode filter's question, not this one.
+    if flat and REMOTE.search(flat):
+        return True
+    if county and in_county(text, county):
+        return True
+    if city and flat:
+        want = _slug(city)
+        # substring on the slug: "bucuresti" matches "sector-3-bucuresti" and "bucuresti-ilfov",
+        # which is how the boards write it
+        if want and want in flat:
+            return True
+    return False
+
+
 def in_county(text, county):
     """Does this ad's location sit in that county? Diacritics are folded on both sides, because
     half the boards write "Timisoara" and half write "Timișoara", and people type either.
@@ -685,8 +722,7 @@ def in_county(text, county):
         return False
     # A remote job is open to someone in any county, and the boards pad their county pages with
     # them - dropping those would have thrown away the roles that suit a county search best.
-    if re.search(r"(^|-)(remote|telemunca|munca-de-acasa|work-from-home|anywhere"
-                 r"|toata-tara|nationwide|hybrid|hibrid)($|-)", flat):
+    if REMOTE.search(flat):
         return True
     # "Romania" alone means the whole country; as a suffix it is just the postal address, and
     # most ads carry it. Treating the suffix as nationwide marked every job in the country

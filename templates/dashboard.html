@@ -429,6 +429,15 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <div class="small"><label for="auto_county">County</label><select id="auto_county"></select></div>
       <div class="small"><label for="auto_country">Country</label><select id="auto_country"></select></div>
     </div>
+    <div class="advanced open" id="autoadv" style="margin-top:8px">
+      <div style="flex:1 1 100%;margin:0"><span class="muted" style="font-size:12.5px">The same four
+        as the search bar above, and the same limit: they narrow the freehire results only — the
+        Romanian boards have no equivalent, so they come back unfiltered.</span></div>
+      <div><label for="auto_fresh">Freshness</label><select id="auto_fresh"></select></div>
+      <div><label for="auto_work_mode">Work mode</label><select id="auto_work_mode"></select></div>
+      <div><label for="auto_seniority">Seniority</label><select id="auto_seniority"></select></div>
+      <div><label for="auto_ats">Application type</label><select id="auto_ats"></select></div>
+    </div>
     <p class="muted" style="margin:6px 0 0">The job titles you would type into the search bar at
       the top — <b>not</b> a description of yourself. Separate them with commas: each one is
       searched on its own, so listing a job in both Romanian and English finds ads the other
@@ -878,7 +887,8 @@ $('#importhist').onclick = e => busy(e.target, async () => {
 }, 'reading Hipo...');
 
 /* ---------- the scheduled run ---------- */
-const AUTO_FIELDS = ['auto_enabled', 'auto_days', 'auto_time', 'auto_query', 'auto_location',
+const AUTO_FIELDS = ['auto_fresh', 'auto_work_mode', 'auto_seniority', 'auto_ats',
+                     'auto_enabled', 'auto_days', 'auto_time', 'auto_query', 'auto_location',
                      'auto_county', 'auto_country', 'keep_signed_in', 'recheck',
                      'auto_min_fit', 'auto_apply', 'auto_apply_min_fit',
                      'auto_apply_cap'];
@@ -1034,6 +1044,9 @@ $('#autocopy').onclick = () => {
   $('#auto_location').value = $('#loc').value;
   $('#auto_county').value = $('#county').value;
   $('#auto_country').value = $('#country').value;
+  for(const [from, to] of [['fresh','auto_fresh'], ['work_mode','auto_work_mode'],
+                           ['seniority','auto_seniority'], ['ats','auto_ats']])
+    if($('#' + from) && $('#' + to)) $('#' + to).value = $('#' + from).value;
   toast('Copied. Press "Save the schedule" to keep it.');
 };
 
@@ -1654,7 +1667,9 @@ $('#auto_preset').onchange = e => {
 
 function mirrorControls(){
   for(const [from, to] of [['loc','auto_location'], ['county','auto_county'],
-                           ['country','auto_country']]){
+                           ['country','auto_country'], ['fresh','auto_fresh'],
+                           ['work_mode','auto_work_mode'], ['seniority','auto_seniority'],
+                           ['ats','auto_ats']]){
     const src = $('#' + from), dst = $('#' + to);
     if(!src || !dst) continue;
     const keep = dst.value;
@@ -2546,7 +2561,8 @@ function rememberEdits(){
     });
   };
   for(const [id, key] of Object.entries(SEARCH_FIELDS)) bind(id, key);
-  for(const k of ['auto_query', 'auto_location', 'auto_county', 'auto_country']) bind(k, k);
+  for(const k of ['auto_query', 'auto_location', 'auto_county', 'auto_country',
+                  'auto_fresh', 'auto_work_mode', 'auto_seniority', 'auto_ats']) bind(k, k);
 }
 
 function restoreSearch(){

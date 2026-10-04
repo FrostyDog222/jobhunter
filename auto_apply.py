@@ -25,7 +25,7 @@ EXTERNAL_NOTE = "apply on the employer site"
 import datetime
 
 
-def candidates(app, prefill, min_fit, cap, boards=None):
+def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", held=None):
     """-> the jobs this run may apply to, best score first. Pure selection, no side effects.
 
     `boards` limits it to the ones signed in right now. Without that a signed-out board's jobs
@@ -34,16 +34,36 @@ def candidates(app, prefill, min_fit, cap, boards=None):
     """
     with app.db() as c:
         rows = [dict(r) for r in c.execute(
-            "SELECT url, title, company, source, fit, note FROM jobs "
+            "SELECT url, title, company, source, fit, note, location FROM jobs "
             "WHERE status IN ('new','ready') AND fit >= ? "
             # same tie-break as the dashboard: a job with fewer people already in the queue is
             # the better use of one of this week's five
             "ORDER BY fit DESC, CASE WHEN applicants IS NULL THEN 1 ELSE 0 END, "
             "applicants ASC, found DESC", (int(min_fit),))]
     ok = set(boards) if boards is not None else None
+    # Where the person set a city or a county, hold the unattended run to it. The search only
+    # filters what it DISCOVERS, so everything stored before those filters were set stayed
+    # eligible for ever - measured, 44 of 49 candidates were outside the county that was asked
+    # for, and applications went to them. `held` counts what this drops so the run can say so.
+    import scrape
+
+    def col(r, name):
+        try:
+            return r[name]
+        except (KeyError, IndexError):
+            return None
+
+    def here(r):
+        if scrape.reachable(col(r, "location") or "", city, county):
+            return True
+        if held is not None:
+            held.append(f'{r["title"]} ({r["location"] or "no location given"})')
+        return False
+
     return [r for r in rows
             if prefill.apply_mode(r["source"]) == "auto"
             and (ok is None or r["source"] in ok)
+            and here(r)
             # A posting whose apply button hands you to the employer's own site cannot be sent
             # from here, and that will not change - so it must not fill one of the week's five
             # and be reported as a failure. Thirteen of fifteen Hipo ads are this kind.
@@ -131,12 +151,28 @@ def run(app, prefill, settings, log):
         log(report["note"])
         return report
 
+    # the city and county saved for the scheduled run. Without these it applied to anything above
+    # the score floor wherever it was - measured, 44 of 49 candidates outside the county that had
+    # been set - because the search only filters what it discovers and the table is full of ads
+    # found before those filters existed.
+    held = []
     picks = candidates(app, prefill, settings["auto_apply_min_fit"], settings["auto_apply_cap"],
-                       usable)
+                       usable, city=settings.get("auto_location") or "",
+                       county=settings.get("auto_county") or "", held=held)
     report["considered"] = len(picks)
+    report["held_for_location"] = len(held)
+    if held:
+        # said out loud: sending nothing because everything was somewhere else looks exactly like
+        # finding nothing, and the difference is the whole reason the filter exists
+        log(f"held back {len(held)} job(s) outside "
+            f"{settings.get('auto_location') or settings.get('auto_county')}: "
+            + "; ".join(held[:5]) + (" ..." if len(held) > 5 else ""))
     if not picks:
         report["note"] = (f"Nothing scored {settings['auto_apply_min_fit']} or above on "
                           f"{' or '.join(usable)} on this run."
+                          + (f" {len(held)} were outside "
+                             f"{settings.get('auto_location') or settings.get('auto_county')}."
+                             if held else "")
                           + (f" (Not signed in to {', '.join(out)}.)" if out else ""))
         log(report["note"])
         return report

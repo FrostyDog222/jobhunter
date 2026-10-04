@@ -241,6 +241,7 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             # ...and the four under "More filters", which were remembered nowhere at all, so
             # every reload made you narrow the search again. "fresh" matches the markup's own
             # default; the rest mean "any".
+            "auto_fresh": "fresh", "auto_work_mode": "", "auto_seniority": "", "auto_ats": "",
             "search_fresh": "fresh", "search_work_mode": "", "search_seniority": "",
             "search_ats": "",
             # the weekly run (auto.py, started by Windows Task Scheduler)
@@ -533,6 +534,7 @@ def _set_auto(body):
     cur = settings()
     for k in ("auto_enabled", "auto_days", "auto_time", "auto_query", "auto_location",
               "auto_county", "auto_country", "keep_signed_in", "skip_families", "recheck",
+              "auto_fresh", "auto_work_mode", "auto_seniority", "auto_ats",
               "auto_min_fit", "auto_apply", "auto_apply_min_fit",
               "auto_apply_cap"):
         if k not in body:
@@ -2211,6 +2213,7 @@ def sweep_stale(floor):
 async def _search(body, p):
     queries = [q.strip() for q in re.split(r"[,;]", body.get("query", "")) if q.strip()] or [""]
     loc = body.get("location", "")
+    city = loc                      # kept before the county fallback below overwrites it
     county = (body.get("county") or "").strip().lower()
     # A city is more specific than its county, so it wins. With only a county, send that: eJobs
     # filters on it properly, Hipo understands some of them, and scrape.in_county below catches
@@ -2325,11 +2328,15 @@ async def _search(body, p):
                         f"time - the board did not answer. Nothing is lost: they are still "
                         f"unseen, so the next search fetches them again.")
 
-    # Now that each ad declares where it is, hold the boards to the county that was asked for.
-    # Hipo ignores a county name outright and answers with the whole country instead - measured,
-    # not assumed - so without this the dropdown would quietly do nothing on half the results.
-    if county:
-        fresh = [j for j in fresh if scrape.in_county(j.get("location", ""), county)]
+    # Now that each ad declares where it is, hold the boards to the city AND county that were asked
+    # for. They do not hold themselves to either: measured on one pass, asking BestJobs for
+    # Bucuresti returned Fagaras, Codlea and Timisoara, and freehire returned Skopje. Hipo ignores
+    # a county name outright and answers with the whole country. Only the county was checked here,
+    # so a city on its own did nothing at all.
+    off_area = 0
+    if city or county:
+        keep = [j for j in fresh if scrape.reachable(j.get("location", ""), city, county)]
+        off_area, fresh = len(fresh) - len(keep), keep
 
     for b in boards:
         rows = [j for j in fresh if j["source"] == b]
@@ -2547,6 +2554,9 @@ async def _search(body, p):
             # ads never read or scored because they are in a job family you do not work in. Shown,
             # not silent: a filter you cannot see the effect of is a filter you cannot trust.
             "off_family": off_family,
+            # dropped for being somewhere other than the city or county asked for. The boards
+            # answer a city search with other cities, so without this the filter did nothing.
+            "off_area": off_area,
             # which rule dropped what. Named so a skip list that is quietly costing you a job you
             # would have wanted is visible, instead of being one number in a log line.
             "off_family_by": dict(sorted(dropped_by.items(), key=lambda kv: -kv[1])[:8]),
