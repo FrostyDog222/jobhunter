@@ -1159,8 +1159,7 @@ $('#keep_signed_in').onchange = async e => {
 // "I did not know what to type there" - so offer the two answers that are already on the page:
 // the titles this person has actually held, and whatever they just searched for.
 $('#auto_from_cv').onclick = () => {
-  const mine = [...new Set([(PROFILE || {}).title, ...((PROFILE || {}).experience || []).map(x => x.role)]
-                  .map(x => (x || '').trim()).filter(Boolean))].slice(0, 4);
+  const mine = profileTitles().slice(0, 4);
   if(!mine.length) return toast('Your profile has no job titles yet — fill it in first, or type '
                               + 'the roles you are looking for.', 7000);
   $('#auto_query').value = mine.join(', ');
@@ -1715,7 +1714,10 @@ function drawPresets(){
     // one group per trade: twenty-seven families in a flat list is worse than the twelve were
     + Object.entries(PRESET_GROUPS).map(([group, fam]) =>
         `<optgroup label="${esc(t(group))}">`
-        + Object.keys(fam).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')
+        // the LABEL is translated, the value stays English because PRESETS is keyed on it. Without
+        // the t() the family names came back as English the moment this redrew, and whether a
+        // Romanian page showed them translated depended on which request answered last.
+        + Object.keys(fam).map(k => `<option value="${esc(k)}">${esc(t(k))}</option>`).join('')
         + '</optgroup>').join('');
   mirrorPreset();
 }
@@ -1989,12 +1991,23 @@ function chipPlaceholder(id){
 function drawChips(id){
   const host = $('#chips_' + id);
   if(!host) return;
+  // Half-typed text survives the rebuild. This row is redrawn by things the person did not do -
+  // removing a chip, and loadAuto, which the "Run it now" button polls every 15 seconds for up to
+  // ten minutes - and each one used to replace the input mid-word and take what was in it.
+  const typing = (host.querySelector('.chipin') || {}).value || '';
+  const focused = document.activeElement
+                  && document.activeElement.classList.contains('chipin')
+                  && host.contains(document.activeElement);
   host.innerHTML = chipTerms(id).map((x, i) =>
       `<span class="chip"><span>${esc(x)}</span><button type="button" data-rm="${i}"
          title="Remove">&times;</button></span>`).join('')
     + `<input class="chipin" id="chipin_${id}" list="qterms" aria-label="Add a job title"
          placeholder="${esc(chipPlaceholder(id))}">`;
   localiseDOM(host);       // built with innerHTML, so the server's pass never saw it
+  const add = host.querySelector('.chipin');
+  if(add && typing) add.value = typing;
+  // and the caret stays where it was, so a redraw landing mid-word is not felt at all
+  if(add && focused){ add.focus(); add.setSelectionRange(add.value.length, add.value.length); }
 }
 
 // A typo is not a cosmetic problem here: eJobs and Hipo return nothing at all for one, while
@@ -2037,6 +2050,14 @@ for(const id of CHIPBOXES){
       list.pop();
       setChipTerms(id, list, true);
     }
+  });
+  // Pressing a cross must not blur the add-input first. The blur handler below commits what was
+  // typed and redraws the whole row, which detached the very button being pressed - so mouseup
+  // landed on nothing and the first press of any cross after typing did nothing at all, while
+  // silently adding the half-typed term instead. preventDefault on mousedown keeps focus where it
+  // is, so no blur fires and the click reaches the button that is still there.
+  host.addEventListener('mousedown', e => {
+    if(e.target.dataset && e.target.dataset.rm !== undefined) e.preventDefault();
   });
   // clicking away keeps what was typed, the same as the profile's chips
   host.addEventListener('blur', e => {

@@ -4778,4 +4778,57 @@ assert not _accented10e, f"these search terms carry diacritics the boards fold a
 for _fam10e, _val10e in _re.findall(r"^  '([^']+)':\n?\s*'([^']*)'", _grp10e.group(1), _re.M):
     assert _val10e.strip(), f"{_fam10e} has no terms at all"
 
+# 10f. The first press of a chip's cross after typing did nothing at all.
+#
+# Found by an audit of my own change and then reproduced in the running app: with two chips and
+# "zidar" half-typed, pressing the cross on "sofer" added zidar and left sofer where it was. The
+# capture-phase blur handler commits and redraws the whole row, so the button being pressed was
+# detached between mousedown and mouseup and the click landed on nothing.
+_d10f = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "host.addEventListener('mousedown'" in _d10f, \
+    "nothing stops the cross blurring the add-input, so its own click is destroyed before it lands"
+_md10f = _d10f.split("host.addEventListener('mousedown'")[1].split("});")[0]
+assert "dataset.rm !== undefined" in _md10f and "preventDefault()" in _md10f, \
+    "mousedown is handled but not for the remove buttons, or it does not keep focus where it is"
+# and it must be bound BEFORE the blur handler it defends against, so the row reads in order
+assert _d10f.index("host.addEventListener('mousedown'") < _d10f.index("host.addEventListener('blur'"), \
+    "the guard is written after the handler it exists to defend against"
+
+# Half-typed text survives a redraw. The row is rebuilt by things the person did not do - removing
+# a chip, and loadAuto, which "Run it now" polls every 15 seconds for up to ten minutes - and each
+# one replaced the input mid-word and took what was in it.
+_draw10f = _d10f.split("function drawChips(id){")[1].split("\n}")[0]
+assert "querySelector('.chipin') || {}).value" in _draw10f, \
+    "the add-input's contents are not read before the row is rebuilt, so a redraw eats them"
+assert "if(add && typing) add.value = typing" in _draw10f, "what was typed is never put back"
+assert "setSelectionRange" in _draw10f, "focus returns but the caret jumps, which is felt mid-word"
+
+# 10g. Four copies of "the person's own job titles" became one - including the fourth, which the
+# consolidation comment claimed was done and had in fact been missed. It lacked the null guard, so
+# a null entry in experience threw and the button did nothing.
+# comment lines stripped first: the note explaining the consolidation quotes the very shape it
+# removed, and matching that would make this test pass or fail on prose
+_code10g = "\n".join(l for l in _d10f.splitlines() if not l.strip().startswith("//"))
+assert "map(x => x.role)" not in _code10g, \
+    "an inline copy of profileTitles() is back, without the guard against a null experience entry"
+assert _d10f.count("function profileTitles()") == 1
+for _call10g in ("profileTitles().slice(0, 6)", "profileTitles().slice(0, 4)",
+                 "profileTitles().slice(0, 3)"):
+    assert _call10g in _d10f, f"a caller stopped using the shared helper: {_call10g}"
+
+# 10h. The role-family picker drew its option labels in raw English while translating the headings
+# right above them, so a Romanian page showed half an English dropdown - and whether it did
+# depended on which request happened to answer last.
+assert "${esc(t(k))}</option>" in _d10f, "the family names are rendered untranslated"
+assert 'value="${esc(k)}"' in _d10f, \
+    "the option VALUE must stay English - PRESETS is keyed on it and a translated value finds nothing"
+
+# every string the search boxes can show has a Romanian answer
+for _s10h in ("Terms loaded \u2014 edit them if you like, then Search & score.",
+              "Filled from your CV. Edit it, then Save the schedule.",
+              'Copied. Press "Save the schedule" to keep it.',
+              "Type what it should search for first.",
+              "Load a role family into the box"):
+    assert _s10h in app.lang.RO, f"no Romanian for {_s10h[:48]!r}"
+
 print("ok")

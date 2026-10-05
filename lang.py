@@ -548,6 +548,22 @@ RO = {
         "Sunt la început de drum — încă niciun job plătit.",
     "Scoring stops treating \"no experience\" as a fault on every ad and looks at what an employer hiring a beginner actually checks: your studies, a licence, languages, and whether the job trains you. Fill in Education and Projects below — a summer job or volunteering goes under Experience.":
         "Punctarea nu mai tratează \"lipsa experienței\" ca pe un defect la fiecare anunț și se uită la ce verifică de fapt un angajator care ia un începător: studiile tale, un permis, limbile și dacă jobul te instruiește. Completează Studii și Proiecte mai jos — un job de vară sau voluntariatul intră la Experiență.",
+    # Six strings around the search boxes that reached a Romanian page in English. Each has a twin
+    # a few lines away that WAS translated, which is how they stayed missing: the scheduled box's
+    # "Loaded into the scheduled run" is here, its manual counterpart was not.
+    "Terms loaded — edit them if you like, then Search & score.":
+        "Termeni încărcați — modifică-i dacă vrei, apoi Caută și punctează.",
+    "Filled from your CV. Edit it, then Save the schedule.":
+        "Completat din CV-ul tău. Modifică, apoi Salvează programarea.",
+    "Your profile has no job titles yet — fill it in first, or type the roles you are looking for.":
+        "Profilul tău nu are încă titluri de job — completează-l mai întâi sau scrie rolurile pe "
+        "care le cauți.",
+    'Copied. Press "Save the schedule" to keep it.':
+        "Copiat. Apasă „Salvează programarea” ca să păstrezi.",
+    "Type what it should search for first.":
+        "Scrie mai întâi ce să caute.",
+    "Load a role family into the box":
+        "Încarcă o familie de roluri în casetă",
     # The headings of the role-family picker. An optgroup's label is an attribute, so these reach
     # the page through t() rather than the server's text-node pass.
     "From your profile": "Din profilul tău",
