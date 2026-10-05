@@ -556,16 +556,7 @@ def _set_auto(body):
     cur["auto_days"] = [d for d in (cur.get("auto_days") or []) if d in DAYS]
     if not cur["auto_days"]:
         raise HTTPException(400, "Pick at least one day for it to run on.")
-    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", str(cur["auto_time"])):
-        raise HTTPException(400, "time must be HH:MM, e.g. 09:00")
-    try:
-        cur["auto_min_fit"] = max(0, min(100, int(cur["auto_min_fit"])))
-        cur["auto_apply_min_fit"] = max(0, min(100, int(cur["auto_apply_min_fit"])))
-        cur["auto_apply_cap"] = max(1, min(BATCH_CAP, int(cur["auto_apply_cap"])))
-    except (TypeError, ValueError):
-        raise HTTPException(400, "the score and the cap must be numbers")
-    if cur["auto_apply"] and not cur["auto_enabled"]:
-        raise HTTPException(400, "Applying happens during the scheduled run, so switch that on too.")
+    _guard_auto(cur)
     if cur["auto_enabled"] and not (cur["auto_query"] or "").strip():
         raise HTTPException(400, "Type what the scheduled run should search for.")
     save_settings_file(cur)
@@ -681,6 +672,34 @@ def save_settings(body: dict = Body(...)):
         return _save_settings(body)
 
 
+def _guard_auto(cur):
+    """The rules that decide whether real applications get sent, in one place.
+
+    They used to live only in _set_auto, behind the Save button - and /api/settings writes every
+    key in DEFAULTS, which includes auto_apply, auto_apply_min_fit, auto_apply_cap and auto_time,
+    checking only the TYPE. So one POST could switch unattended applying on at a floor of 0 and a
+    cap of 9999 without ever meeting the rule that applying needs the scheduled run, or the
+    confirmation the dashboard shows. Nothing in the page does that and cross-site posts are
+    already refused, so this was a missing guard rather than a live hole - but it is the one
+    setting in the app that spends somebody's name on an employer's desk, so it should not be
+    guarded by the browser alone.
+
+    auto_time matters for a duller reason: /api/settings would accept "99:99", and then every
+    later POST /api/auto fails its format check, including the keep-signed-in toggle. The panel
+    becomes unsavable until the file is edited by hand.
+    """
+    try:
+        cur["auto_min_fit"] = max(0, min(100, int(cur["auto_min_fit"])))
+        cur["auto_apply_min_fit"] = max(0, min(100, int(cur["auto_apply_min_fit"])))
+        cur["auto_apply_cap"] = max(1, min(BATCH_CAP, int(cur["auto_apply_cap"])))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "the score and the cap must be numbers")
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", str(cur["auto_time"])):
+        raise HTTPException(400, "time must be HH:MM, e.g. 09:00")
+    if cur["auto_apply"] and not cur["auto_enabled"]:
+        raise HTTPException(400, "Applying happens during the scheduled run, so switch that on too.")
+
+
 def _save_settings(body):
     cur = settings()
     for k in DEFAULTS:
@@ -699,6 +718,8 @@ def _save_settings(body):
         cur[k] = body[k]
     if cur["cv_template"] and cur["cv_template"] not in cv_templates():
         raise HTTPException(400, f"no such CV template: {cur['cv_template']}")
+    # the same rules the Save button meets, because this endpoint writes the same keys
+    _guard_auto(cur)
     save_settings_file(cur)
     return cur
 

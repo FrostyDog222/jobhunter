@@ -4874,4 +4874,46 @@ _src10i = (app.HERE / "llm.py").read_text(encoding="utf-8")
 assert '.replace("<JOB_LIST"' not in _src10i and '.replace("</JOB_LIST"' not in _src10i, \
     "the case-sensitive replaces are still there"
 
+# 10j. /api/settings could switch unattended applying on, past every rule the Save button meets.
+#
+# It writes every key in DEFAULTS and checked only the TYPE - and DEFAULTS carries auto_apply,
+# auto_apply_min_fit, auto_apply_cap and auto_time. So one POST could arm the sender at a floor of
+# 0 and a cap of 9999 without meeting "applying needs the scheduled run", without the clamps, and
+# without the confirmation the dashboard shows. Nothing in the page does that and cross-site posts
+# are already refused, so it was a missing guard rather than a live hole - but this is the setting
+# that spends somebody's name on an employer's desk.
+_sj10j = (app.HERE / "settings.json")
+_keep10j = _sj10j.read_text(encoding="utf-8") if _sj10j.exists() else None
+try:
+    # applying without the scheduled run is refused on BOTH doors now
+    for _ep10j in ("/api/settings", "/api/auto"):
+        _r10j = _cl9.post(_ep10j, json={"auto_apply": True, "auto_enabled": False},
+                          headers={"Origin": "http://127.0.0.1:8777"})
+        assert _r10j.status_code == 400, \
+            f"{_ep10j} armed unattended applying with the scheduled run switched off"
+
+    # and the numbers are clamped rather than taken as given
+    _r10j = _cl9.post("/api/settings", json={"auto_apply_cap": 9999, "auto_apply_min_fit": 1000},
+                      headers={"Origin": "http://127.0.0.1:8777"})
+    assert _r10j.status_code == 200, _r10j.text
+    _got10j = app.settings()
+    assert _got10j["auto_apply_cap"] <= app.BATCH_CAP, \
+        f"a cap of {_got10j['auto_apply_cap']} would send that many real applications"
+    assert _got10j["auto_apply_min_fit"] <= 100
+
+    # a time this endpoint accepts must be one /api/auto can read back, or the auto panel - and the
+    # keep-signed-in toggle that posts to it - cannot be saved again at all
+    assert _cl9.post("/api/settings", json={"auto_time": "99:99"},
+                     headers={"Origin": "http://127.0.0.1:8777"}).status_code == 400, \
+        "a time that every later /api/auto will reject was written to the settings file"
+finally:
+    if _keep10j is not None:
+        _sj10j.write_text(_keep10j, encoding="utf-8")
+assert _sj10j.read_text(encoding="utf-8") == _keep10j, "this block left the real settings changed"
+
+# one set of rules, not two that drift
+_src10j = (app.HERE / "app.py").read_text(encoding="utf-8")
+assert "def _guard_auto(" in _src10j and _src10j.count("_guard_auto(cur)") >= 2, \
+    "the apply rules are back to living on one door only"
+
 print("ok")
