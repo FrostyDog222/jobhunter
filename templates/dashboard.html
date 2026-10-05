@@ -664,10 +664,18 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     title="Compare the jobs waiting and say which few are worth doing today, and why.">What should I do today?</button>
   <button id="askboards" class="ghost" style="display:none"
     title="Read each board's own list of your applications and show where they stand. Sends nothing.">Ask the boards what happened</button>
-  <span class="bands">
-    <label><input type="checkbox" class="band" data-band="strong" checked> Strong 75+</label>
-    <label><input type="checkbox" class="band" data-band="medium" checked> Medium 50-74</label>
-    <label><input type="checkbox" class="band" data-band="weak"> Weak &lt;50</label>
+  <!-- These three do NOT filter the list - they say which scores the button beside them picks up.
+       Sitting unlabelled in a row of filters, between the Fit dropdown and the search box, they
+       read as a fourth filter that does nothing when you tick it. The heading says what they are
+       for, and each one says it again on hover. -->
+  <span class="bands" title="Which scores Select all shown ticks. These do not filter the list.">
+    <span class="muted">Select all picks up:</span>
+    <label title="Which scores Select all shown ticks. These do not filter the list."><input
+      type="checkbox" class="band" data-band="strong" checked> Strong 75+</label>
+    <label title="Which scores Select all shown ticks. These do not filter the list."><input
+      type="checkbox" class="band" data-band="medium" checked> Medium 50-74</label>
+    <label title="Which scores Select all shown ticks. These do not filter the list."><input
+      type="checkbox" class="band" data-band="weak"> Weak &lt;50</label>
   </span>
   <button id="selall" class="ghost">Select all shown</button>
   <b id="seltally" style="display:none;color:var(--accent);align-self:center;font-size:13.5px"
@@ -1031,9 +1039,13 @@ function drawRunHistory(runs){
           : fill('{found} seen, {fresh} new, {scored} scored',
                  {found: r.found ?? 0, fresh: r.new ?? 0, scored: r.scored ?? 0})
             + (sent.length ? fill(', {n} sent', {n: ok}) : '');
+        // A run where one board was down looked exactly like a clean one: the counts are simply
+        // lower, and nothing said why. These are the same warnings the manual search shows.
+        const warn = (r.warnings || []).map(w =>
+          `<div style="color:var(--bad);margin-left:10px">⚠ ${esc(w)}</div>`).join('');
         return `<div style="margin-top:7px;padding-top:7px;border-top:1px solid var(--line)">
           <span style="color:var(--fg)">${esc(r.when || '')}</span> · ${head}
-          ${r.note && !r.error ? `<div class="muted">${esc(r.note)}</div>` : ''}
+          ${r.note && !r.error ? `<div class="muted">${esc(r.note)}</div>` : ''}${warn}
           ${sent.map(x => `<div style="margin-left:10px">${x.ok ? '✓' : '✗'} ${
               esc(String(x.fit ?? ''))} ${esc(x.title || '')}${
               x.board ? `<span class="muted"> · ${esc(x.board)}</span>` : ''}${

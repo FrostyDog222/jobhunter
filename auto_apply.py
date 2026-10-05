@@ -106,11 +106,22 @@ def sign_back_in(prefill, out, log):
             log(f"could not read the saved sign-in for {board}: {type(e).__name__}")
             continue
         if not saved:
-            if creds.status().get(board, {}).get("stopped"):
+            st = creds.status().get(board, {})
+            if st.get("why") == "rejected":
                 # get() returns None for ever once the budget is spent, and said nothing about
                 # it - so the whole symptom was runs that quietly sent nothing
                 log(f"{board}: the saved sign-in is switched off after {creds.MAX_FAILS} "
                     f"failures - save it again under Settings to re-enable it")
+            elif st.get("why") == "unreadable":
+                log(f"{board}: stopped after {creds.MAX_UNKNOWN} attempts that could not be "
+                    f"checked - the password may be fine and the board unreachable, but it has "
+                    f"gone out that many times now. Sign in by hand to see, then save it again.")
+            elif st.get("saved"):
+                # saved, not stopped, and still unreadable: DPAPI refused it. A folder copied to
+                # another PC or another Windows account does this, and the panel shows the
+                # credentials as present and fine, so nothing else would ever say why.
+                log(f"{board}: a sign-in is saved but Windows will not decrypt it on this account "
+                    f"- save it again under Settings")
             continue
         log(f"{board}: signed out, trying the sign-in you saved")
         ok, why = prefill.auto_signin(board, *saved)
@@ -126,6 +137,18 @@ def sign_back_in(prefill, out, log):
             left = creds.MAX_FAILS - creds.note_failure(board)
             if left <= 0:
                 log(f"{board}: not trying the saved sign-in again until you save it afresh")
+        else:
+            # None, and the password was already POSTed before anything could tell us how it went -
+            # auto_signin submits, then probes, and the probe is what throws. So "wrong password
+            # AND a slow board" came back None every time and spent nothing, and the keep-alive
+            # re-posted it every two hours for ever: the lockout the budget exists to prevent,
+            # reached by the one path it did not cover. A longer budget of its own, because this
+            # genuinely is not evidence about the password.
+            left = creds.MAX_UNKNOWN - creds.note_unknown(board)
+            if left <= 0:
+                log(f"{board}: that is {creds.MAX_UNKNOWN} attempts with no readable answer, so "
+                    f"it will stop using the saved sign-in. Sign in by hand to see what the board "
+                    f"is asking, then save it again.")
     return back
 
 

@@ -68,12 +68,16 @@ def _remember(report):
     ap = report.get("applied") or {}
     s = report.get("searched") or {}
     try:
-        old.append({
+        row = {
             "when": report.get("when"),
             "error": report.get("error"),
             "note": report.get("note") or (ap.get("note") if isinstance(ap, dict) else None),
             "found": s.get("found"), "new": s.get("new"), "scored": s.get("scored"),
             "waiting": report.get("waiting"),
+            # A board that did not answer, or answered nothing where it has always answered
+            # something. _search returns these and the manual search shows them; the history
+            # dropped them, so "eJobs was down all Sunday" and a clean run read identically here.
+            "warnings": (s.get("warnings") or [])[:4],
             # one line per application, with the reason where there is one. The panel drew a cross
             # and dropped the text, which is the half that says what to do about it.
             "sent": [{"title": r.get("title"), "fit": r.get("fit"), "board": r.get("source"),
@@ -83,7 +87,15 @@ def _remember(report):
                               "needs you - screening questions" if r.get("needs_you") else
                               str(r.get("error") or "did not send")[:200])}
                      for r in (ap.get("applied") or [] if isinstance(ap, dict) else [])],
-        })
+        }
+        # One row per run, not per write. run() writes twice when applying is switched on - once
+        # before the applying step so a crash there still leaves the search behind, once after -
+        # and appending both put two rows with the SAME timestamp in the panel: the first with no
+        # error and nothing sent, the second with the real failure. A run that died while applying
+        # left a clean-looking row sitting directly beneath it, and the twenty kept covered ten
+        # runs rather than twenty.
+        old = [r for r in old if not (isinstance(r, dict) and r.get("when") == row["when"])]
+        old.append(row)
         RUNS.write_text(json.dumps(old[-KEEP_RUNS:], ensure_ascii=False, indent=1),
                         encoding="utf-8")
     except (OSError, TypeError, ValueError) as e:
@@ -154,7 +166,12 @@ def run():
                    if rc["gone_good"] else "")
                 + (" - " + ", ".join(f"{n} {w}" for w, n in rc["why"].items()) if rc["why"] else ""))
         except Exception as e:
-            log(f"the monthly recheck failed ({type(e).__name__}) - nothing was removed")
+            # NOT "nothing was removed": recheck_jobs deletes the rows it found gone and only then
+            # writes the timestamp, so the write is the likeliest thing here to throw - by which
+            # point the deleting is done. Saying otherwise told somebody their list was untouched
+            # when it had just shrunk.
+            log(f"the monthly recheck failed ({type(e).__name__}: {e}) - it may have removed "
+                f"some jobs before it stopped, and it will run again on the next scheduled run")
 
     # what is now sitting there for you, by the standard you set for a job worth opening
     with app.db() as c:

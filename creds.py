@@ -38,6 +38,19 @@ _APP = b"jobhunter board credentials v1:"
 # account gets locked, which is a great deal worse than being signed out.
 MAX_FAILS = 2
 
+# And a separate, longer budget for attempts that told us nothing.
+#
+# auto_signin returns None for everything that is not the board saying no - a timeout, a dropped
+# connection, a 502 - deliberately, because none of that is evidence about the password and two
+# runs during a wifi outage used to disable a correct sign-in for good. But the password is POSTed
+# before the check that decides this, so "wrong password AND a slow board" came back None every
+# time and spent nothing: the keep-alive would re-post it every two hours for ever, which is the
+# lockout this file exists to prevent, reached by the one path the budget did not cover.
+#
+# Six, because the keep-alive runs every two hours: half a day of trying before it gives up and
+# says so, which is long enough to ride out an outage and short enough not to hammer a board.
+MAX_UNKNOWN = 6
+
 
 class _BLOB(ctypes.Structure):
     _fields_ = [("cbData", w.DWORD), ("pbData", ctypes.POINTER(ctypes.c_char))]
@@ -101,7 +114,7 @@ def save(board, username, password):
     with _LOCK:
         all_ = _read()
         all_[board] = {"user": _protect(username.strip(), ent),
-                       "pass": _protect(password, ent), "fails": 0}
+                       "pass": _protect(password, ent), "fails": 0, "unknown": 0}
         _write(all_)
 
 
@@ -112,7 +125,8 @@ def get(board):
     """
     with _LOCK:
         row = _read().get(board) or {}
-    if not row.get("user") or int(row.get("fails", 0)) >= MAX_FAILS:
+    if (not row.get("user") or int(row.get("fails", 0)) >= MAX_FAILS
+            or int(row.get("unknown", 0)) >= MAX_UNKNOWN):
         return None
     ent = _APP + board.encode()
     try:
@@ -144,11 +158,28 @@ def note_failure(board):
     return 0
 
 
+def note_unknown(board):
+    """An attempt whose outcome we could not read - but the password did go out.
+
+    Kept apart from note_failure because it is not evidence the password is wrong, and must not
+    disable a correct sign-in after two flaky runs. It still has to end somewhere: the credentials
+    were submitted, so repeating it without limit is the same lockout risk by a quieter route.
+    """
+    with _LOCK:
+        all_ = _read()
+        if board in all_:
+            all_[board]["unknown"] = int(all_[board].get("unknown", 0)) + 1
+            _write(all_)
+            return all_[board]["unknown"]
+    return 0
+
+
 def note_success(board):
     with _LOCK:
         all_ = _read()
-        if board in all_ and all_[board].get("fails"):
+        if board in all_ and (all_[board].get("fails") or all_[board].get("unknown")):
             all_[board]["fails"] = 0
+            all_[board]["unknown"] = 0        # one success says both counts were noise
             _write(all_)
 
 
@@ -157,6 +188,14 @@ def status():
     used. Never the username, and obviously never the password."""
     with _LOCK:
         all_ = _read()
-    return {b: {"saved": True, "fails": int(v.get("fails", 0)),
-                "stopped": int(v.get("fails", 0)) >= MAX_FAILS}
-            for b, v in all_.items() if v.get("user")}
+    out = {}
+    for b, v in all_.items():
+        if not v.get("user"):
+            continue
+        fails, unknown = int(v.get("fails", 0)), int(v.get("unknown", 0))
+        out[b] = {"saved": True, "fails": fails, "unknown": unknown,
+                  "stopped": fails >= MAX_FAILS or unknown >= MAX_UNKNOWN,
+                  # the two reasons read very differently to whoever has to fix it
+                  "why": "rejected" if fails >= MAX_FAILS
+                         else "unreadable" if unknown >= MAX_UNKNOWN else ""}
+    return out

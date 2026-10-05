@@ -2102,9 +2102,18 @@ def recheck_jobs(on_progress=None):
         with db() as c:
             c.executemany("DELETE FROM jobs WHERE url = ? AND status IN ('new','ready','vetoed') "
                           "AND (cv IS NULL OR cv = '')", [(u,) for u in gone])
-    cur = settings()
-    cur["recheck_last"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    save_settings_file(cur)
+    # One lock across read AND write, the same as /api/settings and Save the schedule. Locking
+    # settings() and save_settings_file() separately reads the whole file, then writes the whole
+    # file back, and anything saved in between is erased by the second half. The window here is two
+    # lines rather than the length of the recheck - the read is after still_listed, not before it -
+    # but "narrow" is not "closed", and this runs while somebody is using the page.
+    #
+    # ponytail: a threading lock, so it still does not cover auto.py running this in its own
+    # process. Shared-file locking if that ever bites; the window is microseconds.
+    with _FILES:
+        cur = settings()
+        cur["recheck_last"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        save_settings_file(cur)
     return {"asked": len(rows), "gone": len(gone), "gone_good": good, "why": why,
             # a board whose answers looked like a broken parser, so none of them were acted on
             "doubted": doubt.get("doubted", [])}
@@ -2285,6 +2294,28 @@ async def _search(body, p):
 
     # Phase 1: discover cheaply - one request per board per query, no detail pages yet.
     found, warnings = [], []
+
+    # Country reaches one board in four. scrape.discover passes it to freehire alone; eJobs, Hipo
+    # and BestJobs are Romanian sites and answer in Romanian jobs whatever is asked. So picking
+    # Germany used to return German ads from freehire and Romanian ads from the other three, mixed
+    # together with nothing saying which was which - the same shape as the work mode bug, one
+    # control along, and this one sits in the main bar with no caveat under it.
+    #
+    # There is no post-filter to be had here: a location is free text and "Berlin, Germania" is not
+    # reliably separable from a Romanian ad mentioning Berlin. But the three cannot serve the
+    # question at all, so asking them is noise by construction - they are skipped, and it is said
+    # out loud rather than left for somebody to notice in the results.
+    abroad = (country or "").strip().lower()
+    if abroad and abroad not in scrape.WORLDWIDE and abroad != "ro":
+        can = [b for b in boards if b == "freehire"]
+        if can and len(can) < len(boards):
+            warnings.append(
+                f"searching {abroad.upper()} on freehire only - eJobs, BestJobs and Hipo list "
+                f"Romanian jobs and would have answered in them whatever was asked")
+            boards = can
+        elif not can:
+            warnings.append(f"none of the boards picked can search {abroad.upper()} - "
+                            f"only freehire has jobs outside Romania")
     asked, to_ask = 0, max(1, len(boards) * len(queries))
     step("searching the boards", 0, to_ask)
     with db() as c:

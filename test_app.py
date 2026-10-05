@@ -1999,7 +1999,8 @@ try:
     assert _SECRET not in _raw, "the password is sitting in the file in plain text"
     assert "someone@example.com" not in _raw, "the username is in plain text"
     # status is what the page is allowed to know, and it is not the credentials
-    assert _cr.status() == {"ejobs": {"saved": True, "fails": 0, "stopped": False}}
+    assert _cr.status() == {"ejobs": {"saved": True, "fails": 0, "unknown": 0,
+                                      "stopped": False, "why": ""}}
     # a blob cannot be lifted from one board to another even inside the same file
     _d = _json.loads(_raw); _d["hipo"] = _d["ejobs"]
     _credfile.write_text(_json.dumps(_d), encoding="utf-8")
@@ -2010,8 +2011,26 @@ try:
     assert _cr.note_failure("ejobs") == 1 and _cr.get("ejobs") is not None
     assert _cr.note_failure("ejobs") == 2 and _cr.get("ejobs") is None
     assert _cr.status()["ejobs"]["stopped"] is True
+    assert _cr.status()["ejobs"]["why"] == "rejected"
     _cr.note_success("ejobs")
     assert _cr.get("ejobs") is not None, "a success must clear the count"
+
+    # The other budget: auto_signin POSTs the password and THEN probes, and the probe is what
+    # throws - so "wrong password and a slow board" returned None every time and spent nothing,
+    # and the keep-alive re-posted it every two hours for ever. A longer budget of its own,
+    # because an unreadable answer genuinely is not evidence the password is wrong.
+    _cr.save("ejobs", "u", "p")
+    for _i6u in range(1, _cr.MAX_UNKNOWN):
+        assert _cr.note_unknown("ejobs") == _i6u
+        assert _cr.get("ejobs") is not None, "an outage must not disable a correct password early"
+    assert _cr.note_unknown("ejobs") == _cr.MAX_UNKNOWN
+    assert _cr.get("ejobs") is None, "the password keeps going out with nothing bounding it"
+    assert _cr.status()["ejobs"]["why"] == "unreadable", \
+        "stopped for the wrong reason, so the message tells the person the wrong thing"
+    assert _cr.MAX_UNKNOWN > _cr.MAX_FAILS, "an unreadable answer is treated as harshly as a refusal"
+    _cr.note_success("ejobs")
+    assert _cr.get("ejobs") is not None and _cr.status()["ejobs"]["unknown"] == 0, \
+        "one success must clear both counts"
     # half a credential is not a credential
     for _bad in (("", "p"), ("u", "")):
         try:
@@ -2511,10 +2530,12 @@ try:
 
     class _Creds6k:
         MAX_FAILS = 2
+        MAX_UNKNOWN = 6
         def get(self, board): return ("u", "p") if board == "hipo" else None
         def status(self): return {}
         def note_success(self, board): _asked.append(f"success {board}")
         def note_failure(self, board): return 1
+        def note_unknown(self, board): _asked.append(f"unknown {board}"); return 1
 
     _aa6.creds = _Creds6k()
     # the probe says hipo is out; the other two are fine and must not be touched
@@ -4956,5 +4977,59 @@ try:
 finally:
     _llmq.ask = _realask10k           # the real one back, whatever happened above
 assert _llmq.ask is _realask10k, "the suite left a stubbed llm.ask behind"
+
+# 10l. The Country dropdown reached one board in four, and said nothing about it.
+#
+# scrape.discover passes country to freehire alone; eJobs, Hipo and BestJobs are Romanian sites and
+# answer in Romanian jobs whatever is asked. Picking Germany returned German ads from freehire and
+# Romanian ads from the other three, mixed, with nothing saying which was which - the same shape as
+# the work-mode bug one control along, and this one sits in the main bar with no caveat under it.
+_disc10l = _iK.getsource(scrape.discover)
+assert "freehire(query, country" in _disc10l and "bestjobs(query, limit, timeout)" in _disc10l, \
+    "discover's country handling changed - re-check whether the three can honour it now"
+_srch10l = _iK.getsource(app._search)
+assert "scrape.WORLDWIDE" in _srch10l and "boards = can" in _srch10l, \
+    "a search abroad still asks the three boards that can only answer in Romanian jobs"
+# Romania and worldwide must NOT be narrowed - those are the normal cases
+for _c10l in ("ro", "", "*"):
+    assert f'abroad != "ro"' in _srch10l
+assert "none of the boards picked can search" in _srch10l, \
+    "picking only Romanian boards plus a foreign country fails silently"
+
+
+# 10m. One history row per run, not per write - and a run where a board was down looked clean.
+_rem10m = _iK.getsource(_auto._remember)
+assert 'r.get("when") == row["when"]' in _rem10m, \
+    "run() writes twice when applying is on, so the panel shows the same run as two rows - the "\
+    "first without the failure, sitting directly under it"
+assert '"warnings"' in _rem10m, \
+    "a run where eJobs was down is still indistinguishable from a clean one"
+_dash10m = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "r.warnings || []" in _dash10m, "the warnings are stored and then never drawn"
+
+# and the recheck no longer claims nothing was removed when it may have removed plenty
+_run10m = "\n".join(l for l in _iK.getsource(_auto.run).splitlines()
+                    if not l.strip().startswith("#"))      # the note explaining it quotes it
+assert "nothing was removed" not in _run10m, \
+    "the recheck deletes rows and only then writes the timestamp, so the write is the likeliest "\
+    "thing to throw - by which point the deleting is done"
+
+# the settings timestamp is written under the same lock as every other read-modify-write
+_rc10m = _iK.getsource(app.recheck_jobs)
+assert "with _FILES:" in _rc10m, \
+    "recheck_jobs reads the whole settings file and writes it back without the lock, so anything "\
+    "saved from the page in between is erased"
+
+
+# 10n. The three fit checkboxes are not filters, and were the only controls here that said nothing.
+assert 'class="bands" title=' in _dash10m, "the fit bands still look like a fourth filter"
+assert "Select all picks up:" in _dash10m, "nothing on screen says what the bands are for"
+assert _dash10m.count("Which scores Select all shown ticks.") >= 4, \
+    "the heading explains them but the boxes themselves still do not"
+
+# and a setting nothing reads is gone from the file
+_live10n = _json.loads((app.HERE / "settings.json").read_text(encoding="utf-8"))
+assert "search_remote" not in _live10n, "a dead key is back in the settings file"
+assert "search_remote" not in (app.HERE / "app.py").read_text(encoding="utf-8")
 
 print("ok")
