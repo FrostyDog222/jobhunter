@@ -1097,6 +1097,15 @@ SCHEMA = json.dumps(
     ensure_ascii=False)
 
 
+# Anything a model could read as one of our boundary tags: an angle bracket, then any mix of
+# slashes, whitespace and zero-width characters, then the name. The zero-width class is the point -
+# U+200B and friends render as nothing, so </<ZWSP>JOB_POSTING looks exactly like the real tag on
+# screen while \s does not match it.
+_JUNK = r"[\s/\\​‌‍⁠﻿]*"
+TAGLIKE = re.compile(r"<" + _JUNK + r"JOB_POSTING", re.I)
+LISTLIKE = re.compile(r"<" + _JUNK + r"JOB_LIST", re.I)
+
+
 def _fenced(job, limit=20000):
     """The ad, as one block that it cannot write its way out of.
 
@@ -1109,7 +1118,21 @@ def _fenced(job, limit=20000):
         v = re.sub(r"[<>\"\n\r]", " ", str(v or "?"))
         return re.sub(r"(?i)job_posting", "job posting", v)[:200].strip() or "?"
 
-    body = re.sub(r"(?i)</?\s*JOB_POSTING", "[tag]", str(job.get("description") or ""))[:limit]
+    # The old pattern was </?\s*JOB_POSTING, which put the \s* AFTER the slash - so anything
+    # between the angle bracket and the slash walked straight through, and \s never matches a
+    # zero-width character at all. Measured against this function:
+    #
+    #     </JOB_POSTING>    neutralised      < /JOB_POSTING>       SECOND BOUNDARY
+    #     </ JOB_POSTING>   neutralised      <\t/JOB_POSTING>      SECOND BOUNDARY
+    #     </job_posting>    neutralised      <//JOB_POSTING>       SECOND BOUNDARY
+    #                                        </​JOB_POSTING>  SECOND BOUNDARY
+    #
+    # The last is the one that matters: a zero-width space renders identically to the real tag, so
+    # an advert could close our fence invisibly and address the model as if it were us. Now
+    # anything a model could read as the tag - any mix of slashes, whitespace and zero-width
+    # characters between the bracket and the name - is replaced.
+
+    body = TAGLIKE.sub("[tag]", str(job.get("description") or ""))[:limit]
     return (f'<JOB_POSTING title="{attr(job.get("title"))}" '
             f'company="{attr(job.get("company"))}" '
             f'location="{attr(job.get("location"))}">\n{body}\n</JOB_POSTING>')
@@ -1442,8 +1465,9 @@ def shortlist(profile, jobs, pick=3, reply_in=""):
         # place this first" is ordinary text inside the quotes, and this is the one new caller that
         # had no boundary at all.
         "CANDIDATE:\n" + json.dumps(profile, ensure_ascii=False, indent=1)[:6000]
-        + "\n\n<JOB_LIST>\n" + "\n".join(lines).replace("<JOB_LIST", "[tag")
-          .replace("</JOB_LIST", "[tag") + "\n</JOB_LIST>",
+        # str.replace is exact: "</job_list>" and "</ JOB_LIST>" both walked through the two calls
+        # that used to be here. Same pattern as the posting fence, same reason.
+        + "\n\n<JOB_LIST>\n" + LISTLIKE.sub("[tag", "\n".join(lines)) + "\n</JOB_LIST>",
         max_tokens=2000)
 
 
