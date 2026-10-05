@@ -4732,4 +4732,50 @@ _steps10d = _d10c.split("function steps(){")[1].split("\n}")[0]
 assert "(PROFILE || {})" in _steps10d, \
     "steps() dereferences PROFILE unguarded again, and it is called before the profile lands"
 
+# 10e. The role-family picker offered twelve families of customer service and office work, because
+# that is the trade this app was first built for - so a driver, a cook or a bricklayer opened it and
+# found nothing that was theirs. Fifteen more, grouped, because twenty-seven flat is worse than none.
+_d10e = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+
+_grp10e = _re.search(r"const PRESET_GROUPS = \{(.*?)\n\};", _d10e, _re.S)
+assert _grp10e, "the grouped families are gone"
+# PRESETS must stay FLAT and derived - every lookup in the file reads PRESETS[name] or
+# Object.values(PRESETS), and a second hand-written list is a second thing to keep in step
+assert "const PRESETS = Object.assign({}, ...Object.values(PRESET_GROUPS));" in _d10e, \
+    "PRESETS is no longer derived from the groups, so the two can now disagree"
+
+# every family name, and every group heading
+_groups10e = _re.findall(r"^'([^']+)': \{", _grp10e.group(1), _re.M)
+_fams10e = _re.findall(r"^  '([^']+)':", _grp10e.group(1), _re.M)
+assert len(_groups10e) >= 7, f"only {len(_groups10e)} groups, so the list is nearly flat again"
+assert len(_fams10e) >= 25, f"only {len(_fams10e)} families"
+assert len(set(_fams10e)) == len(_fams10e), "two families share a name, so one is unreachable"
+
+# the trades that had nothing. Each one names the job somebody would actually look for.
+for _want10e in ("Driving & delivery", "Warehouse & logistics", "Shops & sales",
+                 "Hotels, bars & kitchens", "Trades, building & mechanics", "Factory & production",
+                 "Care & health", "Teaching & childcare", "Beauty & wellbeing",
+                 "Cleaning & facilities", "Security & guarding", "Farming & outdoors",
+                 "IT & software", "Accounting & finance", "HR & recruiting"):
+    assert _want10e in _fams10e, f"no role family for {_want10e}"
+
+# every family and every heading reaches a Romanian page. The headings are optgroup LABELS -
+# attributes - so localiseDOM's text-node walk never sees them and they need t() plus an entry.
+for _k10e in _groups10e + _fams10e + ["From your profile"]:
+    assert _k10e in app.lang.RO, f"the picker shows {_k10e!r} in English on a Romanian page"
+assert "esc(t(group))" in _d10e, "the group headings are written out without t(), so they stay English"
+assert "esc(t('From your profile'))" in _d10e, "the profile heading stays English"
+
+# No diacritics in any search term. The boards fold them before matching - eJobs and Hipo through
+# _slug, BestJobs with an explicit translate, and freehire returned the identical 19 ads for
+# "fara experienta" and the accented spelling - so carrying both cost a query per board and found
+# nothing. (Family NAMES are prose and may be accented; only the terms are queries.)
+_terms10e = _re.findall(r"'([^']*)'", _re.sub(r"^  '[^']+':", "", _grp10e.group(1), flags=_re.M))
+_accented10e = sorted({x for x in _terms10e if any(c in x for c in "\u0103\u00e2\u00ee\u0219\u021b\u015f\u0163")})
+assert not _accented10e, f"these search terms carry diacritics the boards fold anyway: {_accented10e[:4]}"
+
+# the terms are comma lists, because each one is searched on its own
+for _fam10e, _val10e in _re.findall(r"^  '([^']+)':\n?\s*'([^']*)'", _grp10e.group(1), _re.M):
+    assert _val10e.strip(), f"{_fam10e} has no terms at all"
+
 print("ok")

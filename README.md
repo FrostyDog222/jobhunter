@@ -123,8 +123,14 @@ in the box is remembered, so an edit is not lost if you never press Search.
 **The box suggests as you type** but never restricts. The suggestions start with the titles that
 have actually scored well for you, then your own job titles, then the trades people are hired for
 in Romania in both languages — driving, warehouse, retail, kitchens, building trades, care, office
-work — so nobody has to spell `sofer` from memory. The *Pick a role family* list offers your titles
-one at a time or **All of these** at once.
+work — so nobody has to spell `sofer` from memory.
+
+**Or pick a whole role family.** *Pick a role family* offers your own job titles first — one at a
+time or **All of these** at once — then twenty-seven ready-made families grouped by trade: driving
+and warehouse, shops and kitchens, building trades and production, care and teaching and beauty,
+cleaning and security and outdoor work, IT and finance and HR, and the original office and customer
+service ones. Each fills the box with a dozen terms in both languages, and you can edit them before
+searching.
 
 **A misspelled word is corrected, and the app says so.** This matters more than it looks: eJobs and
 Hipo build your term into a web address, so `shofer` returns nothing at all from either, while

@@ -1579,15 +1579,28 @@ const HAND = j => MANUAL.includes(j.source) || !BOARD(j)
                   || /apply on the employer site/.test(j.note || '');
 
 /* ---------- search presets ----------
-   A search is only as good as its terms, and the boards index Romanian wording. These are the
-   role families this profile actually matches - including the last two job titles, which were
-   never being searched at all. Picking one fills the box; it stays editable. */
-const PRESETS = {
+   A search is only as good as its terms, and the boards index Romanian wording. Picking a family
+   fills the box; it stays editable.
+
+   These were twelve families of customer service and office work, because that is the trade this
+   app was first built for - so a driver, a cook or a bricklayer opened the picker and found
+   nothing that was theirs. Grouped, because twenty-seven in one flat list is worse than none.
+
+   PRESETS below stays FLAT and derived: every lookup in this file reads PRESETS[name] or
+   Object.values(PRESETS), so the groups are only how they are drawn and never a second list to
+   keep in step with this one.
+
+   No diacritics anywhere. The boards fold them before matching - eJobs and Hipo through _slug,
+   BestJobs with an explicit translate, and freehire, the only one handed the string raw, returned
+   the same 19 ads for "fara experienta" and "fără experiență" and the same 20 for both
+   spellings of sofer. Carrying both spellings cost a query per board per search and found
+   nothing. */
+const PRESET_GROUPS = {
+'Office & customer service': {
   // First, because someone starting out has no job titles of their own for the "From your
-  // profile" group to offer. Both spellings of the Romanian: the boards search the literal
-  // string, so fara/fără are two different queries and both find ads the other misses.
+  // profile" group to offer.
   'First job / no experience (RO boards)':
-    'fara experienta, fără experiență, debutant, incepator, începător, practicant, ucenic, '
+    'fara experienta, debutant, incepator, practicant, ucenic, '
     + 'internship, trainee, junior, se ofera training',
   'First job / no experience (English)':
     'entry level, no experience required, junior, trainee, intern, graduate, apprentice, '
@@ -1612,23 +1625,98 @@ const PRESETS = {
     'igaming customer support, player support agent, customer support betting, poker support specialist',
   'Back office & operations':
     'back office specialist, operations support, suport operational, specialist back office, data entry operator',
+},
+
+// Everything below is the half of the labour market the picker used to pretend did not exist.
+// Both languages in one family rather than a RO and an English copy of each: outside the call
+// centres the Romanian wording dominates, and a family with four English terms on the end costs
+// four queries and sometimes finds the international postings the others miss.
+'Driving, warehouse & delivery': {
+  'Driving & delivery':
+    'sofer, sofer categoria B, sofer categoria C, sofer categoria C+E, sofer TIR, sofer autocamion, '
+    + 'livrator, curier, taximetrist, conducator auto, driver, delivery driver, courier',
+  'Warehouse & logistics':
+    'lucrator depozit, gestionar depozit, manipulant marfa, stivuitorist, operator stivuitor, '
+    + 'operator logistica, dispecer transport, warehouse worker, forklift operator',
+},
+
+'Shops, hotels & kitchens': {
+  'Shops & sales':
+    'vanzator, lucrator comercial, casier, asistent magazin, responsabil magazin, merchandiser, '
+    + 'agent vanzari, consultant vanzari, sales assistant, cashier, store manager',
+  'Hotels, bars & kitchens':
+    'ospatar, barman, bucatar, ajutor bucatar, cofetar, patiser, brutar, barista, camerista, '
+    + 'receptioner, lucrator bucatarie, waiter, bartender, cook, kitchen helper',
+},
+
+'Trades, building & production': {
+  'Trades, building & mechanics':
+    'muncitor necalificat, muncitor in constructii, zidar, dulgher, fierar betonist, instalator, '
+    + 'electrician, sudor, tamplar, zugrav, faiantar, mecanic auto, lacatus mecanic, '
+    + 'welder, plumber, carpenter, construction worker',
+  'Factory & production':
+    'operator productie, lucrator productie, controlor calitate, operator CNC, strungar, frezor, '
+    + 'ambalator, operator masini, tehnician mentenanta, production operator, machine operator',
+},
+
+'Care, teaching & beauty': {
+  'Care & health':
+    'asistent medical, infirmier, ingrijitor, ingrijitor batrani, farmacist, asistent farmacie, '
+    + 'kinetoterapeut, brancardier, nurse, caregiver, medical assistant',
+  'Teaching & childcare':
+    'profesor, educatoare, invatator, bona, instructor auto, formator, logoped, '
+    + 'teacher, tutor, nanny, kindergarten teacher',
+  'Beauty & wellbeing':
+    'coafor, frizer, cosmetician, manichiurist, maseur, stilist, '
+    + 'hairdresser, barber, beautician, nail technician',
+},
+
+'Cleaning, security & outdoors': {
+  'Cleaning & facilities':
+    'agent de curatenie, femeie de serviciu, menajera, administrator imobile, portar, '
+    + 'cleaner, housekeeping',
+  'Security & guarding':
+    'agent de securitate, agent de paza, paznic, dispecer monitorizare, '
+    + 'security guard, security officer',
+  'Farming & outdoors':
+    'lucrator agricol, tractorist, ingrijitor animale, peisagist, gradinar, '
+    + 'farm worker, gardener, landscaper',
+},
+
+'IT, money & people': {
+  'IT & software':
+    'programator, dezvoltator software, tester, administrator sistem, analist date, suport IT, '
+    + 'tehnician IT, software developer, web developer, qa tester, it support',
+  'Accounting & finance':
+    'contabil, asistent contabil, economist, analist financiar, casier bancar, consilier bancar, '
+    + 'accountant, bookkeeper, financial analyst',
+  'HR & recruiting':
+    'specialist resurse umane, inspector resurse umane, recrutor, specialist salarizare, '
+    + 'hr specialist, recruiter',
+},
 };
+
+// Flat, and derived, so PRESETS[name] and Object.values(PRESETS) keep working untouched
+const PRESETS = Object.assign({}, ...Object.values(PRESET_GROUPS));
 // The examples below describe one career. Whoever runs this has their own, and it is already
 // written down in their profile - so their job titles lead the list.
 function drawPresets(){
-  const mine = [...new Set([(PROFILE || {}).title, ...((PROFILE || {}).experience || []).map(e => e.role)]
-                  .map(x => (x || '').trim()).filter(Boolean))].slice(0, 6);
+  const mine = profileTitles().slice(0, 6);
+  // an optgroup's label is an ATTRIBUTE, and localiseDOM walks text nodes - so these headings were
+  // the one part of the picker that stayed in English on a Romanian page
   $('#preset').innerHTML = '<option value="">Pick a role family…</option>'
-    + (mine.length ? '<optgroup label="From your profile">'
+    + (mine.length ? `<optgroup label="${esc(t('From your profile'))}">`
         // all of them in one go, and first: searching every title you have held is a normal thing
         // to want, and one at a time meant copying each into the box by hand
         + (mine.length > 1
             ? `<option value="@${esc(mine.join(', '))}">${esc(t('All of these'))} (${mine.length})</option>`
             : '')
         + mine.map(r => `<option value="@${esc(r)}">${esc(r)}</option>`).join('') + '</optgroup>' : '')
-    + '<optgroup label="Examples">'
-    + Object.keys(PRESETS).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')
-    + '</optgroup>';
+    // one group per trade: twenty-seven families in a flat list is worse than the twelve were
+    + Object.entries(PRESET_GROUPS).map(([group, fam]) =>
+        `<optgroup label="${esc(t(group))}">`
+        + Object.keys(fam).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')
+        + '</optgroup>').join('');
   mirrorPreset();
 }
 drawPresets();

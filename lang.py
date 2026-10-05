@@ -548,6 +548,43 @@ RO = {
         "Sunt la început de drum — încă niciun job plătit.",
     "Scoring stops treating \"no experience\" as a fault on every ad and looks at what an employer hiring a beginner actually checks: your studies, a licence, languages, and whether the job trains you. Fill in Education and Projects below — a summer job or volunteering goes under Experience.":
         "Punctarea nu mai tratează \"lipsa experienței\" ca pe un defect la fiecare anunț și se uită la ce verifică de fapt un angajator care ia un începător: studiile tale, un permis, limbile și dacă jobul te instruiește. Completează Studii și Proiecte mai jos — un job de vară sau voluntariatul intră la Experiență.",
+    # The headings of the role-family picker. An optgroup's label is an attribute, so these reach
+    # the page through t() rather than the server's text-node pass.
+    "From your profile": "Din profilul tău",
+    "Office & customer service": "Birou și relații cu clienții",
+    "Driving, warehouse & delivery": "Șoferi, depozit și livrări",
+    "Shops, hotels & kitchens": "Magazine, hoteluri și bucătării",
+    "Trades, building & production": "Meserii, construcții și producție",
+    "Care, teaching & beauty": "Îngrijire, învățământ și frumusețe",
+    "Cleaning, security & outdoors": "Curățenie, pază și aer liber",
+    "IT, money & people": "IT, finanțe și resurse umane",
+    # the original twelve, ten of which had never been translated at all
+    "Customer support (RO boards)": "Suport clienți (site-uri RO)",
+    "Customer support (English)": "Suport clienți (engleză)",
+    "Training & onboarding (RO boards)": "Training și integrare (site-uri RO)",
+    "Training & enablement (English)": "Training și dezvoltare (engleză)",
+    "Team lead & coordination (RO boards)": "Coordonare echipă (site-uri RO)",
+    "Team lead & supervisor (English)": "Coordonare și supervizare (engleză)",
+    "Customer success (English)": "Customer success (engleză)",
+    "Technical support & service desk": "Suport tehnic și service desk",
+    "iGaming & betting support": "Suport iGaming și pariuri",
+    "Back office & operations": "Back office și operațiuni",
+    # and the families themselves, for the half of the labour market that had none
+    "Driving & delivery": "Șoferi și livrări",
+    "Warehouse & logistics": "Depozit și logistică",
+    "Shops & sales": "Magazine și vânzări",
+    "Hotels, bars & kitchens": "Hoteluri, baruri și bucătării",
+    "Trades, building & mechanics": "Meserii, construcții și mecanică",
+    "Factory & production": "Fabrică și producție",
+    "Care & health": "Îngrijire și sănătate",
+    "Teaching & childcare": "Învățământ și îngrijirea copiilor",
+    "Beauty & wellbeing": "Frumusețe și îngrijire personală",
+    "Cleaning & facilities": "Curățenie și administrare",
+    "Security & guarding": "Pază și securitate",
+    "Farming & outdoors": "Agricultură și lucru în aer liber",
+    "IT & software": "IT și software",
+    "Accounting & finance": "Contabilitate și finanțe",
+    "HR & recruiting": "Resurse umane și recrutare",
     "First job / no experience (RO boards)":
         "Primul job / fără experiență (site-uri RO)",
     "First job / no experience (English)":
