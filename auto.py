@@ -39,10 +39,16 @@ def log(msg):
     line = f"{stamp}  {msg}"
     print(line)
     try:
-        old = LOG.read_text(encoding="utf-8").splitlines()[-KEEP_LINES:] if LOG.exists() else []
+        # errors="replace", and Exception rather than OSError. A partly-written line - a crash or a
+        # full disk mid-write, which this plain write_text can leave - makes read_text raise
+        # UnicodeDecodeError, which is a ValueError and sailed straight past an OSError-only guard.
+        # run() opens by calling this, and the crash handler at the bottom calls it again, so a
+        # torn log file killed the run twice over and wrote nothing anywhere saying why.
+        old = (LOG.read_text(encoding="utf-8", errors="replace").splitlines()[-KEEP_LINES:]
+               if LOG.exists() else [])
         LOG.write_text("\n".join(old + [line]) + "\n", encoding="utf-8")
-    except OSError:
-        pass
+    except Exception:
+        pass                   # the log is a convenience; it never costs the run anything
 
 
 def _write(report):

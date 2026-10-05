@@ -977,8 +977,8 @@ async function loadAuto(){
   applyRow();
   // Windows and this page can disagree - a task can vanish without the setting changing - and
   // a switch that says ON over nothing is worse than one that says OFF.
-  const drift = a.drift || [];
-  $('#autostate').style.color = drift.length ? 'var(--bad)' : '';
+  const drift = a.drift || [], ghosts = a.ghosts || [];
+  $('#autostate').style.color = (drift.length || ghosts.length) ? 'var(--bad)' : '';
   const next = a.task.exists ? taskDate(a.task.next) : null;
   const bits = drift.length
     ? [fill(drift.length > 1
@@ -988,6 +988,14 @@ async function loadAuto(){
           + 'Press Save the schedule to set it up again.',
         {who: drift.map(t).join(' ' + t('and') + ' ')})]
     : [];
+  // The opposite, which nothing used to look for and which is the worse of the two: the switch
+  // says off and Windows is still running it. The keep-alive is the one that bites - it checks no
+  // setting before it goes, so it keeps opening a browser and handing saved passwords to the
+  // boards under a switch that reads OFF.
+  if(ghosts.length)
+    bits.push(fill('⚠ {who} is switched OFF here but STILL scheduled in Windows, so it is '
+                 + 'running anyway. Tick it and save, then untick and save, to clear it.',
+                   {who: ghosts.map(t).join(' ' + t('and') + ' ')}));
   bits.push(a.task.exists
     ? (next ? fill('Scheduled — next run <b>{when}</b>.', {when: esc(next)})
             : t('Scheduled with Windows.'))

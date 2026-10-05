@@ -645,6 +645,10 @@ RO = {
     "With one, this also shows jobs in and around it.":
         "Se afișează doar munca de la distanță, pentru că nu ai setat un județ de domiciliu - "
         "îl găsești în Setări. Cu el setat, apar și joburile din județ și din jurul lui.",
+    "⚠ {who} is switched OFF here but STILL scheduled in Windows, so it is running anyway. "
+    "Tick it and save, then untick and save, to clear it.":
+        "⚠ {who} este OPRIT aici dar ÎNCĂ programat în Windows, deci rulează oricum. "
+        "Bifează și salvează, apoi debifează și salvează, ca să îl ștergi.",
     "Try the ads that could not be scored":
         "Încearcă anunțurile care nu au putut fi punctate",
     "{n} ad(s) put back in the queue — press Search & score to try them again.":

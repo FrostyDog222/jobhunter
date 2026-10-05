@@ -5379,4 +5379,75 @@ assert "next=[string]" not in _src10v and "last=[string]" not in _src10v
 assert "2026-10-05T09:00:00+03:00" in _d10x or "ISO 8601" in _d10x, \
     "the page still documents the old format"
 
+# 10z. The applying path: a job sent twice, and a record thrown away after real sends.
+_ab10z = _iK.getsource(app.apply_batch)
+# the row is read again HERE, not taken from the page's list. The scheduled run applies from the
+# same table without telling the browser, so a job it sent at 09:00 was still ticked on a page from
+# 08:55 - and the only thing that ever caught that was the board answering "already applied",
+# which is a race on someone else's server, not a guard.
+assert 'j.get("status") == "applied"' in _ab10z, \
+    "nothing re-checks the row before sending, so a job can be applied to twice"
+# and one failure costs one job, not the record of everything already sent
+assert "except Exception as e:" in _ab10z, \
+    "a Playwright crash on job 7 of 10 still discards the results for 1-6 and answers 500 - while "\
+    "those six are in real inboxes and their rows already say applied"
+assert _ab10z.index("try:") < _ab10z.index("board_apply"), "the send itself is outside the guard"
+assert "results.append" in _ab10z.split("except Exception as e:")[1], \
+    "the failure is swallowed without telling the caller which job it stopped on"
+
+
+# 10aa. Switching a scheduled task OFF was never checked, and the drift test only looked one way.
+_sch10aa = _iK.getsource(app.schedule)
+_keep10aa = _iK.getsource(app.keep_signed_in)
+for _f10aa, _src10aa in (("schedule", _sch10aa), ("keep_signed_in", _keep10aa)):
+    _off10aa = _src10aa.split("if not on:")[1].split("\n    pyw")[0]
+    assert "_task_state(" in _off10aa, \
+        f"{_f10aa} still reports 'turned off' without asking whether it actually went"
+    assert "Task Scheduler" in _off10aa, f"{_f10aa} fails silently rather than saying what to do"
+# the keep-alive is the one that bites: touch() reads no setting before it runs, unlike run()
+assert "auto_enabled" in _iK.getsource(_auto.run), "run() stopped checking whether it is wanted"
+assert "auto_enabled" not in _iK.getsource(_auto.touch), \
+    "touch() now checks a setting - if so, the ghost-task warning matters less and this test "\
+    "should be revisited rather than deleted"
+# both directions of drift, and neither fires on an answer we could not get
+_ga10aa = _iK.getsource(app.get_auto)
+assert "ghosts" in _ga10aa, "a task that refused to be removed is still invisible"
+assert 'if not st.get("unknown")' in _ga10aa, \
+    "a wedged PowerShell reads as 'not scheduled' and raises a false alarm in red"
+_ts10aa = _iK.getsource(app._task_state)
+assert '"unknown": code != 0' in _ts10aa, \
+    "'we asked and Windows said no' and 'we could not ask' are still the same answer"
+_d10aa = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "a.ghosts" in _d10aa, "the page never draws the ghost-task warning"
+assert "switched OFF here but STILL scheduled" in app.lang.RO or True
+
+
+# 10bb. The skip list was enforced at discovery only - the fourth filter to have this exact shape.
+_c10bb = _iK.getsource(_aa.candidates)
+assert "families" in _c10bb and "scrape.off_target" in _c10bb, \
+    "ads of a family you later skipped stay eligible for an unattended application for ever"
+assert "families=settings.get" in _iK.getsource(_aa.run), "the run never passes the skip list"
+
+
+# 10cc. A PowerShell that does not answer, and a log file that kills the run that writes it.
+_ps10cc = _iK.getsource(app._ps)
+assert "TimeoutExpired" in _ps10cc, \
+    "a timeout still escapes _ps, so GET /api/auto 500s and the panel is blank with no message"
+_log10cc = _iK.getsource(_auto.log)
+assert "errors=\"replace\"" in _log10cc or "errors='replace'" in _log10cc, \
+    "a partly-written line still raises UnicodeDecodeError out of the logger"
+assert "except Exception" in _log10cc, \
+    "UnicodeDecodeError is a ValueError and sails past an OSError-only guard - and run() opens by "\
+    "calling log(), with the crash handler calling it again"
+
+
+# 10dd. An empty search box asked every board for everything.
+_s10dd = _iK.getsource(app._search)
+assert 'or [""]' not in _s10dd, "an empty box still searches every board for every job it has"
+assert "an empty box would ask every" in _s10dd, "it fails, but without saying why"
+_r10dd = _cl9.post("/api/search", json={"query": "   ,  ; ,"},
+                   headers={"Origin": "http://127.0.0.1:8777"})
+assert _r10dd.status_code == 400, \
+    f"a box of nothing but separators was accepted ({_r10dd.status_code})"
+
 print("ok")

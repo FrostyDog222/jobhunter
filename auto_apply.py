@@ -26,7 +26,7 @@ import datetime
 
 
 def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode="", held=None,
-               rank=""):
+               rank="", families=None):
     """-> the jobs this run may apply to, best score first. Pure selection, no side effects.
 
     `boards` limits it to the ones signed in right now. Without that a signed-out board's jobs
@@ -109,6 +109,18 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode
             if held is not None:
                 held.append(f'{col(r, "title")} (wrong seniority)')
             return False
+        # And the skip list, for the fourth time and the same reason. It was enforced at discovery
+        # only, so the rule stopped new ads of that family arriving and did nothing about the ones
+        # already stored - somebody who adds "engineer" after three weeks of searching still has
+        # hundreds of them sitting at 85, every one still eligible for an unattended application.
+        # The comment above gives exactly this reasoning for the city and the work mode and then
+        # does not extend it here.
+        if families:
+            hit = scrape.off_target(col(r, "title") or "", families, [])
+            if hit:
+                if held is not None:
+                    held.append(f'{col(r, "title")} (on your skip list: {hit})')
+                return False
         if scrape.job_in_area(job, city, county):
             return True
         if held is not None:
@@ -239,7 +251,8 @@ def run(app, prefill, settings, log):
                        usable, city=settings.get("auto_location") or "",
                        county=settings.get("auto_county") or "",
                        mode=(settings.get("auto_work_mode") or "").strip().lower(),
-                       rank=(settings.get("auto_seniority") or "").strip().lower(), held=held)
+                       rank=(settings.get("auto_seniority") or "").strip().lower(),
+                       families=settings.get("skip_families") or [], held=held)
     report["considered"] = len(picks)
     report["held_for_location"] = len(held)
     if held:

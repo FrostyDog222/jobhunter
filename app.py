@@ -353,8 +353,17 @@ def _ps(script):
     """Run a PowerShell snippet. The ScheduledTask cmdlets are used rather than schtasks.exe
     because their output is objects with English names - schtasks prints localised field labels,
     which is unparseable on a Romanian Windows."""
-    r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-                       capture_output=True, text=True, timeout=60)
+    try:
+        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                           capture_output=True, text=True, timeout=60)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        # A timeout raises, and nothing up the chain caught it: _task_state, task_state and
+        # get_auto all let it through, so GET /api/auto answered 500 and loadAuto's `catch(e){
+        # return; }` left the whole scheduled-run panel blank with no message at all. A wedged WMI
+        # or a machine under load is enough. A non-zero code is reported the same way everywhere
+        # else, so that is what this returns.
+        print(f"[ps] {type(e).__name__}: {e}")
+        return 1, "", f"{type(e).__name__}: PowerShell did not answer"
     return r.returncode, (r.stdout or "").strip(), (r.stderr or "").strip()
 
 
@@ -400,7 +409,11 @@ def _task_state(which=None):
         state = json.loads(out) if code == 0 and out else {}
     except json.JSONDecodeError:
         state = {}
-    return {"exists": bool(state.get("exists")), **state}
+    # "we asked and Windows said no" and "we could not ask" are different answers, and both used to
+    # come back as exists: False. The second one then read as drift, so a wedged PowerShell told
+    # the person in red that their scheduled run was NOT set up, over a task sitting there working
+    # perfectly well. An unknown answer is no grounds for an alarm in either direction.
+    return {"exists": bool(state.get("exists")), "unknown": code != 0, **state}
 
 
 def _drop_old_tasks():
@@ -438,7 +451,13 @@ def schedule(on, days, at):
         _ps(f"Unregister-ScheduledTask -TaskName '{TASK}' -Confirm:$false "
             f"-ErrorAction SilentlyContinue")
         _drop_old_tasks()                # switching it off has to switch off the old name too
-        return ""
+        # Asked, not assumed. The call's exit code was ignored and "" returned regardless, so the
+        # page said "turned off" whatever happened - and the drift check only ever looked for the
+        # opposite case (switched on here, missing in Windows), so a task that refused to go stayed
+        # invisible and kept running on its own schedule for ever.
+        return "" if not _task_state()["exists"] else (
+            "Windows would not remove the scheduled task - it may still run. Open Task Scheduler "
+            f"and delete '{TASK}' by hand.")
     pyw = HERE / ".venv" / "Scripts" / "pythonw.exe"      # windowless: no console pops up
     if not pyw.exists():
         return "The Python environment is missing - start the app once through run.bat first."
@@ -472,7 +491,14 @@ def keep_signed_in(on):
     if not on:
         _ps(f"Unregister-ScheduledTask -TaskName '{KEEP_TASK}' -Confirm:$false "
             f"-ErrorAction SilentlyContinue")
-        return ""
+        # This one matters more than the search task, because touch() checks no setting before it
+        # runs - unlike run(), which reads auto_enabled first. So a keep-alive task that refused to
+        # go on keeps opening a browser every two hours AND keeps handing saved passwords to the
+        # boards, while the page says it is off and the help text promises "nothing keeps running
+        # in the background afterwards".
+        return "" if not _task_state(KEEP_TASK)["exists"] else (
+            "Windows would not remove the keep-alive task, so it may still be visiting the boards "
+            f"every {KEEP_MINUTES} minutes. Open Task Scheduler and delete '{KEEP_TASK}'.")
     pyw = HERE / ".venv" / "Scripts" / "pythonw.exe"
     if not pyw.exists():
         return "The Python environment is missing - start the app once through run.bat first."
@@ -527,13 +553,22 @@ def get_auto():
     # says what is actually scheduled. Nothing compared them, so a task removed behind the
     # app's back - a purge, a failed registration, a tidy-up in Task Scheduler - left the
     # checkbox ticked over nothing at all, and the first symptom was sign-ins expiring again.
-    drift = [name for name, want, got in
-             (("the scheduled run", bool(s.get("auto_enabled")), task.get("exists")),
-              ("keep me signed in", bool(s.get("keep_signed_in")), keep.get("exists")))
-             if want and not got]
+    # an answer we could not get is not an answer: neither alarm fires on a PowerShell that
+    # did not come back
+    pairs = [(n, w, bool(st.get("exists"))) for n, w, st in
+             (("the scheduled run", bool(s.get("auto_enabled")), task),
+              ("keep me signed in", bool(s.get("keep_signed_in")), keep))
+             if not st.get("unknown")]
+    drift = [name for name, want, got in pairs if want and not got]
+    # ...and the other way round, which nothing looked for. A switch turned off whose task refused
+    # to go is worse than the case above, not better: the page says off, and the thing carries on.
+    # The keep-alive is the one that bites, because touch() reads no setting before it runs - it
+    # goes on opening a browser and handing saved passwords to the boards every couple of hours
+    # under a switch that reads OFF and help text promising nothing runs in the background.
+    ghosts = [name for name, want, got in pairs if got and not want]
     return {"settings": {k: v for k, v in s.items()
                          if k.startswith("auto_") or k == "keep_signed_in"},
-            "task": task, "keep": keep, "drift": drift, "last": last,
+            "task": task, "keep": keep, "drift": drift, "ghosts": ghosts, "last": last,
             # the rolling history, newest first for the panel. Absent until the first run writes it.
             "runs": _run_history()}
 
@@ -2398,7 +2433,14 @@ def _store_scores(jobs, results, warnings):
 
 
 async def _search(body, p):
-    queries = [q.strip() for q in re.split(r"[,;]", body.get("query", "")) if q.strip()] or [""]
+    queries = [q.strip() for q in re.split(r"[,;]", body.get("query", "")) if q.strip()]
+    # An empty box used to fall back to [""], which asks every board for everything: on a listing
+    # site that is thousands of ads, hydrated and scored at one model call each. "Run it now" has
+    # refused an empty box from the beginning; the Search button never did, so the one that spends
+    # the quota was the one with no guard on it.
+    if not queries:
+        raise HTTPException(400, "Type what to search for first - an empty box would ask every "
+                                 "board for every job it has.")
     loc = body.get("location", "")
     city = loc                      # kept before the county fallback below overwrites it
     county = (body.get("county") or "").strip().lower()
@@ -3119,72 +3161,94 @@ async def apply_batch(body: dict = Body(...)):
             results.append({"url": url, "title": url,
                             "error": "no longer in your list - it was cleared or deleted"})
             continue
-        board = j["source"] if prefill.apply_mode(j["source"]) == "auto" else ""
-        # `source` authorises the send; the url decides where the browser goes. A row stored as
-        # ejobs with a hipo.ro url passed this gate and then ran a different board's flow against
-        # it - each board has its own form, so the wrong one silently fills nothing.
-        if board and prefill.board_of(j["url"]) != board:
-            results.append({"url": url, "title": j["title"],
-                            "error": f"this row says {board} but its link is not a {board} "
-                                     f"link - not applying"})
+        # Read again, now, not from the list the page was holding. The urls were chosen from a
+        # page that may be minutes old, and the scheduled run applies from the same table without
+        # telling the browser - so a job it sent at 09:00 was still ticked here and would be sent
+        # a second time. Nothing local stopped that: the only thing that ever caught it was the
+        # board itself answering "already applied", which is a race, not a guard.
+        if j.get("status") == "applied":
+            results.append({"url": url, "title": j["title"], "already": True,
+                            "error": "already applied - sent before this batch started"})
             continue
-        if not board:
+        try:
+            board = j["source"] if prefill.apply_mode(j["source"]) == "auto" else ""
+            # `source` authorises the send; the url decides where the browser goes. A row stored as
+            # ejobs with a hipo.ro url passed this gate and then ran a different board's flow against
+            # it - each board has its own form, so the wrong one silently fills nothing.
+            if board and prefill.board_of(j["url"]) != board:
+                results.append({"url": url, "title": j["title"],
+                                "error": f"this row says {board} but its link is not a {board} "
+                                         f"link - not applying"})
+                continue
+            if not board:
+                results.append({"url": url, "title": j["title"],
+                                "error": ("apply to this one by hand"
+                                          if prefill.apply_mode(j["source"]) == "manual"
+                                          else "not a board job")})
+                continue
+            if not prefill.session_for(board):
+                results.append({"url": url, "title": j["title"],
+                                "error": f"not signed in to {board}"})
+                break
+            res = await off(lambda u=url, t=j["title"]: prefill.board_apply(
+                u, headless=True, profile=p, job_title=t,
+                # default False: a caller that forgets the flag must not thereby submit an
+                # employer's screening questions. The dashboard passes True explicitly.
+                # The dashboard's batch button does NOT pass this, deliberately: a job with
+                # screening questions is handed back and opened for you, because twenty sets of
+                # answers nobody read is not something to send on one click. The single Apply
+                # button, which asks about that one job by name, does submit them.
+                auto_send=body.get("auto_send", False)))
+            if res.get("submitted") or res.get("already"):
+                with db() as c:
+                    _mark_applied(c, url)
+            elif res.get("closed"):
+                with db() as c:
+                    _mark_closed(c, url)
+            elif res.get("external"):
+                # live, just not one-clickable from here - say so on the card instead of hiding it
+                with db() as c:
+                    c.execute("UPDATE jobs SET note = CASE WHEN COALESCE(note,'') = '' "
+                              "THEN ? ELSE note || ' \u00b7 ' || ? END "
+                              "WHERE url=? AND status != 'applied' "
+                              "AND COALESCE(note,'') NOT LIKE ?",
+                              (EXTERNAL_NOTE, EXTERNAL_NOTE, url, f"%{EXTERNAL_NOTE}%"))
+            elif res.get("needs_you"):
+                # Screening questions: normally open it for the person, and take it out of the next
+                # batch either way. hand_off=False is the scheduled run, where opening a window at
+                # 09:00 on a Sunday just leaves Chromium sitting on an empty desk.
+                #
+                # Ahead of clicked, because the "sent the mini interviu but saw no confirmation"
+                # path sets both. Tested the other way round, that job was filed as pressed-and-
+                # forgotten and never opened for anyone - while the run's own report went on saying
+                # "needs you: screening questions" about it.
+                if body.get("hand_off", True):
+                    prefill.spawn_board(url, j["title"])
+                _handed_over(url)
+            elif res.get("clicked"):
+                # Pressed, not confirmed. Recorded as done-for-now rather than left untouched:
+                # leaving it 'new' put it straight back into next week's list and applied twice.
+                with db() as c:
+                    c.execute("UPDATE jobs SET status=CASE WHEN status IN ('new','ready') "
+                              "THEN 'opened' ELSE status END, "
+                              "note='pressed apply, no confirmation seen - check the board' "
+                              "WHERE url=?", (url,))
+            results.append({"url": url, "title": j["title"], "submitted": res.get("submitted"),
+                            "already": res.get("already"), "needs_you": res.get("needs_you"),
+                            "error": res.get("error")})
+            if res.get("error") and "not signed in" in (res["error"] or ""):
+                break
+        except Exception as e:
+            # Whatever broke, the applications already sent in this batch are facts and the
+            # caller has to hear about them. Playwright crashing on job 7 of 10 used to
+            # discard the results for 1-6 and answer 500 - while those six were in real
+            # inboxes and their rows already said applied. The loop stops here, because
+            # whatever just failed will most likely fail on the next one too, and what has
+            # been collected is returned below.
+            print(f"[apply] {j['title']}: {type(e).__name__}: {e}")
             results.append({"url": url, "title": j["title"],
-                            "error": ("apply to this one by hand"
-                                      if prefill.apply_mode(j["source"]) == "manual"
-                                      else "not a board job")})
-            continue
-        if not prefill.session_for(board):
-            results.append({"url": url, "title": j["title"],
-                            "error": f"not signed in to {board}"})
-            break
-        res = await off(lambda u=url, t=j["title"]: prefill.board_apply(
-            u, headless=True, profile=p, job_title=t,
-            # default False: a caller that forgets the flag must not thereby submit an
-            # employer's screening questions. The dashboard passes True explicitly.
-            # The dashboard's batch button does NOT pass this, deliberately: a job with
-            # screening questions is handed back and opened for you, because twenty sets of
-            # answers nobody read is not something to send on one click. The single Apply
-            # button, which asks about that one job by name, does submit them.
-            auto_send=body.get("auto_send", False)))
-        if res.get("submitted") or res.get("already"):
-            with db() as c:
-                _mark_applied(c, url)
-        elif res.get("closed"):
-            with db() as c:
-                _mark_closed(c, url)
-        elif res.get("external"):
-            # live, just not one-clickable from here - say so on the card instead of hiding it
-            with db() as c:
-                c.execute("UPDATE jobs SET note = CASE WHEN COALESCE(note,'') = '' "
-                          "THEN ? ELSE note || ' \u00b7 ' || ? END "
-                          "WHERE url=? AND status != 'applied' "
-                          "AND COALESCE(note,'') NOT LIKE ?",
-                          (EXTERNAL_NOTE, EXTERNAL_NOTE, url, f"%{EXTERNAL_NOTE}%"))
-        elif res.get("needs_you"):
-            # Screening questions: normally open it for the person, and take it out of the next
-            # batch either way. hand_off=False is the scheduled run, where opening a window at
-            # 09:00 on a Sunday just leaves Chromium sitting on an empty desk.
-            #
-            # Ahead of clicked, because the "sent the mini interviu but saw no confirmation"
-            # path sets both. Tested the other way round, that job was filed as pressed-and-
-            # forgotten and never opened for anyone - while the run's own report went on saying
-            # "needs you: screening questions" about it.
-            if body.get("hand_off", True):
-                prefill.spawn_board(url, j["title"])
-            _handed_over(url)
-        elif res.get("clicked"):
-            # Pressed, not confirmed. Recorded as done-for-now rather than left untouched:
-            # leaving it 'new' put it straight back into next week's list and applied twice.
-            with db() as c:
-                c.execute("UPDATE jobs SET status=CASE WHEN status IN ('new','ready') "
-                          "THEN 'opened' ELSE status END, "
-                          "note='pressed apply, no confirmation seen - check the board' "
-                          "WHERE url=?", (url,))
-        results.append({"url": url, "title": j["title"], "submitted": res.get("submitted"),
-                        "already": res.get("already"), "needs_you": res.get("needs_you"),
-                        "error": res.get("error")})
-        if res.get("error") and "not signed in" in (res["error"] or ""):
+                            "error": f"stopped here ({type(e).__name__}) - anything above "
+                                     f"this line was still sent"})
             break
     return {"results": results,
             "sent": sum(1 for r in results if r.get("submitted")),
