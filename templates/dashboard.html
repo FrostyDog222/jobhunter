@@ -464,6 +464,14 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <!-- filled by the button above. Every chip is a click away from being added and nothing is
          added without one: a CV says what someone has done, not what they want to do next. -->
     <div id="cvterms" style="display:none;margin-top:8px"></div>
+    <!-- Off by default: that is the answer nobody has to think about. Checked, nothing is hidden. -->
+    <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
+      font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="allow_adult"
+      style="width:auto"> Include adult-industry jobs (videochat and similar)</label>
+    <p class="muted" style="margin:4px 0 0">Left unticked, those never reach your list and are never
+      applied to. Matched on wording that can only mean that work — <b>chat support, live chat and
+      chat operator jobs are a different thing entirely and are never touched by this.</b> It would
+      rather let one through than hide one of yours.</p>
     <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
       font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="recheck"
       style="width:auto"> Ask the boards once a month which saved jobs they still have</label>
@@ -905,7 +913,7 @@ $('#importhist').onclick = e => busy(e.target, async () => {
 /* ---------- the scheduled run ---------- */
 const AUTO_FIELDS = ['auto_fresh', 'auto_work_mode', 'auto_seniority', 'auto_ats',
                      'auto_enabled', 'auto_days', 'auto_time', 'auto_query', 'auto_location',
-                     'auto_county', 'auto_country', 'keep_signed_in', 'recheck',
+                     'auto_county', 'auto_country', 'keep_signed_in', 'recheck', 'allow_adult',
                      'auto_min_fit', 'auto_apply', 'auto_apply_min_fit',
                      'auto_apply_cap'];
 // the floor and the cap only mean anything while applying is on

@@ -269,6 +269,10 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
         # the app for the next one. Families only - a city, a language or a seniority word here
         # would quietly hide ads you want.
         "skip_families": [],
+        # Adult-industry work: videochat studios above all, which advertise constantly on the
+        # Romanian boards. Off by default because that is the answer nobody has to think about,
+        # and it is a preference rather than a rule - the people looking for it are looking for it.
+        "allow_adult": False,
         # Ask the boards once a month which saved jobs they still have, and remove the ones they
         # say are gone. Off by default: it only ever deletes on an unambiguous answer, but it does
         # delete, and that is a choice to make rather than inherit.
@@ -583,6 +587,7 @@ def _set_auto(body):
     cur = settings()
     for k in ("auto_enabled", "auto_days", "auto_time", "auto_query", "auto_location",
               "auto_county", "auto_country", "keep_signed_in", "skip_families", "recheck",
+              "allow_adult",
               "auto_fresh", "auto_work_mode", "auto_seniority", "auto_ats",
               "auto_min_fit", "auto_apply", "auto_apply_min_fit",
               "auto_apply_cap"):
@@ -1958,6 +1963,19 @@ def list_jobs():
             f"  ELSE 2 END, "
             # inside a tier: fewest competitors first where that is known, then freshest
             f"COALESCE(applicants, 1000000) ASC, COALESCE(posted,'') DESC, found DESC")]
+    # Adult work is kept out of the LIST too, not only out of new searches and out of applying.
+    # Otherwise the box says "those never reach your list" while four of them sit in it - every ad
+    # found before the box existed, or before it was unticked.
+    #
+    # Dropped rather than deleted: ticking the box brings them straight back. The extra read is
+    # needed because the list query returns the description's LENGTH and not the description, and a
+    # videochat studio's title often says nothing at all - one here is called "Trainer/Teamleader".
+    if rows and not settings().get("allow_adult"):
+        with db() as c:
+            adult = {r["url"] for r in c.execute(
+                "SELECT url, title, company, description FROM jobs") if scrape.adult_job(dict(r))}
+        rows = [r for r in rows if r["url"] not in adult]
+
     for r in rows:
         loc = (r.get("location") or "").strip()
         # A remote job is near everybody, which is the whole of what the "Near me / remote" filter
@@ -2617,6 +2635,18 @@ async def _search(body, p):
         keep = [j for j in fresh if scrape.seniority_fits(j, rank)]
         off_rank, fresh = len(fresh) - len(keep), keep
 
+    # Adult-industry work, unless it was asked for. Videochat studios advertise constantly on these
+    # boards and the title often gives nothing away - one of the four in this database is called
+    # "Trainer/Teamleader" and only the body says "studio de videochat".
+    #
+    # Dropped before scoring, like the language gate, so they cost nothing rather than a model call
+    # each. The pattern is deliberately narrow: "chat support" and "live chat" are an entirely
+    # different job and must never be touched by this.
+    off_adult = 0
+    if not settings().get("allow_adult"):
+        keep = [j for j in fresh if not scrape.adult_job(j)]
+        off_adult, fresh = len(fresh) - len(keep), keep
+
     # The same posting listed on two boards. The dedupe before phase 2 compares title and company
     # too, but only within the batch in hand - across two searches the second board's url is simply
     # unknown, so the ad is read, scored and stored a second time. Measured on this database: 16
@@ -2832,6 +2862,8 @@ async def _search(body, p):
             # the same posting already stored from another board, which would otherwise be read,
             # scored and applied to twice
             "off_dupe": dupe,
+            # adult-industry work, unless the box under Settings says otherwise
+            "off_adult": off_adult,
             # which rule dropped what. Named so a skip list that is quietly costing you a job you
             # would have wanted is visible, instead of being one number in a log line.
             "off_family_by": dict(sorted(dropped_by.items(), key=lambda kv: -kv[1])[:8]),

@@ -725,6 +725,50 @@ ENTRY_WORDS = re.compile(
 ASSISTANT_TO = re.compile(r"\b(asistent|assistant|ajutor|secretar[aă]?)\b", re.I)
 
 
+# Adult-industry work. Legal and widely advertised here - videochat studios post constantly on the
+# Romanian boards - and plenty of people would rather never see it, while some are looking for it.
+# A setting, not a rule.
+#
+# Unambiguous wording ONLY, measured against the stored ads before being written:
+#
+#   "model"      34 descriptions - a fashion job, a data model, a model of a machine
+#   "studio"      7 - a design studio, a recording studio, Visual Studio
+#   "live chat"   5 - all customer support, which is the opposite of a match
+#   "masaj"       2 - physiotherapy
+#   "hostess"     1 - a restaurant
+#
+# Every one of those would be a false positive, and a filter that hides a support job because the
+# ad says "live chat" is worse than no filter at all. So none of them appear below on their own:
+# "model" and "studio" count only next to webcam or videochat, and "masaj" only with erotic.
+ADULT = re.compile(
+    r"video\s*-?\s*chat"
+    r"|cam\s*-?\s*girl|camgirl|cam\s*model"
+    r"|web\s*cam(era)?\s*(model|studio|job)"
+    r"|only\s*fans"
+    r"|con[tț]inut\s+(pentru\s+)?adul[tț]i?|adult\s+content|adult\s+industry|industria\s+adult"
+    # NOT a bare "escort": in Romanian "agent de escortă valori" is cash-in-transit security, and
+    # that is the commoner job on these boards by far - advertising the other kind is illegal here,
+    # so the bare word is far likelier to be a guard than anything else. The English two-word forms
+    # carry no such ambiguity.
+    r"|escort\s+(service|agency|work)|servicii\s+de\s+escort[ăa]"
+    r"|masaj\s+erotic|erotic\s+massage|masaj\s+senzual"
+    r"|strip\s*tease|\bstripper|\bstriptease"
+    r"|\b18\s*\+\s*(content|con[tț]inut|only|model)", re.I)
+
+
+def adult_job(job):
+    """Is this advert adult-industry work?
+
+    Title, company AND description, because the title is often coy - "Trainer" at a company called
+    "Creative Fantasy Studio" - while the body says plainly what the work is. Measured: of 458
+    stored ads, 3 name it in the title or company and a 4th only in the body.
+    """
+    if not isinstance(job, dict):
+        return False
+    return bool(ADULT.search(" ".join(str(job.get(k) or "")
+                                      for k in ("title", "company", "description"))))
+
+
 def seniority_fits(job, want):
     """Does this advert contradict the seniority that was asked for?
 

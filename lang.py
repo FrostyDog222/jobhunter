@@ -649,6 +649,20 @@ RO = {
     "Tick it and save, then untick and save, to clear it.":
         "⚠ {who} este OPRIT aici dar ÎNCĂ programat în Windows, deci rulează oricum. "
         "Bifează și salvează, apoi debifează și salvează, ca să îl ștergi.",
+    "Include adult-industry jobs (videochat and similar)":
+        "Include joburi din industria pentru adulți (videochat și similare)",
+    # three entries, not one: the <b> in the middle of this paragraph splits it into separate text
+    # nodes, and localise() swaps whole nodes
+    "Left unticked, those never reach your list and are never applied to. Matched on wording that "
+    "can only mean that work —":
+        "Nebifat, acestea nu ajung niciodată în lista ta și nu se aplică la ele. Se potrivesc "
+        "după formulări care nu pot însemna altceva —",
+    "chat support, live chat and chat operator jobs are a different thing entirely and are never "
+    "touched by this.":
+        "joburile de suport pe chat, live chat și operator chat sunt cu totul altceva și nu sunt "
+        "niciodată afectate de asta.",
+    "It would rather let one through than hide one of yours.":
+        "Preferă să lase unul să treacă decât să ascundă unul de-al tău.",
     "Try the ads that could not be scored":
         "Încearcă anunțurile care nu au putut fi punctate",
     "{n} ad(s) put back in the queue — press Search & score to try them again.":

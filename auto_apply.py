@@ -26,7 +26,7 @@ import datetime
 
 
 def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode="", held=None,
-               rank="", families=None):
+               rank="", families=None, allow_adult=False):
     """-> the jobs this run may apply to, best score first. Pure selection, no side effects.
 
     `boards` limits it to the ones signed in right now. Without that a signed-out board's jobs
@@ -121,6 +121,15 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode
                 if held is not None:
                     held.append(f'{col(r, "title")} (on your skip list: {hit})')
                 return False
+        # And adult work, for the same reason as all of the above: the search filters what it
+        # DISCOVERS, so everything stored before the box existed is still sitting there - and an
+        # application sent to a videochat studio on somebody's behalf is not a thing you can recall.
+        if not allow_adult and scrape.adult_job(
+                {"title": col(r, "title"), "company": col(r, "company"),
+                 "description": col(r, "description")}):
+            if held is not None:
+                held.append(f'{col(r, "title")} (adult-industry work)')
+            return False
         if scrape.job_in_area(job, city, county):
             return True
         if held is not None:
@@ -252,7 +261,8 @@ def run(app, prefill, settings, log):
                        county=settings.get("auto_county") or "",
                        mode=(settings.get("auto_work_mode") or "").strip().lower(),
                        rank=(settings.get("auto_seniority") or "").strip().lower(),
-                       families=settings.get("skip_families") or [], held=held)
+                       families=settings.get("skip_families") or [],
+                       allow_adult=bool(settings.get("allow_adult")), held=held)
     report["considered"] = len(picks)
     report["held_for_location"] = len(held)
     if held:

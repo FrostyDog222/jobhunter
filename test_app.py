@@ -5450,4 +5450,62 @@ _r10dd = _cl9.post("/api/search", json={"query": "   ,  ; ,"},
 assert _r10dd.status_code == 400, \
     f"a box of nothing but separators was accepted ({_r10dd.status_code})"
 
+# 10ee. Adult-industry work: a box, off by default, that must never touch chat support.
+#
+# Videochat studios advertise constantly on the Romanian boards, and the title often gives nothing
+# away - one of the four in the real database is called "Trainer/Teamleader" and only the body says
+# "studio de videochat certificat". So title, company AND description are read.
+#
+# The hard requirement is the other direction. Chat support is this app's core trade, and a filter
+# that hides a support job because the ad says "live chat" is worse than no filter at all. The
+# pattern is built from what the stored ads actually contain: on 458 of them "model" appears in 34
+# descriptions, "studio" in 7, "live chat" in 5 - every one a false positive - so none of those
+# words counts on its own. Better to let one through than hide one of theirs.
+assert app.DEFAULTS["allow_adult"] is False, "adult work is included by default"
+
+# NEVER filtered - every one of these is ordinary work, and most are this person's trade
+for _ok10ee in ("Chat Support Specialist", "Live Chat Agent", "Operator chat suport clienti",
+                "Customer Support - email si chat", "Chat Operator with German",
+                "Agent suport chat", "Chat and email advisor", "Social media chat moderator",
+                "Chatbot trainer", "Chat Sales Representative", "Suport clienti prin chat",
+                "Non-voice chat support", "Live chat customer care", "Chat de asistenta tehnica",
+                "Senior Data Model Engineer", "Fashion model for catalogue shoot",
+                "Visual Studio developer", "Receptionist at Studio Fitness",
+                "Maseur / masaj de recuperare medicala", "Hostess restaurant Bucuresti",
+                "Agent de escorta valori - transport securizat",
+                "Camera operator for live events", "Studio manager - agentie de publicitate"):
+    assert not scrape.adult_job({"title": _ok10ee, "company": "", "description": ""}), \
+        f"the adult filter hides an ordinary job: {_ok10ee!r}"
+# ...and not through the description either, which is where "live chat" actually appears
+assert not scrape.adult_job({"title": "Customer Service Rep", "company": "Concentrix",
+                             "description": "You will answer by phone, email and live chat, "
+                                            "using our chat support tools."}), \
+    "a support ad mentioning live chat in the body is being filtered"
+
+# caught, including the ones that only say it in the body
+for _bad10ee in ("Model videochat", "Operator video chat", "Trainer Studio Videochat",
+                 "Camgirl wanted", "Webcam model studio", "OnlyFans content manager",
+                 "Continut adult - creator", "Dansatoare striptease"):
+    assert scrape.adult_job({"title": _bad10ee, "company": "", "description": ""}), \
+        f"adult work reaching the list: {_bad10ee!r}"
+assert scrape.adult_job({"title": "Trainer/Teamleader", "company": "MISSJOY MODELS",
+                         "description": "Suntem un studio de videochat certificat LiveJasmin"}), \
+    "a videochat studio whose title says nothing is not being caught"
+
+# wired into the search and into the unattended run, like every other filter of this shape
+assert "scrape.adult_job" in _iK.getsource(app._search), "the search ignores the setting"
+assert '"off_adult"' in (app.HERE / "app.py").read_text(encoding="utf-8"), \
+    "what it dropped is not reported, so a filter that works looks like boards with nothing"
+_ca10ee = _iK.getsource(_aa.candidates)
+assert "allow_adult" in _ca10ee and "scrape.adult_job" in _ca10ee, \
+    "ads stored before the box existed can still be applied to"
+assert "allow_adult=bool" in _iK.getsource(_aa.run), "the run never passes the setting"
+
+# and the box reaches the page and the file
+_d10ee = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert 'id="allow_adult"' in _d10ee, "there is no box to tick"
+assert "'allow_adult'" in _d10ee.split("const AUTO_FIELDS")[1].split("]")[0], \
+    "the box is drawn but never saved or restored"
+assert "Include adult-industry jobs (videochat and similar)" in app.lang.RO
+
 print("ok")

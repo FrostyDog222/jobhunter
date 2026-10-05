@@ -179,6 +179,18 @@ Two things it will not do: it never skips an ad that names the job you actually 
 (including the Romanian or English wording of it), and it only takes job families — never a city, a
 language or a seniority word. Every search tells you how many it skipped.
 
+**Adult-industry jobs are left out unless you ask for them.** Videochat studios advertise heavily
+on the Romanian boards, so *Settings* has one box: unticked (how it starts) they never reach your
+list and are never applied to; ticked, nothing is hidden. Nothing is ever deleted — unticking and
+ticking shows the same jobs again.
+
+It matches only wording that can mean nothing else, and reads the body as well as the title,
+because the title is often coy — one in a real list was advertised as *Trainer/Teamleader* and only
+the description said *studio de videochat*. **Chat support, live chat and chat operator jobs are a
+different trade entirely and are never touched by this.** Nor are `model`, `studio`, `masaj`,
+`hostess` or `escortă` on their own: each of those is an ordinary job far more often than not, so
+the filter would rather let one through than hide one of yours.
+
 **Say when you can work.** *Can work weekends* and *Can work shifts or nights* on your profile, each
 set to yes, no, or left blank. These never go on your CV. They are used only where an ad asks for
 weekend or shift work, and they let the app answer that question on an employer's form. Left blank,
