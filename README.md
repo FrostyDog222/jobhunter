@@ -101,7 +101,8 @@ The dashboard shows a checklist until all three are done.
    start. Boards ask for these, and the app answers with exactly what you wrote there.
 
 3. **Search.** Pick a role family from *Preset* — your own job titles are at the top of the
-   list — or type your own terms, separated by commas. Then *Search & score*.
+   list — or type your own. Each job title becomes its own chip: Enter or a comma keeps one, the
+   cross removes it. Then *Search & score*.
 
    Romanian boards index Romanian wording, so search both: `suport clienti, relatii clienti,
    customer support`.
@@ -115,12 +116,25 @@ Every job gets a score out of 100, a one-line reason, what you **bring** to it a
 **gaps** are. *Best for you* is everything at or above your score floor, which you set under
 *Settings*.
 
-**The search box suggests as you type** but never restricts — type anything and it is searched
-exactly as typed. It starts from your own job titles rather than anybody else's, and the *Pick a role
-family* list offers them one at a time or **All of these** at once. Whatever you type is remembered
-as you leave the box, so an edit is not lost if you never press Search. *Settings → Suggest terms from my CV* reads your profile and proposes job titles
-you might not think of, each showing the line in your CV it came from. Nothing is filled in until
-you click it.
+**Each job title is a chip,** because each one is searched on its own. Enter or a comma keeps what
+you typed, the cross removes it, and Backspace in an empty box takes the last one back. Whatever is
+in the box is remembered, so an edit is not lost if you never press Search.
+
+**The box suggests as you type** but never restricts. The suggestions start with the titles that
+have actually scored well for you, then your own job titles, then the trades people are hired for
+in Romania in both languages — driving, warehouse, retail, kitchens, building trades, care, office
+work — so nobody has to spell `sofer` from memory. The *Pick a role family* list offers your titles
+one at a time or **All of these** at once.
+
+**A misspelled word is corrected, and the app says so.** This matters more than it looks: eJobs and
+Hipo build your term into a web address, so `shofer` returns nothing at all from either, while
+BestJobs quietly corrects it and answers anyway — the search looks like it worked while half the
+sources found nothing. A single word that is one slip away from a real job title is swapped for it
+with a message naming both. Anything of more than one word is searched exactly as typed, and the
+cross undoes a correction you did not want.
+
+*Settings → Suggest terms from my CV* reads your profile and proposes job titles you might not
+think of, each showing the line in your CV it came from. Nothing is filled in until you click it.
 
 Lists show 20 jobs to a page. The filter box narrows what is already found, and ignores diacritics —
 `iasi` finds `Iași`.
@@ -263,7 +277,8 @@ searched and scored when you open the app. It works with the app closed, and a r
 the PC was off happens the next time it is on.
 
 Pick any days of the week and a time. By default it searches and scores, and leaves applying to you.
-Its search box has the same role-family picker as the one at the top, plus *Use my job titles* and
+Its search box is the same one as at the top — the same chips, suggestions and spelling fixes — plus
+*Use my job titles* and
 *Suggest terms from my CV*, so you are not retyping what you already set up above — and the same
 city, county and freehire filters, so the unattended run searches for what you actually asked for
 rather than a subset of it.

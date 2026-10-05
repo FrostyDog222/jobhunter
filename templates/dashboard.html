@@ -46,7 +46,7 @@
   border-left:2px solid color-mix(in srgb,var(--accent) 30%,var(--line))}
 .autodetail p{margin:0 0 8px}
 .searchbar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
-.searchbar .grow{flex:3;min-width:240px} .searchbar .small{flex:1;min-width:120px}
+.searchbar .grow{flex:1 1 100%;min-width:240px} .searchbar .small{flex:1;min-width:120px}
 .advanced{display:none;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:12px;
   border-top:1px solid var(--line)}
 .advanced.open{display:flex} .advanced>div{flex:1;min-width:130px}
@@ -420,9 +420,10 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
         min="0" max="100" step="5" value="75" title="Jobs scoring this or higher are counted in the summary"></div>
     </div>
     <div class="row">
-      <div style="flex:3"><label for="auto_query">Job titles to search for</label>
-        <input id="auto_query" list="qterms"
-          title="Job titles, separated by commas. Each one is searched on its own."></div>
+      <div style="flex:1 1 100%"><span class="fieldlabel">Job titles to search for</span>
+        <input id="auto_query" type="hidden">
+        <div class="chips" id="chips_auto_query"
+          title="Each title is searched on its own. Enter or a comma keeps one, the cross removes it."></div></div>
       <div class="small"><label for="auto_preset">Preset</label>
         <select id="auto_preset" title="Load a role family into the box"></select></div>
       <div class="small"><label for="auto_location">City</label><select id="auto_location"></select></div>
@@ -549,9 +550,10 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 
 <div class="card">
   <div class="searchbar">
-    <div class="grow"><label for="q">Search jobs for</label>
-      <input id="q" list="qterms" placeholder="customer support, suport clienti, relatii clienti"
-        title="Pick from the suggestions or type your own, separated by commas">
+    <div class="grow"><span class="fieldlabel">Search jobs for</span>
+      <input id="q" type="hidden">
+      <div class="chips" id="chips_q"
+        title="Each title is searched on its own. Enter or a comma keeps one, the cross removes it."></div>
       <datalist id="qterms"></datalist></div>
     <div class="small"><label for="preset">Preset</label>
       <select id="preset" title="Fills the box with terms for one role family. Edit before searching if you like.">
@@ -952,6 +954,8 @@ async function loadAuto(){
     if(el.type === 'checkbox') el.checked = !!v;
     else el.value = Array.isArray(v) ? v.join(',') : (v ?? '');
   }
+  // written straight onto .value, which fires nothing, so the chips have to be asked
+  for(const id of CHIPBOXES) drawChips(id);
   drawTimePicker();          // #auto_time is hidden now; the two selects are what you see
   drawDayPicker();
   applyRow();
@@ -1040,7 +1044,10 @@ function drawRunHistory(runs){
 }
 
 $('#autocopy').onclick = () => {
+  // 'change' both redraws the chips and is what remembers the box - these four were setting .value
+  // straight, so what they put there was on screen and gone again on the next reload
   $('#auto_query').value = $('#q').value;
+  $('#auto_query').dispatchEvent(new Event('change'));
   $('#auto_location').value = $('#loc').value;
   $('#auto_county').value = $('#county').value;
   $('#auto_country').value = $('#country').value;
@@ -1157,6 +1164,7 @@ $('#auto_from_cv').onclick = () => {
   if(!mine.length) return toast('Your profile has no job titles yet — fill it in first, or type '
                               + 'the roles you are looking for.', 7000);
   $('#auto_query').value = mine.join(', ');
+  $('#auto_query').dispatchEvent(new Event('change'));
   toast('Filled from your CV. Edit it, then Save the schedule.', 6000);
 };
 // The manual half of the monthly switch. Same pass, run now, whether or not the schedule is on -
@@ -1220,6 +1228,7 @@ $('#cvterms').onclick = e => {
   if(have.some(x => x.toLowerCase() === term.toLowerCase()))
     return toast(fill('{term} is already in the box.', {term: term}));
   box.value = have.concat(term).join(', ');
+  box.dispatchEvent(new Event('change'));
   e.target.disabled = true;                 // so it is obvious which ones you have taken
   toast(fill('Added {term}. Save the schedule when you are done.', {term: term}), 5000);
 };
@@ -1627,17 +1636,11 @@ drawPresets();
 // The box suggested "customer support, suport clienti, relatii clienti" to everybody, which is one
 // person's trade offered to a cook. Their own titles are the better hint. Still a placeholder and
 // not a value: nothing is ever searched that the person did not type.
+// Both boxes are chips now and the "+ add" input is rebuilt on every draw, so the hint is
+// computed there - chipPlaceholder - and this only has to ask for the redraw. Still a placeholder
+// and not a value: nothing is ever searched that the person did not put there.
 function searchHint(){
-  const q = $('#q');
-  if(!q || q.value.trim()) return;
-  const mine = [...new Set([(PROFILE || {}).title,
-                            ...((PROFILE || {}).experience || []).map(e => e.role)]
-                  .map(x => (x || '').trim()).filter(Boolean))].slice(0, 3);
-  if(mine.length) q.placeholder = mine.join(', ');
-  // the scheduled box said "customer support, suport clienti, technical support" to everybody as
-  // well, and it is the one somebody fills in once and leaves running
-  const a = $('#auto_query');
-  if(a && !a.value.trim() && mine.length) a.placeholder = mine.join(', ');
+  for(const id of CHIPBOXES) drawChips(id);
 }
 
 // The scheduled run searches the same boards with the same rules, so it gets the same controls -
@@ -1700,13 +1703,261 @@ function drawTerms(){
     .map(j => j.title.trim())
     .filter(t => { const k = t.toLowerCase(); return seen.has(k) ? false : seen.add(k); })
     .slice(0, 12);
-  const mine = [...new Set([(PROFILE || {}).title, ...((PROFILE || {}).experience || []).map(e => e.role)]
-                  .map(x => (x || '').trim()).filter(Boolean))].slice(0, 6);
+  const mine = profileTitles().slice(0, 6);
   // one entry per example family, plus each individual term, so both work while typing
   const examples = Object.values(PRESETS).flatMap(v => v.split(',').map(x => x.trim()));
-  $('#qterms').innerHTML = [...new Set([...worked, ...mine, ...Object.values(PRESETS), ...examples])]
+  // 4. and last, what people work as. Guesses, so they come after every piece of evidence - but
+  //    without them the box suggested customer service to a driver and nothing else at all.
+  $('#qterms').innerHTML = [...new Set([...worked, ...mine, ...Object.values(PRESETS), ...examples,
+                                        ...TITLES])]
     .filter(Boolean).map(t => `<option value="${esc(t)}">`).join('');
 }
+
+/* ---------- what people actually work as ----------
+   The suggestion list offered customer-service families and nothing else, because that is what the
+   presets are: somebody looking for driving work got no suggestions at all and had to spell it
+   themselves. Measured against the live boards, that is not cosmetic -
+
+       sofer    eJobs 10   Hipo 6    BestJobs 20   freehire 20
+       shofer   eJobs  0   Hipo 0    BestJobs 20   freehire  1
+
+   - because eJobs and Hipo build the term into a URL path and a path that matches nothing is
+   simply empty, while BestJobs has fuzzy matching of its own and answers anyway. So a typo LOOKS
+   like it worked and silently costs half the sources.
+
+   Not mined from the jobs table. That table only holds what has already been searched for: 19
+   driver ads and not one ospatar, barman or paznic, so mining it would suggest this app's own
+   history back at the next person. This is the market, not our history.
+
+   Spelled without diacritics, which is how the boards' own ads overwhelmingly write them and what
+   every board matched in testing, and in both languages because Romanian ads use both. Pairs that
+   are one edit apart - frizer/frezor, trainer/trainee - are BOTH here on purpose: a term that is
+   in this list is never "corrected" into the other one. */
+const TITLES = [
+  // driving and delivery
+  'sofer', 'sofer categoria B', 'sofer categoria C', 'sofer categoria C+E', 'sofer TIR',
+  'sofer autocamion', 'sofer autobuz', 'sofer autoutilitara', 'sofer de distributie',
+  'sofer profesionist', 'livrator', 'curier', 'taximetrist', 'conducator auto',
+  'driver', 'delivery driver', 'truck driver', 'courier', 'van driver',
+  // warehouse and logistics
+  'lucrator depozit', 'gestionar depozit', 'manipulant marfa', 'stivuitorist',
+  'operator stivuitor', 'coordonator depozit', 'operator logistica', 'dispecer transport',
+  'warehouse worker', 'forklift operator', 'logistics coordinator', 'picker', 'packer',
+  // retail
+  'vanzator', 'lucrator comercial', 'casier', 'asistent magazin', 'responsabil magazin',
+  'sef magazin', 'merchandiser', 'agent vanzari', 'consultant vanzari', 'reprezentant vanzari',
+  'sales assistant', 'shop assistant', 'cashier', 'store manager', 'sales representative',
+  // hotels, bars and kitchens
+  'ospatar', 'barman', 'bucatar', 'ajutor bucatar', 'cofetar', 'patiser', 'brutar', 'barista',
+  'pizzar', 'camerista', 'receptioner', 'sef de sala', 'lucrator bucatarie', 'macelar',
+  'waiter', 'bartender', 'chef', 'cook', 'kitchen helper', 'receptionist', 'housekeeping',
+  // cleaning and buildings
+  'agent de curatenie', 'femeie de serviciu', 'menajera', 'administrator imobile', 'portar',
+  'cleaner', 'janitor', 'facility manager',
+  // security
+  'agent de securitate', 'agent de paza', 'paznic', 'dispecer monitorizare',
+  'security guard', 'security officer',
+  // building trades and vehicles
+  'muncitor necalificat', 'muncitor in constructii', 'zidar', 'dulgher', 'fierar betonist',
+  'instalator', 'instalator sanitar', 'electrician', 'sudor', 'tamplar', 'zugrav', 'faiantar',
+  'macaragiu', 'excavatorist', 'mecanic auto', 'lacatus mecanic', 'tinichigiu', 'vopsitor auto',
+  'electrician auto', 'construction worker', 'welder', 'plumber', 'carpenter', 'mechanic',
+  // factories
+  'operator productie', 'lucrator productie', 'controlor calitate', 'operator CNC', 'strungar',
+  'frezor', 'ambalator', 'operator masini', 'tehnician mentenanta', 'sef de tura',
+  'production operator', 'quality control inspector', 'machine operator', 'maintenance technician',
+  // office and administration
+  'asistent manager', 'secretara', 'operator date', 'operator calculator', 'referent',
+  'functionar administrativ', 'arhivar', 'asistent administrativ', 'back office',
+  'office assistant', 'data entry operator', 'administrative assistant', 'executive assistant',
+  // customer service - the presets carry the families, these are the bare titles
+  'agent call center', 'operator call center', 'consilier clienti', 'suport clienti',
+  'relatii clienti', 'servicii clienti', 'customer support', 'customer service representative',
+  'call center agent', 'help desk', 'technical support', 'service desk', 'customer success',
+  // money
+  'contabil', 'asistent contabil', 'economist', 'analist financiar', 'casier bancar',
+  'consilier bancar', 'inspector asigurari', 'agent de recuperare',
+  'accountant', 'accounting assistant', 'financial analyst', 'bookkeeper', 'auditor',
+  // people and hiring
+  'specialist resurse umane', 'inspector resurse umane', 'recrutor', 'specialist salarizare',
+  'hr specialist', 'recruiter', 'payroll specialist',
+  // marketing, sales and property
+  'specialist marketing', 'specialist social media', 'copywriter', 'agent imobiliar',
+  'agent de turism', 'ghid turistic', 'marketing specialist', 'social media manager',
+  'content writer', 'account manager', 'business development', 'real estate agent',
+  // computers
+  'programator', 'dezvoltator software', 'tester', 'administrator sistem', 'analist date',
+  'suport IT', 'tehnician IT', 'administrator baze de date', 'designer grafic',
+  'software developer', 'web developer', 'qa tester', 'system administrator', 'devops engineer',
+  'data analyst', 'it support', 'graphic designer', 'ui ux designer', 'project manager',
+  'business analyst',
+  // health and care
+  'asistent medical', 'infirmier', 'ingrijitor', 'ingrijitor batrani', 'farmacist',
+  'asistent farmacie', 'kinetoterapeut', 'medic', 'medic veterinar', 'optician', 'brancardier',
+  'nurse', 'caregiver', 'pharmacist', 'medical assistant', 'physiotherapist', 'dentist',
+  // teaching and children
+  'profesor', 'educatoare', 'invatator', 'bona', 'instructor auto', 'trainer', 'trainee',
+  'formator', 'logoped', 'bibliotecar',
+  'teacher', 'tutor', 'nanny', 'kindergarten teacher', 'driving instructor',
+  // hair, beauty and wellbeing
+  'coafor', 'frizer', 'cosmetician', 'manichiurist', 'maseur', 'stilist',
+  'hairdresser', 'barber', 'beautician', 'nail technician', 'massage therapist',
+  // outdoors
+  'lucrator agricol', 'tractorist', 'ingrijitor animale', 'peisagist', 'gradinar',
+  'farm worker', 'gardener', 'landscaper',
+  // no trade yet
+  'fara experienta', 'debutant', 'incepator', 'practicant', 'ucenic', 'internship',
+  'entry level', 'no experience', 'intern', 'apprentice', 'graduate',
+];
+
+// The same three lines computed the person's own job titles in four places, and two of them had
+// already drifted into .map(x => x.role) and .map(e => e.role) over the same data.
+function profileTitles(){
+  return [...new Set([(PROFILE || {}).title,
+                      ...(((PROFILE || {}).experience) || []).map(e => e && e.role)]
+            .map(x => (x || '').trim()).filter(Boolean))];
+}
+
+// the boards fold these away themselves, so "Sofer" and "Șofer" are the same search
+function foldTerm(x){
+  return String(x || '').toLowerCase()
+    .replace(/[\u0103\u00e2]/g, 'a').replace(/\u00ee/g, 'i')
+    .replace(/[\u0219\u015f]/g, 's').replace(/[\u021b\u0163]/g, 't')
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+function editDist(a, b){
+  const d = Array.from({length: b.length + 1}, () => new Array(a.length + 1).fill(0));
+  for(let j = 0; j <= a.length; j++) d[0][j] = j;
+  for(let i = 0; i <= b.length; i++) d[i][0] = i;
+  for(let i = 1; i <= b.length; i++)
+    for(let j = 1; j <= a.length; j++)
+      d[i][j] = Math.min(d[i-1][j] + 1, d[i][j-1] + 1,
+                         d[i-1][j-1] + (a[j-1] === b[i-1] ? 0 : 1));
+  return d[b.length][a.length];
+}
+
+// Everything the app has any reason to believe is a real term. A term in here is never corrected,
+// which is what keeps frizer from becoming frezor and somebody's own unusual job title from being
+// rewritten into the nearest common one.
+function knownTerms(){
+  return new Set([...TITLES,
+                  ...Object.values(PRESETS).flatMap(v => v.split(',')),
+                  ...profileTitles(),
+                  ...(JOBS || []).map(j => j && j.title)].map(foldTerm).filter(Boolean));
+}
+
+// Single words only. "sofer categoria D" is one edit from "sofer categoria B" in the list above,
+// and silently turning one into the other would be worse than the typo it set out to fix. One
+// character for a short word, two for a long one, and nothing at all when two candidates tie.
+function nearestTitle(term){
+  const f = foldTerm(term);
+  if(f.length < 4 || /\s/.test(f) || knownTerms().has(f)) return '';
+  let best = '', score = 99;
+  for(const x of TITLES){
+    const g = foldTerm(x);
+    if(/\s/.test(g)) continue;
+    const d = editDist(f, g);
+    if(d < score){ score = d; best = x; }
+    else if(d === score) best = '';
+  }
+  return (best && score <= (f.length >= 8 ? 2 : 1)) ? best : '';
+}
+
+/* ---------- the two search boxes, as chips ----------
+   Each term is searched on its own, so the box was always a list pretending to be prose - and at a
+   quarter of the row it showed two and a half of five terms with no sign the rest were there.
+
+   The <input> stays the value holder: twelve places read .value and the POST body sends it, so
+   these are a view over it and not one of the twelve had to change. Anything that writes the box
+   fires 'change', which is the event it already used for remembering. */
+const CHIPBOXES = ['q', 'auto_query'];
+
+function chipTerms(id){
+  const el = $('#' + id);
+  return el ? (el.value || '').split(',').map(x => x.trim()).filter(Boolean) : [];
+}
+
+function setChipTerms(id, list, focus){
+  const el = $('#' + id);
+  if(!el) return;
+  // deduplicated the way the boards see them, so adding one you already have does not make two
+  const seen = new Set(), out = [];
+  for(const x of list){
+    const k = foldTerm(x);
+    if(k && !seen.has(k)){ seen.add(k); out.push(x); }
+  }
+  el.value = out.join(', ');
+  el.dispatchEvent(new Event('change'));   // remembers it, and redraws the chips below
+  if(focus){ const box = $('#chipin_' + id); if(box) box.focus(); }
+}
+
+function chipPlaceholder(id){
+  if(chipTerms(id).length) return t('+ add a job title');
+  const mine = profileTitles().slice(0, 3);
+  return mine.length ? mine.join(', ') : t('+ add a job title');
+}
+
+function drawChips(id){
+  const host = $('#chips_' + id);
+  if(!host) return;
+  host.innerHTML = chipTerms(id).map((x, i) =>
+      `<span class="chip"><span>${esc(x)}</span><button type="button" data-rm="${i}"
+         title="Remove">&times;</button></span>`).join('')
+    + `<input class="chipin" id="chipin_${id}" list="qterms" aria-label="Add a job title"
+         placeholder="${esc(chipPlaceholder(id))}">`;
+  localiseDOM(host);       // built with innerHTML, so the server's pass never saw it
+}
+
+// A typo is not a cosmetic problem here: eJobs and Hipo return nothing at all for one, while
+// BestJobs answers anyway, so the search looks like it worked.
+function fixTerm(term){
+  const right = nearestTitle(term);
+  if(!right) return term;
+  toast(fill('Searching "{right}" instead - "{wrong}" finds nothing on eJobs or Hipo.',
+             {right: right, wrong: term}), 8000);
+  return right;
+}
+
+function commitChip(id){
+  const box = $('#chipin_' + id);
+  if(!box) return;
+  const raw = box.value.trim();
+  box.value = '';
+  if(!raw) return;
+  // a pasted comma list becomes several chips at once
+  const add = raw.split(',').map(x => x.trim()).filter(Boolean).map(fixTerm);
+  setChipTerms(id, chipTerms(id).concat(add), true);
+}
+
+for(const id of CHIPBOXES){
+  const host = $('#chips_' + id);
+  if(!host) continue;
+  host.addEventListener('click', e => {
+    const i = e.target.dataset && e.target.dataset.rm;
+    if(i === undefined) return;
+    const list = chipTerms(id);
+    list.splice(+i, 1);
+    setChipTerms(id, list, true);
+  });
+  host.addEventListener('keydown', e => {
+    if(!e.target.classList || !e.target.classList.contains('chipin')) return;
+    if(e.key === 'Enter' || e.key === ','){ e.preventDefault(); commitChip(id); }
+    else if(e.key === 'Backspace' && !e.target.value){
+      e.preventDefault();
+      const list = chipTerms(id);
+      list.pop();
+      setChipTerms(id, list, true);
+    }
+  });
+  // clicking away keeps what was typed, the same as the profile's chips
+  host.addEventListener('blur', e => {
+    if(e.target.classList && e.target.classList.contains('chipin')) commitChip(id);
+  }, true);
+  $('#' + id).addEventListener('change', () => drawChips(id));
+  drawChips(id);
+}
+
 mirrorControls();
 drawTerms();
 
@@ -1715,7 +1966,9 @@ $('#preset').onchange = e => {
   const terms = v.startsWith('@') ? v.slice(1) : PRESETS[v];
   if(!terms) return;
   $('#q').value = terms;
-  $('#q').focus();
+  $('#q').dispatchEvent(new Event('change'));
+  const add = $('#chipin_q');
+  if(add) add.focus();
   toast('Terms loaded — edit them if you like, then Search & score.', 5000);
 };
 
@@ -2384,8 +2637,11 @@ function drawAlerts(){
 
 function steps(){
   // the same rule as the search guard: studies and projects count, not only paid work
+  // PROFILE starts null and this runs from loadLlm too, which races the profile fetch - so on the
+  // loads where the model answered first it threw here, and the catch around loadLlm blamed the
+  // model settings for it: "Could not read the AI model settings" over a panel that had loaded.
   const hasProfile = ['experience', 'skills', 'education', 'projects']
-    .some(k => (PROFILE[k] || []).length);
+    .some(k => ((PROFILE || {})[k] || []).length);
   const s = [
     [LLM.provider && !LLM.error, 'Choose an AI model and paste its key',
       () => { $('#setup').classList.add('open'); $('#prov').focus(); }],
@@ -2606,6 +2862,8 @@ function restoreSearch(){
     // filter whose default is not empty - Freshness - could never be set back to Any.
     if(v !== undefined && v !== null) el.value = v;
   }
+  // restored straight onto .value, which fires nothing, so the chips have to be asked
+  for(const id of CHIPBOXES) drawChips(id);
 }
 $('#find').oninput = draw;
 // The search is one long POST, so ask the server separately how far it has got. Scoring is one

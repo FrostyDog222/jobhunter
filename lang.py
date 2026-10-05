@@ -331,10 +331,6 @@ RO = {
         "Joburile cu scorul acesta sau mai mare sunt numărate în rezumat",
     "Writes the currency into the answer beside your figure":
         "Scrie moneda în răspuns, lângă suma ta",
-    "Job titles, separated by commas. Each one is searched on its own.":
-        "Titluri de job, separate prin virgulă. Fiecare este căutat separat.",
-    "Pick from the suggestions or type your own, separated by commas":
-        "Alege din sugestii sau scrie ale tale, separate prin virgulă",
     "The model reviews what you wrote and proposes rewrites. Accept the ones you like.":
         "Modelul recitește ce ai scris și propune reformulări. Le accepți pe cele care îți plac.",
     "The score is a model's opinion, not a fact.": "Scorul este părerea unui model, nu un fapt.",
@@ -349,8 +345,6 @@ RO = {
     ", paste it back and press": ", lipește-o înapoi și apasă",
     "customer support, suport clienti, relatii clienti":
         "customer support, suport clienti, relatii clienti",
-    "customer support, suport clienti, technical support":
-        "customer support, suport clienti, technical support",
     "Four Romanian job boards, read and scored against your own profile. Nothing leaves this PC except the calls to the AI model you picked.":
         "Patru site-uri românești de joburi, citite și punctate față de propriul tău profil. Nimic nu pleacă de pe acest PC în afară de apelurile către modelul AI ales de tine.",
     "These four narrow the freehire results only — the Romanian boards have no equivalent, so they come back unfiltered.":
@@ -592,6 +586,17 @@ RO = {
         "Nicio sugestie — arată bine.",
     "+ add":
         "+ adaugă",
+    "+ add a job title":
+        "+ adaugă un titlu de job",
+    "Add a job title":
+        "Adaugă un titlu de job",
+    # eJobs and Hipo build the term into a URL path, so a misspelling returns nothing from either
+    # while BestJobs answers anyway - the search looks like it worked and half the sources are gone
+    'Searching "{right}" instead - "{wrong}" finds nothing on eJobs or Hipo.':
+        'Caut „{right}” în loc - „{wrong}” nu găsește nimic pe eJobs sau Hipo.',
+    "Each title is searched on its own. Enter or a comma keeps one, the cross removes it.":
+        "Fiecare titlu este căutat separat. Enter sau virgulă îl păstrează, "
+        "crucea îl șterge.",
     "level…":
         "nivel…",
     "Native":

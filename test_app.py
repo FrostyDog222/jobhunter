@@ -4229,11 +4229,16 @@ assert "mine.length > 1" in _d9r, "a single-title profile gets a pointless 'all 
 
 # the search box hinted at one person's trade - "customer support, suport clienti" - to everybody
 assert "function searchHint()" in _d9r
-assert "placeholder = mine.join" in _d9r
 assert "searchHint();" in _d9r.split("api('/api/profile'")[1][:400],     "the hint is never drawn, because it needs the profile and nothing calls it after that lands"
-# a hint, not a value: nothing is searched that the person did not type
-_hint9r = _d9r.split("function searchHint()")[1].split("\n}")[0]
-assert ".value =" not in _hint9r, "the search box is being filled in rather than hinted at"
+# Both boxes are chips now and the "+ add" input is rebuilt on every draw, so the hint is computed
+# where that input is built and searchHint only asks for the redraw. Same hint, new home.
+assert "function chipPlaceholder(" in _d9r, "the search box has no hint left at all"
+_hint9r = _d9r.split("function chipPlaceholder(")[1].split("\n}")[0]
+assert "profileTitles()" in _hint9r and "mine.join(', ')" in _hint9r,     "the hint is no longer the person's own job titles"
+assert "placeholder=" in _d9r.split("function drawChips(")[1].split("\n}")[0],     "the hint is computed and then never reaches the box"
+# a hint, not a value: nothing is searched that the person did not put there
+for _f9r in ("function searchHint()", "function chipPlaceholder("):
+    assert ".value =" not in _d9r.split(_f9r)[1].split("\n}")[0],         f"{_f9r} fills the search box in rather than hinting at it"
 
 # an edit to either search box survived only if the big button was pressed afterwards
 assert "function rememberEdits()" in _d9r and "rememberEdits();" in _d9r
@@ -4313,8 +4318,9 @@ assert "mirrorPreset();" in _dp9t,     "the picker is never filled after the pro
 # setting .value from a script does not fire change, and this box is remembered on change - so
 # without the dispatch the terms sit on screen and vanish on the next reload
 assert "box.dispatchEvent(new Event('change'))" in _d9r,     "a preset loaded into the scheduled box is not remembered"
-# and the scheduled box hinted at one person's trade too
-assert "a.placeholder = mine.join" in _d9r,     "the scheduled box still suggests customer support to everybody"
+# and the scheduled box hinted at one person's trade too. Both boxes are chips now and share one
+# hint, so what matters is that both are in the list that gets drawn.
+assert "const CHIPBOXES = ['q', 'auto_query']" in _d9r,     "the scheduled box is not drawn as chips, so it gets no hint and no cross to remove a term"
 
 
 # 9u. The unattended run applied to jobs anywhere in the country whatever city or county was set.
@@ -4605,5 +4611,125 @@ assert _click10b.index("ensureFitOption(card.dataset.mf)") < _click10b.index("$(
 # the label is a real translated string with its number intact
 assert "Fit {n}+ (your floor)" in app.lang.RO, "the added option's label has no Romanian"
 assert "{n}" in app.lang.RO["Fit {n}+ (your floor)"], "the Romanian label dropped the number"
+
+# 10c. The search boxes are chips, and a misspelling no longer costs half the boards.
+#
+# Two problems in one control. It held a comma string in a quarter-width input sharing a row with
+# three dropdowns, so five terms showed as two and a half; and _search splits on commas and searches
+# each term on its own, so it was a list pretending to be prose all along.
+_d10c = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+_b10c = (app.HERE / "templates" / "base.html").read_text(encoding="utf-8")
+_p10c = (app.HERE / "templates" / "profile.html").read_text(encoding="utf-8")
+
+# one copy of the chip styling, shared, not a second copy pasted into the dashboard
+assert ".chipin{" in _b10c, "the chip styling is not in base.html, so only one page can have chips"
+assert ".chipin{" not in _p10c, "profile.html still carries its own copy of the chip styling"
+assert ".chipin{" not in _d10c, "the dashboard pasted its own copy instead of sharing base.html's"
+
+# the terms box gets the whole row - a quarter of it was the original complaint
+assert ".searchbar .grow{flex:1 1 100%" in _d10c, "the search terms are back to sharing a row"
+
+# THE invariant: the <input> is still the value holder. Twelve places read .value and the POST body
+# sends it, so the chips are a view over it - a second copy of the list would be a second truth.
+for _id10c in ("q", "auto_query"):
+    assert f'<input id="{_id10c}" type="hidden">' in _d10c, \
+        f"#{_id10c} is no longer a plain value holder, so everything that reads .value is at risk"
+    assert f'id="chips_{_id10c}"' in _d10c, f"#{_id10c} has no chip box to draw into"
+assert "const CHIPBOXES = ['q', 'auto_query']" in _d10c, "only one of the two boxes gets chips"
+
+# ...which only works if everything that WRITES the box says so. Setting .value from a script fires
+# nothing, and 'change' is the event that both redraws the chips and remembers the box.
+_writers10c = _d10c.count("dispatchEvent(new Event('change'))")
+assert _writers10c >= 5, f"only {_writers10c} writers announce themselves; the others leave the "\
+                         "chips showing something the box no longer holds"
+for _fn10c in ("function loadAuto()", "function restoreSearch()"):
+    _body10c = _d10c.split(_fn10c)[1].split("\n}")[0]
+    assert "drawChips" in _body10c, \
+        f"{_fn10c} restores straight onto .value, so the chips are never drawn for it"
+
+# removing one is a cross on the chip, and it removes it BY POSITION - by text, two terms that
+# differ only in case would take each other with them
+assert 'data-rm="${i}"' in _d10c, "the cross cannot say which chip it belongs to"
+assert "list.splice(+i, 1)" in _d10c, "a chip is removed by matching its text rather than its place"
+
+# a typo is not cosmetic: eJobs and Hipo build the term into a URL path and return nothing, while
+# BestJobs has fuzzy matching of its own and answers anyway - so the search looks like it worked
+_near10c = _d10c.split("function nearestTitle(")[1].split("\n}")[0]
+assert "/\\s/.test(f)" in _near10c, \
+    "multi-word terms are corrected too, so 'sofer categoria D' becomes 'sofer categoria B'"
+assert "knownTerms().has(f)" in _near10c, "a term the app already knows would be rewritten"
+assert "f.length < 4" in _near10c, "two-letter terms like IT and HR would be corrected into words"
+assert "else if(d === score) best = ''" in _near10c, "two equally close answers pick one at random"
+
+# ---- the vocabulary itself, which is the part that can quietly rot ----
+_titles10c = _re.search(r"const TITLES = \[(.*?)\n\];", _d10c, _re.S)
+assert _titles10c, "the suggestion vocabulary is gone"
+_vocab10c = _re.findall(r"'([^']+)'", _titles10c.group(1))
+assert len(_vocab10c) > 180, f"the vocabulary has shrunk to {len(_vocab10c)} terms"
+
+# It is NOT mined from the jobs table. That table only holds what has already been searched for -
+# on the database this was built against, 19 driver ads and not one of these three - so mining it
+# would suggest this app's own history back at the next person.
+for _trade10c in ("ospatar", "barman", "paznic", "sofer", "vanzator", "asistent medical",
+                  "electrician", "lucrator depozit"):
+    assert _trade10c in _vocab10c, f"nobody searching for {_trade10c!r} gets a suggestion"
+# and both languages, because Romanian ads use both
+for _en10c in ("driver", "waiter", "nurse", "welder", "cashier", "teacher"):
+    assert _en10c in _vocab10c, f"the English half is missing {_en10c!r}"
+
+# Pairs one edit apart that are BOTH real jobs have to both be here. A term in the list is never
+# corrected, so including both is what stops a hairdresser being offered milling work.
+for _a10c, _b10c2 in (("frizer", "frezor"), ("trainer", "trainee")):
+    assert _a10c in _vocab10c and _b10c2 in _vocab10c, \
+        f"{_a10c}/{_b10c2} are one edit apart; dropping either turns the other into a 'typo'"
+
+# the documented corrections actually resolve, against this vocabulary, under this rule
+def _dist10c(a, b):
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+_words10c = [x for x in _vocab10c if " " not in x]
+def _nearest10c(term):
+    if len(term) < 4 or " " in term or term in _words10c:
+        return ""
+    best, score = "", 99
+    for x in _words10c:
+        d = _dist10c(term, x.lower())
+        if d < score:
+            best, score = x, d
+        elif d == score:
+            best = ""
+    return best if best and score <= (2 if len(term) >= 8 else 1) else ""
+
+for _wrong10c, _right10c in (("shofer", "sofer"), ("sofeur", "sofer"), ("ospetar", "ospatar"),
+                             ("vinzator", "vanzator"), ("barmen", "barman"),
+                             ("programatr", "programator")):
+    assert _nearest10c(_wrong10c) == _right10c, \
+        f"{_wrong10c!r} no longer corrects to {_right10c!r}, it gives {_nearest10c(_wrong10c)!r}"
+# and the ones that must be left exactly as typed
+for _keep10c in ("sofer", "frizer", "frezor", "trainer", "trainee", "bucatar"):
+    assert _nearest10c(_keep10c) == "", f"{_keep10c!r} is a real job and is being rewritten"
+
+# the suggestions reach the datalist both boxes read from
+assert "...TITLES])]" in _d10c, "the vocabulary is never offered while typing"
+
+# the toast that explains the correction, in both languages, with both names intact
+_fix10c = 'Searching "{right}" instead - "{wrong}" finds nothing on eJobs or Hipo.'
+assert _fix10c in app.lang.RO, "the correction is silent in Romanian"
+for _ph10c in ("{right}", "{wrong}"):
+    assert _ph10c in app.lang.RO[_fix10c], f"the Romanian dropped {_ph10c}"
+
+
+# 10d. steps() ran from loadLlm, which races the profile fetch, and PROFILE starts null - so on the
+# loads where the model answered first the checklist threw, and the catch around loadLlm reported
+# it as "Could not read the AI model settings" over a model panel that had loaded perfectly.
+_steps10d = _d10c.split("function steps(){")[1].split("\n}")[0]
+assert "(PROFILE || {})" in _steps10d, \
+    "steps() dereferences PROFILE unguarded again, and it is called before the profile lands"
 
 print("ok")
