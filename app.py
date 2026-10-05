@@ -388,7 +388,13 @@ def _task_state(which=None):
         f"$t = Get-ScheduledTask -TaskName '{which or TASK}';"
         f"if (-not $t) {{ '{{}}' }} else {{ $i = $t | Get-ScheduledTaskInfo;"
         f"[pscustomobject]@{{ exists=$true; state=[string]$t.State;"
-        f" next=[string]$i.NextRunTime; last=[string]$i.LastRunTime;"
+        # ToString('o') - ISO 8601 with the offset - rather than [string], which is a type cast
+        # whose format is PowerShell's to choose. It happens to produce US order even under a
+        # ro-RO culture, which is lucky rather than guaranteed, and "04.10.2026" would be read as
+        # 10 April by the page. _ps itself exists because schtasks printed localised field names;
+        # this is the same trap one layer down, and ISO is the format that has no local reading.
+        f" next=$(if ($i.NextRunTime) {{ $i.NextRunTime.ToString('o') }});"
+        f" last=$(if ($i.LastRunTime) {{ $i.LastRunTime.ToString('o') }});"
         f" result=$i.LastTaskResult }} | ConvertTo-Json -Compress }}")
     try:
         state = json.loads(out) if code == 0 and out else {}
@@ -1917,9 +1923,26 @@ def list_jobs():
             f"  ELSE 2 END, "
             # inside a tier: fewest competitors first where that is known, then freshest
             f"COALESCE(applicants, 1000000) ASC, COALESCE(posted,'') DESC, found DESC")]
-    if home:
-        for r in rows:
-            loc = (r.get("location") or "").strip()
+    for r in rows:
+        loc = (r.get("location") or "").strip()
+        # A remote job is near everybody, which is the whole of what the "Near me / remote" filter
+        # promises. in_county reads the location field alone, so an ad that is genuinely remote
+        # with a head office in Madrid came back far - and remote work is the one case where the
+        # office does not matter.
+        #
+        # ponytail: title and location only, because the list query returns the description's
+        # LENGTH and not the description - deliberately, it is the biggest column in the table.
+        # So an ad that states remote only in its body is still missed here. A stored flag would
+        # catch those (unlike `far`, remoteness does not change when somebody moves house); worth
+        # it only if the gap shows up in use.
+        if scrape.remote_job(r):
+            r["far"] = False
+        elif not home:
+            # No home county set, so there is no "me" to be near - and this used to leave the key
+            # off every row, which made the filter match NOTHING and the empty list blame the
+            # filters the person had picked. Remote still answers the question honestly.
+            r["far"] = None
+        else:
             # Three answers, not two. An ad that names no location is unknown: calling it
             # far puts a warning on every row that omits one, and calling it near prints a
             # "near you" badge this app has no grounds for.
@@ -2552,6 +2575,31 @@ async def _search(body, p):
         keep = [j for j in fresh if scrape.seniority_fits(j, rank)]
         off_rank, fresh = len(fresh) - len(keep), keep
 
+    # The same posting listed on two boards. The dedupe before phase 2 compares title and company
+    # too, but only within the batch in hand - across two searches the second board's url is simply
+    # unknown, so the ad is read, scored and stored a second time. Measured on this database: 16
+    # titles stored twice, 8 of them from different boards, and one pair where both copies were
+    # still open - which auto-apply would have sent to the same employer twice.
+    #
+    # Here rather than at phase 2 because that is too early: discover() returns no company at all
+    # for eJobs and Hipo, which is where these pairs come from, and the name only arrives with the
+    # detail page. One query, and the key is the same one the batch dedupe uses.
+    dupe = 0
+    if fresh:
+        with db() as c:
+            stored = {f"{(r[0] or '').lower().strip()}|{(r[1] or '').lower().strip()[:18]}"
+                      for r in c.execute("SELECT title, company FROM jobs "
+                                         "WHERE COALESCE(title,'') <> '' "
+                                         "AND COALESCE(company,'') <> ''")}
+        keep = []
+        for j in fresh:
+            t, co = (j.get("title") or "").lower().strip(), (j.get("company") or "").lower().strip()
+            if t and co and f"{t}|{co[:18]}" in stored:
+                dupe += 1
+                continue
+            keep.append(j)
+        fresh = keep
+
     for b in boards:
         rows = [j for j in fresh if j["source"] == b]
         complaint = scrape.health(b, rows, prior.get(b, 0)) if rows else ""
@@ -2739,6 +2787,9 @@ async def _search(body, p):
             "off_mode": off_mode,
             # ...and for being the wrong seniority, on the same three
             "off_rank": off_rank,
+            # the same posting already stored from another board, which would otherwise be read,
+            # scored and applied to twice
+            "off_dupe": dupe,
             # which rule dropped what. Named so a skip list that is quietly costing you a job you
             # would have wanted is visible, instead of being one number in a log line.
             "off_family_by": dict(sorted(dropped_by.items(), key=lambda kv: -kv[1])[:8]),

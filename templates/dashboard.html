@@ -954,7 +954,9 @@ for(const id of ['auto_apply_min_fit', 'auto_apply_cap'])
     $('#auto_apply').checked = false; applyRow();
     toast('Score or cap changed - tick "Also apply for me" again to confirm the new limits.', 7000);
   } };
-// PowerShell hands back "10/04/2026 09:00:00", and a task that has never run reports 1999
+// PowerShell hands back ISO 8601 with the offset now - "2026-10-05T09:00:00+03:00" - because the
+// plain cast's format is PowerShell's to choose and "04.10.2026" would be read here as 10 April.
+// A task that has never run still reports 1999.
 const taskDate = v => { const d = new Date(v); return isNaN(d) || d.getFullYear() < 2001 ? null
   : d.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'})
     + ', ' + hhmm(d); };
@@ -2771,7 +2773,14 @@ function draw(){
   }).join('') || `<div class="card muted">${
       OFFLINE ? 'Cannot reach the app. Is the black run.bat window still open? Start it again, then reload this page.'
       : !JOBS.length ? 'No jobs yet. Finish the steps above, then pick a role family and press Search & score.'
-      : needle ? 'Nothing here matches "' + esc(needle) + '". Clear the filter box to see everything.'
+      // the box's own text, not the folded needle: typing "București" used to be echoed back as
+      // "bucuresti", which reads like the app changed what you asked for
+      : needle ? 'Nothing here matches "' + esc($('#find').value) + '". Clear the filter box to see everything.'
+      // "Near me" with no county set can only mean remote, and saying "try Any fit" to somebody
+      // whose real problem is an empty setting sends them the wrong way entirely
+      : f === '@near' && !(S.home_county || '').trim()
+        ? t('Showing remote work only, because no home county is set - Settings has the box. '
+          + 'With one, this also shows jobs in and around it.')
       : 'Nothing matches these filters. Try Any fit, or All jobs.'}</div>`;
 
   // restore what was ticked and re-count, so the batch bar can never claim a stale number

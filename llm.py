@@ -339,9 +339,21 @@ def _load_down(merge=False):
             # used to raise IndexError and drop every remaining entry AND the notes with it
             try:
                 provider, _, model = k.partition("|")
-                entry = (float(v[0]), str(v[1]),
+                # Both numbers are clamped, because neither has a floor or a ceiling on disk.
+                #
+                # A timestamp in the FUTURE parks a provider for ever: _breaker tests
+                # `time.time() - hit[0] < _rest(...)`, and a negative difference is always under
+                # the window, so it never expires. A clock that was ahead and got corrected does
+                # this, as does a restored backup - and get_llm tells the person "they come back on
+                # their own", which would simply not be true. Clamped to now, so the window runs
+                # from the moment it is read rather than never.
+                #
+                # And the strike count feeds `2 ** (strikes - 1)`, which is computed BEFORE the cap
+                # is applied - so a corrupted 10**9 in this file builds an integer with three
+                # hundred million digits on the next page load. 32 is past every cap already.
+                entry = (min(float(v[0]), time.time()), str(v[1]),
                          bool(v[2]) if len(v) > 2 else False,
-                         int(v[3]) if len(v) > 3 else 1)
+                         max(1, min(int(v[3]), 32)) if len(v) > 3 else 1)
             except (TypeError, ValueError, IndexError, KeyError):
                 continue
             if merge:
@@ -350,7 +362,9 @@ def _load_down(merge=False):
             else:
                 _BLOWN.setdefault((provider, model), entry)
         if merge or not _NOTES:
-            _NOTES[:] = raw.get("notes") or _NOTES
+            # truncated on the way in as well as on the way out: a file that grew for any reason
+            # stayed grown, because nothing re-applied the limit after reading it back
+            _NOTES[:] = (raw.get("notes") or _NOTES)[-NOTES_KEPT:]
     except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError):
         pass                        # a state file we cannot read is not worth failing a call over
 
@@ -363,7 +377,15 @@ def _save_down():
         down = {f"{k[0]}|{k[1]}": [v[0], v[1], v[2] if len(v) > 2 else False,
                                    v[3] if len(v) > 3 else 1]
                 for k, v in list(_BLOWN.items())}
-        DOWN.write_text(json.dumps({"down": down, "notes": list(_NOTES)}), encoding="utf-8")
+        # Written whole, then moved into place - the same way settings.json and the credentials
+        # are. Two processes write this file, the server and the scheduled run, and a plain
+        # write_text that is interrupted leaves a half a line of JSON which the next read discards
+        # ENTIRELY: not one stale entry lost but the whole table, so a 100-ad search re-pays full
+        # price for a provider already known to be dark. os.replace is atomic on Windows.
+        tmp = DOWN.with_suffix(DOWN.suffix + ".tmp")
+        tmp.write_text(json.dumps({"down": down, "notes": list(_NOTES)[-NOTES_KEPT:]}),
+                       encoding="utf-8")
+        os.replace(tmp, DOWN)
         _DOWN_READ[0] = DOWN.stat().st_mtime     # our own write is not news to re-read
     except OSError:
         pass                        # remembering is an optimisation, never a requirement

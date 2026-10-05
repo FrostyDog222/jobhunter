@@ -5297,4 +5297,86 @@ _d10u = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
 assert 'id="unstick"' in _d10u, "nothing on the page can put a stuck ad back"
 assert "{status:'stuck'}" in _d10u, "the button does not ask for the stuck ones"
 
+# 10v. The same posting on two boards was stored, scored and could be applied to twice.
+#
+# The dedupe before phase 2 compares title and company as well as url, but only within the batch in
+# hand - across two searches the second board's url is simply unknown. Measured on the real
+# database: 16 titles stored twice, 8 of them from different boards, one pair where both copies
+# were still open. It has to run AFTER hydrate, because discover() returns no company at all for
+# eJobs and Hipo, which is where those pairs come from.
+_src10v = (app.HERE / "app.py").read_text(encoding="utf-8")
+assert '"off_dupe": dupe' in _src10v, "duplicates across searches are not counted or reported"
+_s10v = _iK.getsource(app._search)
+assert "SELECT title, company FROM jobs" in _s10v, "the stored rows are never consulted"
+assert _s10v.index("scrape.hydrate") < _s10v.index("SELECT title, company FROM jobs"), \
+    "the check runs before the detail pages land, where eJobs and Hipo have no company yet"
+
+
+# 10w. The circuit breaker could park a provider for ever, and could be made to hang the app.
+#
+# Neither number in .llm_down.json had a floor or a ceiling. A timestamp in the FUTURE - a clock
+# that was ahead and got corrected, a restored backup - made `time.time() - hit[0]` negative, which
+# is always inside the window, so the provider never came back while get_llm told the person they
+# "come back on their own". And the strike count feeds 2 ** (strikes - 1), computed BEFORE the cap
+# is applied, so a corrupted large value builds an integer with millions of digits on page load.
+_ld10w = _iK.getsource(_L9a._load_down)
+assert "min(float(v[0]), time.time())" in _ld10w, "a future timestamp still parks a provider for ever"
+assert "min(int(v[3]), 32)" in _ld10w, "the strike count is still unbounded"
+assert "[-NOTES_KEPT:]" in _ld10w, "a notes list that grew stays grown"
+# and the file is written whole and moved, like every other state file here - two processes write
+# it, and a torn write makes the next read discard the WHOLE table
+_sd10w = _iK.getsource(_L9a._save_down)
+assert "os.replace" in _sd10w, "the breaker state is written in place and can be torn in half"
+
+# the clamps, exercised
+import time as _time
+_keep10w = dict(_L9a._BLOWN)
+try:
+    _L9a._BLOWN.clear()
+    _f10w = app.HERE / ".llm_down.test.json"
+    _realdown10w = _L9a.DOWN
+    try:
+        _L9a.DOWN = _f10w
+        _f10w.write_text(_json.dumps({"down": {"p|m": [_time.time() + 9999, "quota", False, 10**9]},
+                                      "notes": ["n"] * 40}), encoding="utf-8")
+        _L9a._load_down(merge=True)
+        _e10w = _L9a._BLOWN[("p", "m")]
+        assert _e10w[0] <= _time.time() + 1, "the future timestamp survived"
+        assert _e10w[3] == 32, f"strikes clamped to {_e10w[3]}"
+        _t010w = _time.time()
+        _L9a._rest(False, _e10w[3])
+        assert _time.time() - _t010w < 1, "_rest took a measurable time, so the exponent is unbounded"
+        assert len(_L9a._NOTES) <= _L9a.NOTES_KEPT
+    finally:
+        _L9a.DOWN = _realdown10w
+        _f10w.unlink(missing_ok=True)
+finally:
+    _L9a._BLOWN.clear()
+    _L9a._BLOWN.update(_keep10w)
+
+
+# 10x. "Near me / remote" matched nothing at all unless a home county was set, and then blamed the
+# filters the person had picked.
+_lj10x = _iK.getsource(app.list_jobs)
+assert "scrape.remote_job(r)" in _lj10x, \
+    "a remote job with a head office elsewhere is still called far, which is the one case where "\
+    "the office does not matter"
+assert "elif not home:" in _lj10x, "far is still only computed when a home county is set"
+_d10x = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "f === '@near' && !(S.home_county" in _d10x, \
+    "the empty list still says 'try Any fit' to somebody whose real problem is an empty setting"
+# and the search box echoes what was typed, not the folded form
+assert "esc($('#find').value)" in _d10x, \
+    "typing Bucuresti with diacritics is echoed back folded, as if the app changed the question"
+
+
+# 10y. The next run time was parsed from whatever format PowerShell felt like.
+# _ps exists because schtasks printed localised field names; [string] on a DateTime is the same
+# trap one layer down. It happens to produce US order even under ro-RO, which is luck rather than a
+# guarantee - and "04.10.2026" reads as 10 April to a browser.
+assert "ToString('o')" in _src10v, "the task times are not ISO, so their reading depends on Windows"
+assert "next=[string]" not in _src10v and "last=[string]" not in _src10v
+assert "2026-10-05T09:00:00+03:00" in _d10x or "ISO 8601" in _d10x, \
+    "the page still documents the old format"
+
 print("ok")

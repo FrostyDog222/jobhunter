@@ -641,6 +641,10 @@ RO = {
         "+ adaugă",
     "+ add a job title":
         "+ adaugă un titlu de job",
+    "Showing remote work only, because no home county is set - Settings has the box. "
+    "With one, this also shows jobs in and around it.":
+        "Se afișează doar munca de la distanță, pentru că nu ai setat un județ de domiciliu - "
+        "îl găsești în Setări. Cu el setat, apar și joburile din județ și din jurul lui.",
     "Try the ads that could not be scored":
         "Încearcă anunțurile care nu au putut fi punctate",
     "{n} ad(s) put back in the queue — press Search & score to try them again.":
