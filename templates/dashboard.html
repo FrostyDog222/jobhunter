@@ -2171,6 +2171,7 @@ function draw(){
       || fold(`${j.title} ${j.company} ${j.location} ${j.lang || ''}`).includes(needle));
   const n = s => shown.filter(j=>j.status===s).length;
   const FLOOR = +(S.auto_min_fit ?? 75);
+  ensureFitOption(FLOOR);
   floorNote(FLOOR);
   filteredNote();
 
@@ -2439,9 +2440,28 @@ $('#pager').addEventListener('click', e => {
 $('#stats').addEventListener('keydown', e => {
   if((e.key === 'Enter' || e.key === ' ') && e.target.closest('.stat')){ e.preventDefault(); e.target.click(); }
 });
+// A <select> silently refuses a value it has no <option> for: .value becomes '' and reads back as
+// 0, which is Any fit - every job. The Fit dropdown offers 0, 50, 70, 75 and 85, and the Best for
+// you tile hands it whatever floor is actually in force, so a floor of 65 opened the whole list
+// while the tile's own count said 31. The count was never wrong; the filter never arrived.
+//
+// So the dropdown always carries the floor in force. Fixing it here rather than at the tile also
+// means the number is pickable by hand, and that the tile can light up as selected afterwards -
+// the comparison that decides that reads the same .value the click failed to set.
+function ensureFitOption(floor){
+  const sel = $('#minfit');
+  floor = +floor || 0;
+  if(!sel || !floor || [...sel.options].some(o => o.value === String(floor))) return;
+  const o = new Option(fill('Fit {n}+ (your floor)', {n: floor}), String(floor));
+  // in numeric order, so the list still reads 0, 50, 65, 70, 75, 85
+  sel.add(o, [...sel.options].find(x => +x.value > floor) || null);
+}
+
 $('#stats').addEventListener('click', e => {
   const card = e.target.closest('.stat'); if(!card) return;
   $('#filter').value = card.dataset.st || '';
+  // the option may not exist yet on the very first click after a reload
+  ensureFitOption(card.dataset.mf);
   $('#minfit').value = card.dataset.mf || '0';
   draw();
 });

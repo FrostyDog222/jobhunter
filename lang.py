@@ -55,6 +55,9 @@ RO = {
     "Fit 70+": "Potrivire 70+",
     "Fit 75+ (strong)": "Potrivire 75+ (bună)",
     "Fit 85+": "Potrivire 85+",
+    # added to the dropdown at runtime, because the five fixed options do not include whatever
+    # floor somebody actually set and a <select> cannot hold a value it has no option for
+    "Fit {n}+ (your floor)": "Potrivire {n}+ (limita ta)",
     "Total": "Total",
     "Best for you": "Cele mai bune pentru tine",
     "Closing this week": "Se închid săptămâna asta",

@@ -4573,4 +4573,37 @@ assert "loadSignins()" in _save10a, "the sign-in dots are not redrawn after savi
 # a failure to sign in must not look like a failure to save - the password IS saved either way
 assert "try { r = await api('/api/signin/now'" in _save10a,     "a sign-in that fails would throw away the fact that the password was saved"
 
+# 10b. "Best for you" opened the whole list for anybody whose floor is not one of five numbers.
+#
+# The tile carries its floor in data-mf and the click hands it to the Fit <select>. A <select>
+# silently refuses a value it has no <option> for - .value becomes '' and reads back as 0, which is
+# Any fit, every job. So a floor of 65 showed the whole list while the tile's own count said 31.
+# The count was never wrong; the filter never arrived.
+_d10b = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+
+# the fixed options are still only five, which is the whole reason the helper has to exist
+_sel10b = _d10b.split('<select id="minfit"')[1].split("</select>")[0]
+_opts10b = _re.findall(r'<option value="(\d+)"', _sel10b)
+assert "65" not in _opts10b, ("the dropdown now has a 65 option, so this test is checking the wrong "
+                              "thing - the point is that an ARBITRARY floor must still work")
+
+# the floor in force is added to the dropdown, once, in numeric order
+assert "function ensureFitOption(" in _d10b, "nothing makes the dropdown accept the saved floor"
+_fn10b = _d10b.split("function ensureFitOption(")[1].split("\n}")[0]
+assert "new Option(" in _fn10b and "String(floor)" in _fn10b, \
+    "the option is not created with the floor as its value, so .value = floor still finds nothing"
+assert "+x.value > floor" in _fn10b, "the option is appended rather than placed in numeric order"
+assert "String(floor)" in _fn10b and "some(" in _fn10b, "it would add a duplicate option each draw"
+
+# and it runs BEFORE the value is set, on both paths: the draw that builds the tiles, and the click
+# itself - which is the one that matters on the first click after a reload
+assert "ensureFitOption(FLOOR)" in _d10b, "the dropdown is not prepared when the tiles are drawn"
+_click10b = _d10b.split("$('#stats').addEventListener('click'")[1][:400]
+assert _click10b.index("ensureFitOption(card.dataset.mf)") < _click10b.index("$('#minfit').value"), \
+    "the option is created after the value is set, so the first click still falls back to Any fit"
+
+# the label is a real translated string with its number intact
+assert "Fit {n}+ (your floor)" in app.lang.RO, "the added option's label has no Romanian"
+assert "{n}" in app.lang.RO["Fit {n}+ (your floor)"], "the Romanian label dropped the number"
+
 print("ok")
