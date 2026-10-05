@@ -174,6 +174,14 @@ def _connect():
     # and is still reported as a failure. Idempotent: the second run matches nothing.
     c.execute("UPDATE jobs SET note = replace(note, 'applies on the employer site', ?) "
               "WHERE note LIKE '%applies on the employer site%'", (EXTERNAL_NOTE,))
+    # Committed here, before the caller gets the connection. db() wraps it in `with c:`, which
+    # rolls back when the caller's body raises - and that rollback took these one-time migrations
+    # with it. The damage is permanent rather than retried: _SCHEMA_DONE is already set for this
+    # process, and on the next one the ALTER raises "duplicate column", so fresh_col is False and
+    # the pay_est backfill is skipped for ever. One request raising inside `with db() as c` - an
+    # Undo pressed too late is enough - and every BestJobs estimate stays filed as the employer's
+    # own stated figure. The schema is not the caller's transaction and must not share its fate.
+    c.commit()
     _SCHEMA_DONE = True
     return c
 
@@ -1635,6 +1643,14 @@ def _applicable(out, prof):
         node, parts = prof, str(s.get("path") or "").split(".")
         if not parts or not all(parts):
             continue
+        # How to reach you is not writing to be improved. The reviewer is asked to sharpen how the
+        # CV reads, and every one of these is a fact the person typed - an address or a phone
+        # number arriving as a "suggestion" is either a model straying well outside its brief or
+        # something worse, and either way the answer is no. Name included: it goes on the PDF and
+        # into every application.
+        if parts[0] in ("email", "phone", "name", "links", "location"):
+            print(f"[suggest] dropped {str(s.get('label'))[:40]!r}: {parts[0]} is yours to set")
+            continue
         for k in parts[:-1]:
             if isinstance(node, list) and k.isdecimal() and int(k) < len(node):
                 node = node[int(k)]
@@ -1767,9 +1783,24 @@ def apply_suggestion(s: dict = Body(...)):
         if not isinstance(node, dict):
             raise HTTPException(400, f"suggestion points outside the profile: {s['path']}")
         old = node.get(last)
+    # A key the profile does not have is not a correction to it. Without this, a path of
+    # "experience.0.headcount" walks fine, finds None, skips the type check below because there is
+    # nothing to compare against, and writes an invented field into the entry.
+    if old is None and (not isinstance(node, dict) or last not in node):
+        raise HTTPException(400, f"the profile has no {s['path']} to improve")
     if old is not None and type(old) is not type(new):
         raise HTTPException(400, f"suggestion would change {s['path']} from "
                                  f"{type(old).__name__} to {type(new).__name__}")
+    # The three guards ran over the LISTING only, so they shaped what was offered and nothing
+    # checked what was written. A panel left open while the profile changed, or any direct POST,
+    # went through on the type check alone - and the docstring's own standard is that "the CV
+    # contains nothing the person cannot defend" has to be a fact about the program, not advice.
+    if not _applicable([s], p):
+        raise HTTPException(400, f"that suggestion no longer fits {s['path']}")
+    if not _no_invented_numbers([s], json.dumps(p, ensure_ascii=False).lower()):
+        raise HTTPException(400, "that suggestion adds a number your profile does not contain")
+    if not _no_invented_skills([s], p):
+        raise HTTPException(400, "that suggestion claims something your profile does not")
     if isinstance(node, list):
         node[int(last)] = new
     else:

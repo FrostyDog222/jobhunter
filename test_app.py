@@ -5032,4 +5032,70 @@ _live10n = _json.loads((app.HERE / "settings.json").read_text(encoding="utf-8"))
 assert "search_remote" not in _live10n, "a dead key is back in the settings file"
 assert "search_remote" not in (app.HERE / "app.py").read_text(encoding="utf-8")
 
+# 10o. The three suggestion guards shaped what was OFFERED and nothing checked what was WRITTEN.
+#
+# apply_suggestion's only check was the type at the path, so a panel left open while the profile
+# changed - or any direct POST - went through unchecked. The docstring's own standard is that "the
+# CV contains nothing the person cannot defend" has to be a fact about the program; listing-side
+# guards make it advice.
+_ap10o = _iK.getsource(app.apply_suggestion)
+for _g10o in ("_applicable(", "_no_invented_numbers(", "_no_invented_skills("):
+    assert _g10o in _ap10o, f"the write path does not re-check {_g10o}"
+# a key the profile has never had is not a correction to it
+assert "the profile has no" in _ap10o, \
+    "a path like experience.0.headcount finds None, skips the type check and writes a new field"
+
+# and how to reach you is not writing to be improved
+_appl10o = _iK.getsource(app._applicable)
+for _f10o in ("email", "phone", "name", "links", "location"):
+    assert f'"{_f10o}"' in _appl10o, f"a suggestion can still rewrite {_f10o}"
+
+_prof10o = {"name": "A", "email": "me@example.com", "phone": "0700", "title": "Agent",
+            "summary": "Did things", "skills": ["Excel"], "certifications": ["ECDL"],
+            "experience": [{"role": "Agent", "bullets": ["Helped people"]}], "links": []}
+# the shapes that used to pass every guard
+for _bad10o in ({"path": "email", "value": "careers@elsewhere.example", "label": "x"},
+                {"path": "name", "value": "Someone Else", "label": "x"},
+                {"path": "phone", "value": "0711", "label": "x"}):
+    assert app._applicable([_bad10o], _prof10o) == [], \
+        f"{_bad10o['path']} is still offered as a suggestion"
+
+
+# 10p. A one-time migration could be rolled back by the caller and then never run again.
+#
+# _connect runs the schema and the backfills on the connection db() then wraps in `with c:` -
+# which rolls back when the caller's body raises. _SCHEMA_DONE is already True for the process, and
+# the next one gets "duplicate column" and skips the backfill, so the loss is permanent: one
+# request raising inside `with db() as c` and every BestJobs estimate stays filed as the
+# employer's own figure.
+_conn10p = _iK.getsource(app._connect)
+assert "c.commit()" in _conn10p, "the schema still shares the caller's transaction"
+assert _conn10p.index("c.commit()") < _conn10p.index("_SCHEMA_DONE = True"), \
+    "committed after the flag is set, which is the same race in a different order"
+
+
+# 10q. Real applications were sent on scores from a model that did not give them.
+#
+# Measured: the same advert came back 85 from one provider and 35 from another, and the chain falls
+# through silently whenever one is spent. The search rescales at most RESCALE_CAP rows a time, so a
+# table built over weeks holds both scales - harmless in a list, not harmless in an application.
+_cand10q = _iK.getsource(_aa.candidates)
+assert "scored_by" in _cand10q, "the scale a score is on is not even selected"
+assert "def on_scale(" in _cand10q and "and on_scale(r)" in _cand10q, \
+    "nothing stops a job scored by another model being applied to"
+_code10q = "\n".join(l for l in _cand10q.splitlines() if not l.strip().startswith("#"))
+assert "chain()" in _code10q and "active()" not in _code10q, \
+    "active() follows whichever provider happens to be up, so the scale would move with it"
+# an absent stamp must NOT hold a job back: the rescale pass skips unstamped rows, so excluding
+# them here would be permanent
+assert "not by or by == scale" in _cand10q, \
+    "an unstamped row is excluded for ever, because nothing will ever stamp it"
+# and entry 2 of a chain row is the API key
+assert "entry[2]" not in _cand10q, "the API key is being read out of the chain entry"
+
+# the stamp is applied to a list-wrapped reply too - that was the hole that made rows unstampable
+_sc10q = _iK.getsource(_L9a.score)
+assert _sc10q.index("isinstance(out, list)") < _sc10q.index('out["_by"]'), \
+    "a model that wraps its answer in a list still reaches the database with no scale stamp"
+
 print("ok")

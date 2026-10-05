@@ -1843,6 +1843,13 @@ def score(profile, job, send=None, reply_in=""):
         max_tokens=1500,
     )
 
+    # A model that wraps its one answer in a list is common enough that the caller unwraps it -
+    # but it did so AFTER this, so those replies reached the database with no stamp at all, were
+    # stored as scored_by '', and the rescale query skips exactly that ('' means "we never knew").
+    # Permanently off-scale and permanently invisible. Unwrapped here instead, where the stamp is
+    # applied, so there is one answer shape leaving this function.
+    if isinstance(out, list) and len(out) == 1 and isinstance(out[0], dict):
+        out = out[0]
     # which model's scale this number is on. A score only means something beside scores from
     # the same model: measured, the same advert came back 85 from one and 35 from another, and
     # the chain falls through silently whenever a provider is spent or unwell.

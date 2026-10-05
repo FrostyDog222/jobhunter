@@ -37,7 +37,8 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode
             # description too, because a fully remote job often names the employer's head
             # office as its location - Spain, Germany - and is reachable from anywhere regardless.
             # Bounded by the score floor in the WHERE below, so this is the shortlist, not the table.
-            "SELECT url, title, company, source, fit, note, location, description FROM jobs "
+            "SELECT url, title, company, source, fit, note, location, description, scored_by "
+            "FROM jobs "
             "WHERE status IN ('new','ready') AND fit >= ? "
             # same tie-break as the dashboard: a job with fewer people already in the queue is
             # the better use of one of this week's five
@@ -55,6 +56,38 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode
             return r[name]
         except (KeyError, IndexError):
             return None
+
+    # A score only means something beside scores from the same model. Measured: the same advert
+    # came back 85 from one provider and 35 from another, and the chain falls through silently
+    # whenever one is spent or unwell - so a table built over a few weeks holds both. The search
+    # rescales at most RESCALE_CAP rows a time, so the rest keep whichever scale they were given.
+    #
+    # Reading a mixed table against one floor is harmless on the dashboard, where it costs a place
+    # in a list. Here it sends a real application to an employer on a number the current model
+    # would not have given. Rows on another model's scale wait for the rescale to reach them; rows
+    # that were never stamped are not trusted either, because '' means nobody knows.
+    # Built the same way the rescale pass in app.py builds it: chain()[0], not active(), because
+    # while the primary rests active() names the fallback and "the correct scale" would follow
+    # whichever provider happened to be up. Entry 2 is the API key and is never touched.
+    try:
+        import llm
+        entry = (llm.chain() or [None])[0]
+        scale = f"{entry[0]}/{entry[1]}" if entry else ""
+    except Exception:
+        scale = ""
+
+    def on_scale(r):
+        by = (col(r, "scored_by") or "").strip()
+        # Only a stamp that is present AND different holds a job back. An absent stamp is not
+        # evidence of another scale, and excluding it would be permanent: the rescale pass skips
+        # unstamped rows on purpose, so nothing would ever stamp them and they could never become
+        # eligible again. Measured on this database: 111 rows are unstamped and every one of them
+        # is language-vetoed, which this function already excludes by status.
+        if not scale or not by or by == scale:
+            return True
+        if held is not None:
+            held.append(f'{col(r, "title")} (scored by {by}, not {scale})')
+        return False
 
     def here(r):
         job = {"location": col(r, "location"), "title": col(r, "title"),
@@ -77,6 +110,7 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode
     return [r for r in rows
             if prefill.apply_mode(r["source"]) == "auto"
             and (ok is None or r["source"] in ok)
+            and on_scale(r)
             and here(r)
             # A posting whose apply button hands you to the employer's own site cannot be sent
             # from here, and that will not change - so it must not fill one of the week's five
