@@ -554,7 +554,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <input id="q" type="hidden">
       <div class="chips" id="chips_q"
         title="Each title is searched on its own. Enter or a comma keeps one, the cross removes it."></div>
-      <datalist id="qterms"></datalist></div>
+      <datalist id="qterms_q"></datalist><datalist id="qterms_auto_query"></datalist></div>
     <div class="small"><label for="preset">Preset</label>
       <select id="preset" title="Fills the box with terms for one role family. Edit before searching if you like.">
         <option value="">Pick a role family…</option>
@@ -1810,9 +1810,19 @@ function drawTerms(){
   const examples = Object.values(PRESETS).flatMap(v => v.split(',').map(x => x.trim()));
   // 4. and last, what people work as. Guesses, so they come after every piece of evidence - but
   //    without them the box suggested customer service to a driver and nothing else at all.
-  $('#qterms').innerHTML = [...new Set([...worked, ...mine, ...Object.values(PRESETS), ...examples,
-                                        ...TITLES])]
-    .filter(Boolean).map(t => `<option value="${esc(t)}">`).join('');
+  const all = [...new Set([...worked, ...mine, ...Object.values(PRESETS), ...examples, ...TITLES])]
+    .filter(Boolean);
+  // One list per box, not one shared between them, because what is already picked differs. A term
+  // sitting in the box does nothing when you pick it again - setChipTerms folds it away - so
+  // offering it is offering a dead option. It comes straight back the moment the chip is removed,
+  // because this runs on every change to either box.
+  for(const id of CHIPBOXES){
+    const list = $('#qterms_' + id);
+    if(!list) continue;
+    const have = new Set(chipTerms(id).map(foldTerm));
+    list.innerHTML = all.filter(x => !have.has(foldTerm(x)))
+      .map(x => `<option value="${esc(x)}">`).join('');
+  }
 }
 
 /* ---------- what people actually work as ----------
@@ -1898,18 +1908,29 @@ const TITLES = [
   'asistent farmacie', 'kinetoterapeut', 'medic', 'medic veterinar', 'optician', 'brancardier',
   'nurse', 'caregiver', 'pharmacist', 'medical assistant', 'physiotherapist', 'dentist',
   // teaching and children
-  'profesor', 'educatoare', 'invatator', 'bona', 'instructor auto', 'trainer', 'trainee',
+  'profesor', 'educatoare', 'invatator', 'bona', 'instructor auto', 'trainer',
   'formator', 'logoped', 'bibliotecar',
   'teacher', 'tutor', 'nanny', 'kindergarten teacher', 'driving instructor',
+  // note: 'trainee' is NOT here - see RANK_WORDS below. 'trainer' is a real trade and stays.
   // hair, beauty and wellbeing
   'coafor', 'frizer', 'cosmetician', 'manichiurist', 'maseur', 'stilist',
   'hairdresser', 'barber', 'beautician', 'nail technician', 'massage therapist',
   // outdoors
   'lucrator agricol', 'tractorist', 'ingrijitor animale', 'peisagist', 'gradinar',
   'farm worker', 'gardener', 'landscaper',
-  // no trade yet
-  'fara experienta', 'debutant', 'incepator', 'practicant', 'ucenic', 'internship',
-  'entry level', 'no experience', 'intern', 'apprentice', 'graduate',
+  // Deliberately NOT here any more: junior, debutant, incepator, fara experienta, entry level,
+  // trainee, intern, apprentice, graduate, will train, se ofera training.
+  //
+  // None of those is a job title - they are how much experience a job wants, which the Seniority
+  // dropdown asks. They were in this list because that dropdown was a freehire facet and reached
+  // one board in four, so typing the words was the only way to find entry-level work on the other
+  // three. Seniority is enforced on all four now, in _search and in the unattended run, so they do
+  // not have to pretend to be trades any more - and as suggestions they were actively unhelpful,
+  // filling somebody's list with "junior" and "graduate" instead of the work they do.
+  //
+  // The two "First job / no experience" PRESETS keep those words on purpose: a preset widens what
+  // discovery asks the boards for, and the boards do index that wording. Narrowing is the filter's
+  // job; widening is the preset's.
 ];
 
 // The same three lines computed the person's own job titles in four places, and two of them had
@@ -1939,11 +1960,20 @@ function editDist(a, b){
   return d[b.length][a.length];
 }
 
+// Real words, never offered as job titles. How much experience a job wants is the Seniority
+// dropdown's question, and these were cluttering the suggestions with "junior" and "graduate"
+// instead of the work somebody does. They still have to be HERE, because a term the app does not
+// recognise is a term it will try to correct - and "trainee" is one edit from "trainer", which is
+// a different job entirely.
+const RANK_WORDS = ['junior', 'trainee', 'intern', 'internship', 'apprentice', 'graduate',
+  'debutant', 'incepator', 'practicant', 'ucenic', 'senior', 'entry level', 'no experience',
+  'fara experienta', 'will train', 'se ofera training', 'mid', 'middle', 'lead'];
+
 // Everything the app has any reason to believe is a real term. A term in here is never corrected,
 // which is what keeps frizer from becoming frezor and somebody's own unusual job title from being
 // rewritten into the nearest common one.
 function knownTerms(){
-  return new Set([...TITLES,
+  return new Set([...TITLES, ...RANK_WORDS,
                   ...Object.values(PRESETS).flatMap(v => v.split(',')),
                   ...profileTitles(),
                   ...(JOBS || []).map(j => j && j.title)].map(foldTerm).filter(Boolean));
@@ -2010,16 +2040,58 @@ function drawChips(id){
   const focused = document.activeElement
                   && document.activeElement.classList.contains('chipin')
                   && host.contains(document.activeElement);
-  host.innerHTML = chipTerms(id).map((x, i) =>
-      `<span class="chip"><span>${esc(x)}</span><button type="button" data-rm="${i}"
-         title="Remove">&times;</button></span>`).join('')
-    + `<input class="chipin" id="chipin_${id}" list="qterms" aria-label="Add a job title"
-         placeholder="${esc(chipPlaceholder(id))}">`;
+  // The chips go in a wrapper of their own so the row can be capped without taking the add-input
+  // and the toggle with it - those two stay reachable however long the list gets.
+  host.innerHTML = `<div class="chipwrap">`
+    + chipTerms(id).map((x, i) =>
+        `<span class="chip"><span>${esc(x)}</span><button type="button" data-rm="${i}"
+           title="Remove">&times;</button></span>`).join('')
+    + `</div><input class="chipin" id="chipin_${id}" list="qterms_${id}"
+         aria-label="Add a job title" placeholder="${esc(chipPlaceholder(id))}">`
+    + `<button type="button" class="chipmore" style="display:none"></button>`;
   localiseDOM(host);       // built with innerHTML, so the server's pass never saw it
   const add = host.querySelector('.chipin');
   if(add && typing) add.value = typing;
   // and the caret stays where it was, so a redraw landing mid-word is not felt at all
   if(add && focused){ add.focus(); add.setSelectionRange(add.value.length, add.value.length); }
+  capChips(id);
+  // ...and again once the browser has actually laid the row out. The first call runs in the same
+  // tick as the innerHTML that created the chips, and measured them before the fonts and the final
+  // width had settled - which said 22 of 29 were hidden while all 29 were plainly on screen.
+  requestAnimationFrame(() => capChips(id));
+  drawTerms();             // a term now in the box stops being offered as a suggestion
+}
+
+// Four rows, then "show the rest". A list built up over a few sessions runs to thirty terms and
+// pushed the filters, the button and the whole results table off the screen - but hiding it behind
+// a collapsed box by default would hide the thing the chips were introduced to make visible. Four
+// rows is most lists in full, and the ones longer than that say exactly how much more there is.
+const CHIP_ROWS = 4;
+
+function capChips(id){
+  const host = $('#chips_' + id);
+  const wrap = host && host.querySelector('.chipwrap');
+  const btn = host && host.querySelector('.chipmore');
+  if(!wrap || !btn) return;
+  const chips = [...wrap.querySelectorAll('.chip')];
+  wrap.style.maxHeight = '';                       // measure it open, whatever state it was in
+  if(!chips.length){ btn.style.display = 'none'; return; }
+  // Nothing inside a panel that is closed has a size, and neither does anything while the window
+  // is hidden - every chip then measures at the row's min-width and stacks one per row, so this
+  // would cap a list that fits and claim most of it was hidden. The scheduled box starts inside a
+  // collapsed panel, so this is its normal state, not an edge case. Measured again when the panel
+  // opens and when the window changes, both of which land here.
+  if(!wrap.offsetWidth){ btn.style.display = 'none'; return; }
+  // the real height of a row, read off the page rather than guessed, so it survives a font change
+  const row = chips[0].offsetHeight + 6;
+  const top = wrap.getBoundingClientRect().top;
+  const hidden = chips.filter(c => c.getBoundingClientRect().top - top >= row * CHIP_ROWS - 2);
+  const open = host.dataset.open === '1';
+  if(!hidden.length && !open){ btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  btn.textContent = open ? t('Show fewer')
+                         : fill('Show {n} more', {n: hidden.length});
+  wrap.style.maxHeight = open ? '' : (row * CHIP_ROWS) + 'px';
 }
 
 // A typo is not a cosmetic problem here: eJobs and Hipo return nothing at all for one, while
@@ -2047,6 +2119,11 @@ for(const id of CHIPBOXES){
   const host = $('#chips_' + id);
   if(!host) continue;
   host.addEventListener('click', e => {
+    if(e.target.classList && e.target.classList.contains('chipmore')){
+      host.dataset.open = host.dataset.open === '1' ? '' : '1';
+      capChips(id);
+      return;
+    }
     const i = e.target.dataset && e.target.dataset.rm;
     if(i === undefined) return;
     const list = chipTerms(id);
@@ -2077,6 +2154,20 @@ for(const id of CHIPBOXES){
   }, true);
   $('#' + id).addEventListener('change', () => drawChips(id));
   drawChips(id);
+}
+// How many chips fit on a row depends on how wide the row is, so the cap has to be measured again
+// whenever that changes - otherwise narrowing the window hides chips with nothing saying so, and
+// widening it leaves "Show 8 more" over a list that is already complete.
+//
+// A ResizeObserver rather than a resize listener, because the width changes for reasons the window
+// knows nothing about: the scheduled box sits inside a panel that starts collapsed, so its chips
+// have no size at all until somebody opens it. One observer covers the window, the panel and the
+// pane being revealed, instead of a listener per thing that can hide a row.
+if(window.ResizeObserver){
+  const ro = new ResizeObserver(() => { for(const id of CHIPBOXES) capChips(id); });
+  for(const id of CHIPBOXES){ const h = $('#chips_' + id); if(h) ro.observe(h); }
+} else {
+  addEventListener('resize', () => { for(const id of CHIPBOXES) capChips(id); });
 }
 
 mirrorControls();

@@ -2766,7 +2766,15 @@ _dash6t = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8"
 _dt6t = _dash6t.split("function drawTerms()")[1].split("\n}")[0]
 assert "auto_min_fit" in _dt6t and "j.fit" in _dt6t,     "the suggestions stopped being drawn from what has actually scored well"
 assert _dt6t.index("worked") < _dt6t.index("examples"),     "the example families come before the terms that have worked"
-assert "list=\"qterms\"" in _dash6t and '<datalist id="qterms">' in _dash6t,     "a datalist is what keeps this a suggestion rather than a menu"
+# One list per box rather than one shared between them: what is already picked differs, and a term
+# sitting in the box does nothing when you pick it again - setChipTerms folds it away - so offering
+# it is offering a dead option. It must come back the moment the chip is removed.
+assert 'list="qterms_${id}"' in _dash6t,     "a datalist is what keeps this a suggestion rather than a menu"
+for _b6t in ("q", "auto_query"):
+    assert f'<datalist id="qterms_{_b6t}">' in _dash6t, f"#{_b6t} has no suggestion list of its own"
+assert "have.has(foldTerm(x))" in _dt6t,     "terms already in the box are still offered, and picking one does nothing"
+assert "chipTerms(id).map(foldTerm)" in _dt6t,     "already-picked is compared literally, so Sofer and sofer count as different"
+assert "drawTerms()" in _dash6t.split("function drawChips(")[1].split("\n}")[0],     "the suggestions are not redrawn when a chip changes, so a removed term never comes back"
 assert "drawTerms();" in _dash6t.split("JOBS = await api('/api/jobs'")[1][:600],     "the suggestions are not redrawn after the jobs land, so the evidence is always a page stale"
 
 
@@ -5097,5 +5105,89 @@ assert "entry[2]" not in _cand10q, "the API key is being read out of the chain e
 _sc10q = _iK.getsource(_L9a.score)
 assert _sc10q.index("isinstance(out, list)") < _sc10q.index('out["_by"]'), \
     "a model that wraps its answer in a list still reaches the database with no scale stamp"
+
+# 10r. A list built up over a few sessions runs to thirty terms and pushed the filters, the button
+# and the results off the screen. Four rows, then "Show N more" - not collapsed by default, which
+# would hide the thing the chips exist to make visible.
+_d10r = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+_b10r = (app.HERE / "templates" / "base.html").read_text(encoding="utf-8")
+assert "const CHIP_ROWS = 4" in _d10r, "the cap is gone, so a long list takes the page over again"
+assert ".chipwrap{" in _b10r and "overflow:hidden" in _b10r.split(".chipwrap{")[1][:120], \
+    "the chips are not in a wrapper that can actually be capped"
+_cap10r = _d10r.split("function capChips(id){")[1].split("\n}")[0]
+# the add-input and the toggle must stay OUTSIDE the capped part, or a long list hides them both
+_draw10r = _d10r.split("function drawChips(id){")[1].split("\n}")[0]
+assert _draw10r.index("</div><input class=\"chipin\"") > _draw10r.index('<div class="chipwrap">'), \
+    "the add-input is inside the capped wrapper, so a long list would hide it"
+# a row's height is measured, not assumed, so the cap survives a font change
+assert "chips[0].offsetHeight" in _cap10r, "the row height is hard-coded"
+# and nothing inside a closed panel or a hidden window may be measured: everything there reports
+# the row's min-width, so the chips stack one per row and it would claim most were hidden
+assert "if(!wrap.offsetWidth)" in _cap10r, \
+    "a collapsed panel - which is where the scheduled box starts - gets a nonsense cap"
+# measured again once the browser has laid it out, and whenever the row's width changes
+assert "requestAnimationFrame" in _draw10r, "the cap is set from a pre-layout measurement"
+assert "ResizeObserver" in _d10r, \
+    "the cap is never recomputed, so opening the scheduled panel leaves it wrong"
+for _s10r in ("Show fewer", "Show {n} more"):
+    assert _s10r in app.lang.RO, f"no Romanian for {_s10r!r}"
+assert "{n}" in app.lang.RO["Show {n} more"], "the Romanian dropped the count"
+
+
+# 10s. Seniority is not a job title, and the dropdown that asks about it reached one board in four.
+#
+# "junior", "debutant", "fara experienta" and the rest were in the suggestions because searching the
+# words was the only way to find entry-level work on eJobs, BestJobs and Hipo - the Seniority
+# control is a freehire facet, exactly like work mode was. Enforced on all four now, so they do not
+# have to pretend to be trades.
+_titles10s = _re.search(r"const TITLES = \[(.*?)\n\];", _d10r, _re.S).group(1)
+_titles10s = "\n".join(l for l in _titles10s.splitlines() if not l.strip().startswith("//"))
+_vocab10s = [x.lower() for x in _re.findall(r"'([^']+)'", _titles10s)]
+for _rank10s in ("junior", "trainee", "intern", "graduate", "apprentice", "debutant",
+                 "incepator", "fara experienta", "entry level", "no experience"):
+    assert _rank10s not in _vocab10s, f"{_rank10s!r} is offered as a job title"
+assert "trainer" in _vocab10s, "trainer is a real trade and was dropped with the rank words"
+# ...but they must still be KNOWN, or the typo fixer will rewrite them: trainee is one edit from
+# trainer, which is a different job
+assert "const RANK_WORDS" in _d10r, "the rank words are unknown now, so they will be 'corrected'"
+assert "...RANK_WORDS" in _d10r.split("function knownTerms()")[1].split("\n}")[0], \
+    "RANK_WORDS exists but nothing protects those words from the typo fixer"
+for _w10s in ("trainee", "junior", "senior"):
+    assert _w10s in _d10r.split("const RANK_WORDS")[1].split("];")[0], f"{_w10s} is unprotected"
+
+# the filter itself: title only, and only what contradicts
+_sen10s = _iK.getsource(scrape.seniority_fits)
+assert 'txt("description")' not in _sen10s, \
+    "it reads the description, where an advert names the manager you would report to - that "\
+    "dropped 121 of 353 ads for Junior, including Agent Call Center"
+assert "ASSISTANT_TO" in _sen10s, "Asistent Manager is a junior job and is being read as senior"
+assert '"middle"' not in _sen10s.split("want not in")[1][:80], \
+    "mid is being enforced, and almost no advert states it"
+# behaviour, on the shapes that matter
+for _t10s, _want10s, _keep10s in (
+        ("Agent Call Center", "junior", True),
+        ("Customer Service Representative", "junior", True),
+        ("Service Delivery Manager", "junior", False),
+        ("Senior Database Administrator", "junior", False),
+        ("Asistent Manager", "junior", True),
+        ("Junior Trainer", "senior", False),
+        ("Soferi profesionisti/incepatori cat. C+E", "senior", False),
+        ("Sofer categoria C+E", "senior", True),
+        ("Sofer categoria C+E", "middle", True),
+        ("Junior Engineer reporting to the team lead", "junior", True)):
+    _got10s = scrape.seniority_fits({"title": _t10s, "description": ""}, _want10s)
+    assert _got10s is _keep10s, f"{_want10s} / {_t10s!r}: kept={_got10s}, expected {_keep10s}"
+# a description full of managers must not decide it
+assert scrape.seniority_fits(
+    {"title": "Agent Call Center",
+     "description": "You will report to the Customer Operations Manager and the team lead."},
+    "junior") is True, "the description is deciding the seniority again"
+
+# wired into both paths, like the city and the work mode before it
+assert "scrape.seniority_fits" in _iK.getsource(app._search), "the search ignores seniority"
+assert "scrape.seniority_fits" in _iK.getsource(_aa.candidates), \
+    "the unattended run applies to jobs of a seniority you did not ask for"
+assert '"off_rank"' in (app.HERE / "app.py").read_text(encoding="utf-8"), \
+    "what seniority dropped is not reported, so a filter that works looks like boards with nothing"
 
 print("ok")

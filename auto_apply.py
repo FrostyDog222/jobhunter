@@ -25,7 +25,8 @@ EXTERNAL_NOTE = "apply on the employer site"
 import datetime
 
 
-def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode="", held=None):
+def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode="", held=None,
+               rank=""):
     """-> the jobs this run may apply to, best score first. Pure selection, no side effects.
 
     `boards` limits it to the ones signed in right now. Without that a signed-out board's jobs
@@ -100,6 +101,13 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode
         if mode in ("remote", "onsite") and scrape.remote_job(job) != (mode == "remote"):
             if held is not None:
                 held.append(f'{col(r, "title")} (wrong work mode)')
+            return False
+        # Seniority, for the third time and the same reason: the search filters what it DISCOVERS,
+        # so rows stored before the setting was chosen contradict it. An application to a manager's
+        # job when you asked for junior work is as unrecallable as one to the wrong city.
+        if rank and not scrape.seniority_fits(job, rank):
+            if held is not None:
+                held.append(f'{col(r, "title")} (wrong seniority)')
             return False
         if scrape.job_in_area(job, city, county):
             return True
@@ -230,7 +238,8 @@ def run(app, prefill, settings, log):
     picks = candidates(app, prefill, settings["auto_apply_min_fit"], settings["auto_apply_cap"],
                        usable, city=settings.get("auto_location") or "",
                        county=settings.get("auto_county") or "",
-                       mode=(settings.get("auto_work_mode") or "").strip().lower(), held=held)
+                       mode=(settings.get("auto_work_mode") or "").strip().lower(),
+                       rank=(settings.get("auto_seniority") or "").strip().lower(), held=held)
     report["considered"] = len(picks)
     report["held_for_location"] = len(held)
     if held:

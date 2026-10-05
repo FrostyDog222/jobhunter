@@ -641,6 +641,10 @@ RO = {
         "+ adaugă",
     "+ add a job title":
         "+ adaugă un titlu de job",
+    "Show fewer":
+        "Arată mai puține",
+    "Show {n} more":
+        "Arată încă {n}",
     "Add a job title":
         "Adaugă un titlu de job",
     # eJobs and Hipo build the term into a URL path, so a misspelling returns nothing from either

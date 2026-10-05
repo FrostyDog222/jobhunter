@@ -142,6 +142,14 @@ h2{font-size:15px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06e
 .chipin{border:1px dashed var(--line);border-radius:99px;padding:5px 12px;font-size:13px;
   width:auto;min-width:160px;flex:1 1 160px;background:transparent}
 .chipin:focus{border-style:solid;border-color:var(--accent);outline:none}
+/* The chips sit in a wrapper of their own so the list can be capped at a few rows without taking
+   the add-input and the toggle with it - a list built up over a few sessions runs to thirty terms
+   and pushed the filters and the results off the screen. The cap is set in JS, from the measured
+   height of a real row, so it survives a font change. */
+.chipwrap{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%;overflow:hidden}
+.chipmore{background:none;border:0;color:var(--accent);cursor:pointer;font-size:12.5px;
+  padding:4px 2px;text-decoration:underline;width:auto;flex:0 0 auto}
+.chipmore:hover{text-decoration:none}
 </style></head><body>
 <div id="bar"><i></i></div>
 <header>

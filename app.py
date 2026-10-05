@@ -2472,6 +2472,20 @@ async def _search(body, p):
         keep = [j for j in fresh if scrape.remote_job(j) == want_remote]
         off_mode, fresh = len(fresh) - len(keep), keep
 
+    # Seniority, for the same reason and in the same place. It is a freehire facet too, so picking
+    # Junior filtered one source in four - which is exactly why the term suggestions used to carry
+    # "junior", "debutant" and "fara experienta" as though they were job titles: searching the
+    # words was the only way to reach entry-level ads on the other three boards.
+    #
+    # Mid is not enforced, the way hybrid is not: almost no advert says "mid-level", so the honest
+    # answer is to leave that question alone rather than answer a different one. Measured on 353
+    # stored ads, Junior drops 77 and every one of them reads as a manager or lead role.
+    rank = (filters.get("seniority") or "").strip().lower()
+    off_rank = 0
+    if rank in ("intern", "junior", "senior", "lead"):
+        keep = [j for j in fresh if scrape.seniority_fits(j, rank)]
+        off_rank, fresh = len(fresh) - len(keep), keep
+
     for b in boards:
         rows = [j for j in fresh if j["source"] == b]
         complaint = scrape.health(b, rows, prior.get(b, 0)) if rows else ""
@@ -2693,6 +2707,8 @@ async def _search(body, p):
             "off_area": off_area,
             # dropped for being the wrong work mode, on the three boards that ignore the filter
             "off_mode": off_mode,
+            # ...and for being the wrong seniority, on the same three
+            "off_rank": off_rank,
             # which rule dropped what. Named so a skip list that is quietly costing you a job you
             # would have wanted is visible, instead of being one number in a log line.
             "off_family_by": dict(sorted(dropped_by.items(), key=lambda kv: -kv[1])[:8]),

@@ -699,6 +699,71 @@ NOT_REMOTE = re.compile(r"\b(not|isn'?t|never|no|nu|fara|f[\u0103a]r[\u0103a]|ca
                         r"[^.]{0,40}$", re.I)
 
 
+# Seniority, in the two languages the boards write it in. Like work mode before it, the Seniority
+# dropdown is a freehire API facet: eJobs, BestJobs and Hipo never receive it, so picking Junior
+# filtered one source in four and left the other three untouched.
+#
+# That is also why the term suggestions used to carry "junior", "debutant", "fara experienta" and
+# the rest as if they were job titles - searching the words was the only way to reach entry-level
+# ads on three boards out of four. They are not job titles, and with this they no longer have to
+# pretend to be.
+# No bare "expert": in Romanian it is an ordinary rank, not a senior one. "Expert Clienti PF" is
+# the person at a bank counter, and five of them were being dropped from a Junior search.
+SENIOR_WORDS = re.compile(
+    r"\b(senior|sr\.|principal|lead|team\s*lead|head\s+of|manager|coordonator|"
+    r"supervizor|supervisor|director|sef\s+(de\s+)?(echipa|tura|sala|birou))\b", re.I)
+# Romanian inflects, and the boards write the plural: "Soferi profesionisti/incepatori". A closing
+# \b after the singular rejects every one of those. The endings are spelled out rather than using
+# \w*, because `intern\w*` matches "International Sales Manager" and would read a regional
+# management job as an internship.
+ENTRY_WORDS = re.compile(
+    r"\b(intern(ship)?s?|stagi[ue]|stagiar[ăaei]?|practicant[ăaei]?|ucenic[iăae]?|trainees?|"
+    r"junior[iăae]?|jr\.|debutant[ăaei]?|incep[aă]tor[iăae]?|"
+    r"entry[\s-]level|graduates?|apprentices?|f[aă]r[aă]\s+experien[tț][aă]|"
+    r"no\s+experience|will\s+train|se\s+ofer[aă]\s+training)\b", re.I)
+# Working FOR one is not being one. "Asistent Manager" is a secretary, not a manager.
+ASSISTANT_TO = re.compile(r"\b(asistent|assistant|ajutor|secretar[aă]?)\b", re.I)
+
+
+def seniority_fits(job, want):
+    """Does this advert contradict the seniority that was asked for?
+
+    Conservative on purpose, and in the opposite direction from remote_job. Remote is a claim an
+    advert makes, so there we keep only what we can prove; seniority is something most adverts
+    never state at all, so proving it would throw away the majority of a perfectly good list.
+    This drops only what CONTRADICTS - a "Senior Account Manager" when Junior was asked for - and
+    keeps everything that says nothing either way.
+
+    Mid is not enforced for the same reason hybrid is not enforced for work mode: almost nothing
+    says "mid-level", so the honest answer is to leave the question alone rather than answer a
+    different one.
+    """
+    want = (want or "").strip().lower()
+    if want not in ("intern", "junior", "senior", "lead"):
+        return True
+    if not isinstance(job, dict):
+        return True
+
+    def txt(k):
+        return str(job.get(k) or "")
+
+    # The TITLE only. Measured on 353 stored ads: reading the description too dropped 121 of them
+    # for Junior, because a description says who you report to - "you will work closely with the
+    # Customer Operations Manager" - and that is not what the job is. "Agent Call Center" and
+    # "Customer Service Representative" were both thrown out that way. Seniority is something an
+    # advert states in its title or does not state at all.
+    title = txt("title")
+    # ...and "Asistent Manager" is a junior job whose title contains Manager. So is a barista who
+    # covers for one. The entry word wins wherever both appear, which handles these without a
+    # special case, but assistant-to-a-senior needs saying because it carries no entry word.
+    senior = SENIOR_WORDS.search(title) and not ASSISTANT_TO.search(title)
+    entry = ENTRY_WORDS.search(title)
+    if want in ("intern", "junior"):
+        # "Junior Engineer reporting to the team lead" says both; the first one wins
+        return not (senior and not entry)
+    return not (entry and not senior)
+
+
 def remote_job(job):
     """Is this advert actually remote, as opposed to using the word?
 
