@@ -641,6 +641,12 @@ RO = {
         "+ adaugă",
     "+ add a job title":
         "+ adaugă un titlu de job",
+    "Try the ads that could not be scored":
+        "Încearcă anunțurile care nu au putut fi punctate",
+    "{n} ad(s) put back in the queue — press Search & score to try them again.":
+        "{n} anunț(uri) puse înapoi la rând — apasă Caută și punctează ca să le încerce din nou.",
+    "Nothing is stuck - every ad has either been scored or is still waiting its turn.":
+        "Nimic nu e blocat - fiecare anunț a fost punctat sau încă își așteaptă rândul.",
     "Show fewer":
         "Arată mai puține",
     "Show {n} more":
@@ -936,8 +942,8 @@ RO = {
         "Neconfirmat.",
     "Only new or vetoed rows can be cleared.":
         "Doar rândurile noi sau respinse pot fi curățate.",
-    "Only vetoed or skipped jobs can be queued again. Applied jobs are the record of what you sent.":
-        "Doar joburile respinse sau sărite pot fi puse din nou la coadă. Cele la care ai aplicat sunt evidența a ceea ce ai trimis.",
+    "Only vetoed, skipped or stuck jobs can be queued again. Applied jobs are the record of what you sent.":
+        "Doar joburile respinse, sărite sau blocate pot fi puse din nou la coadă. Cele la care ai aplicat sunt evidența a ceea ce ai trimis.",
     "Pick at least one day for it to run on.":
         "Alege cel puțin o zi în care să ruleze.",
     "Refusing to delete rows you have acted on.":

@@ -2308,6 +2308,72 @@ def sweep_stale(floor):
         return c.execute(f"DELETE FROM jobs WHERE {stale}", age).rowcount, good
 
 
+def _store_scores(jobs, results, warnings):
+    """Write one batch of scores, and return how many of them failed.
+
+    Its own connection and its own transaction, so a batch is durable the moment it is written.
+    The loop that calls this used to collect every result and write them all once at the end -
+    under a comment saying "a partial result is worth keeping if a later chunk fails", which is
+    exactly what it did not do. Two ways a whole search's worth of scoring was thrown away:
+
+      - a database error. The inner guard catches TypeError, ValueError and AttributeError, which
+        is a MALFORMED REPLY; sqlite3.OperationalError ("database is locked", reachable whenever
+        the scheduled run holds the write lock past the 15s busy_timeout) is none of those, so it
+        unwound the whole transaction and rolled back every score already written beside it.
+      - navigating away from the dashboard mid-search. Starlette cancels the task, CancelledError
+        unwinds _search, and nothing had been written yet at all.
+
+    Either way the model calls were paid for and nothing was kept. Now the work is banked as it
+    lands: a failure costs the batch in hand, never the ones before it.
+    """
+    failed = 0
+    with db() as c:
+        for j, s in zip(jobs, results):
+            if isinstance(s, Exception):
+                failed += 1
+                if isinstance(s, llm.QuotaError):
+                    # out of credits says nothing about this ad, so it does not count against
+                    # it - the credits come back and the ad deserves another go
+                    if str(s) not in warnings:
+                        warnings.append(str(s))
+                else:
+                    c.execute("UPDATE jobs SET tries=COALESCE(tries,0)+1 WHERE url=?", (j["url"],))
+                print(f"[score] {j['title']}: {s}")
+                continue
+            # the same scrub the CV gets: models emit **bold** and em-dashes into the reasoning
+            # too, and it renders literally on the dashboard
+            try:
+                if not isinstance(s, dict):
+                    raise TypeError(f"score returned {type(s).__name__}, not an object")
+                # ...and it has to be an ANSWER. A model too small to follow the schema returns
+                # a valid object full of the wrong keys; writing that stored fit=NULL, which is
+                # the same thing the next search reads as "never scored" - so the job stayed
+                # invisible, nothing said why, and every later search paid to score it again.
+                try:
+                    fit = int(s["fit"])
+                except (KeyError, TypeError, ValueError):
+                    raise TypeError("score came back without a usable 'fit' "
+                                    f"(keys: {sorted(s)[:6]}) - the model is probably too small "
+                                    f"to follow the format")
+                s["fit"] = max(0, min(100, fit))
+                c.execute("UPDATE jobs SET fit=?,why=?,gaps=?,untapped=?,scored_by=? "
+                          "WHERE url=?",
+                          (s.get("fit"), _tidy(s.get("why") or ""),
+                           json.dumps(_tidy(s.get("gaps", [])), ensure_ascii=False),
+                           json.dumps(_tidy(s.get("untapped", [])), ensure_ascii=False),
+                           # which model's scale this number is on. The chain falls through
+                           # silently, so without it a list holds several scales and cannot say
+                           # which row is on which - measured, 85 from one model is 35 from another.
+                           (s.get("_by") or "")[:80], j["url"]))
+            except (TypeError, ValueError, AttributeError) as e:
+                # one malformed reply must cost one job, not the whole transaction - every score
+                # already written in this batch would otherwise be rolled back with it
+                failed += 1
+                c.execute("UPDATE jobs SET tries=COALESCE(tries,0)+1 WHERE url=?", (j["url"],))
+                print(f"[score] {j['title']}: unusable reply: {e}")
+    return failed
+
+
 async def _search(body, p):
     queries = [q.strip() for q in re.split(r"[,;]", body.get("query", "")) if q.strip()] or [""]
     loc = body.get("location", "")
@@ -2601,7 +2667,7 @@ async def _search(body, p):
     # free tier: 15 calls came back "spent", the breaker parked the provider for 300s each time,
     # and the run averaged 4.8s an ad against the 1.1s measured on 38. No fixed number is right
     # for both sizes, so start wide and back off when the provider says to.
-    width, i = WORKERS, 0
+    width, i, failed = WORKERS, 0, 0
     while i < len(todo):
         chunk = todo[i:i + width]
         # count quota refusals across the batch, not exceptions: ask() recovers by moving down
@@ -2622,6 +2688,16 @@ async def _search(body, p):
                 step("scoring", len(scored) + _done[0], len(todo))
 
         got = await asyncio.gather(*(one(j) for j in chunk), return_exceptions=True)
+        # Banked here, not at the end. A database error or the dashboard being closed mid-search
+        # used to discard every score in the run; now the worst either costs is the batch in hand.
+        # A write that fails leaves those rows with fit NULL and `tries` untouched, so the next
+        # search picks them up again rather than giving up on them.
+        try:
+            failed += _store_scores(chunk, got, warnings)
+        except Exception as e:
+            print(f"[score] could not store a batch of {len(chunk)}: {type(e).__name__}: {e}")
+            warnings.append(f"{len(chunk)} score(s) could not be saved "
+                            f"({type(e).__name__}) - they will be scored again next search")
         scored += got
         i += len(chunk)
         spent = (len(llm.QUOTA_EVENTS) - q0) + sum(1 for g in got
@@ -2635,55 +2711,7 @@ async def _search(body, p):
                   flush=True)
             width = nxt
         step("scoring", len(scored), len(todo))
-    failed = 0
-    with db() as c:
-        for j, s in zip(todo, scored):
-            if isinstance(s, Exception):
-                failed += 1
-                if isinstance(s, llm.QuotaError):
-                    # out of credits says nothing about this ad, so it does not count against
-                    # it - the credits come back and the ad deserves another go
-                    if str(s) not in warnings:
-                        warnings.append(str(s))
-                else:
-                    c.execute("UPDATE jobs SET tries=COALESCE(tries,0)+1 WHERE url=?", (j["url"],))
-                print(f"[score] {j['title']}: {s}")
-                continue
-            # the same scrub the CV gets: models emit **bold** and em-dashes into the reasoning
-            # too, and it renders literally on the dashboard
-            try:
-                # a model that wraps its one answer in a list cost a whole job last run:
-                # "score returned list, not an object", and that job was never scored again
-                if isinstance(s, list) and len(s) == 1 and isinstance(s[0], dict):
-                    s = s[0]
-                if not isinstance(s, dict):
-                    raise TypeError(f"score returned {type(s).__name__}, not an object")
-                # ...and it has to be an ANSWER. A model too small to follow the schema returns
-                # a valid object full of the wrong keys; writing that stored fit=NULL, which is
-                # the same thing the next search reads as "never scored" - so the job stayed
-                # invisible, nothing said why, and every later search paid to score it again.
-                try:
-                    fit = int(s["fit"])
-                except (KeyError, TypeError, ValueError):
-                    raise TypeError("score came back without a usable 'fit' "
-                                    f"(keys: {sorted(s)[:6]}) - the model is probably too small "
-                                    f"to follow the format")
-                s["fit"] = max(0, min(100, fit))
-                c.execute("UPDATE jobs SET fit=?,why=?,gaps=?,untapped=?,scored_by=? "
-                          "WHERE url=?",
-                          (s.get("fit"), _tidy(s.get("why") or ""),
-                           json.dumps(_tidy(s.get("gaps", [])), ensure_ascii=False),
-                           json.dumps(_tidy(s.get("untapped", [])), ensure_ascii=False),
-                           # which model's scale this number is on. The chain falls through
-                           # silently, so without it a list holds several scales and cannot say
-                           # which row is on which - measured, 85 from one model is 35 from another.
-                           (s.get("_by") or "")[:80], j["url"]))
-            except (TypeError, ValueError, AttributeError) as e:
-                # one malformed reply must cost one job, not the whole transaction - every score
-                # already written in this loop would otherwise be rolled back with it
-                failed += 1
-                c.execute("UPDATE jobs SET tries=COALESCE(tries,0)+1 WHERE url=?", (j["url"],))
-                print(f"[score] {j['title']}: unusable reply: {e}")
+    # (every batch was stored as it landed, inside the loop above)
     # only rows this search actually moved into 'vetoed': the gate now re-runs over every
     # stored row, so counting the whole list would report the standing total as if it had just
     # happened ("113 skipped on language" on a search that skipped none)
@@ -2691,7 +2719,9 @@ async def _search(body, p):
     newly_vetoed = sum(1 for j, _ in vetoed if j["status"] != "vetoed")
     if stuck:
         warnings.append(f"{stuck} ad(s) could not be scored after {SCORE_TRIES} attempts and "
-                        f"are no longer retried. Open one from the board to read it yourself.")
+                        f"are no longer retried. Settings has a button to put them back in the "
+                        f"queue - worth pressing after changing the AI model, which is what most "
+                        f"of them are stuck on.")
     return {"found": len(found), "new": len(fresh), "freed": len(freed), "expired": expired,
             # how many of those you would have applied to - the only part of `expired` that
             # anybody can do anything about
@@ -3460,11 +3490,28 @@ def rescore(body: dict = Body(...)):
     # and 'applied' above all - is the record of what a person actually did: resetting it to
     # 'new' erased that record AND offered the job up to be applied to a second time, at an
     # employer who had already had one.
+    if where == "stuck":
+        # Ads that failed to score SCORE_TRIES times. They are left at status 'new' with fit NULL,
+        # so the two branches below cannot see them and nothing else resets the counter - the
+        # warning told you they were "no longer retried" and left it there. Usually they are stuck
+        # on something that has since changed: a model too small for the format, a provider that
+        # was refusing, an ad that was half-loaded when it was read.
+        with db() as c:
+            n = c.execute("UPDATE jobs SET tries=0 WHERE fit IS NULL "
+                          "AND COALESCE(tries,0) >= ? "
+                          "AND status NOT IN ('applied','opened','skipped')",
+                          (SCORE_TRIES,)).rowcount
+        return {"ok": True, "queued": n}
     if where not in ("vetoed", "skipped"):
-        raise HTTPException(400, "Only vetoed or skipped jobs can be queued again. "
+        raise HTTPException(400, "Only vetoed, skipped or stuck jobs can be queued again. "
                                  "Applied jobs are the record of what you sent.")
     with db() as c:
-        n = c.execute("UPDATE jobs SET fit=NULL, why=NULL, gaps=NULL, status='new' "
+        # tries=0 as well. Without it this was only half a way back: the scoring queue takes rows
+        # with `tries` under SCORE_TRIES, so a row that had already failed three times came back as
+        # 'new' with its counter still spent and was skipped by every search afterwards - cleared
+        # of its verdict, queued in name only, and unreachable except by deleting it. Nothing
+        # anywhere else ever set this back to zero.
+        n = c.execute("UPDATE jobs SET fit=NULL, why=NULL, gaps=NULL, status='new', tries=0 "
                       "WHERE status=?", (where,)).rowcount
     return {"ok": True, "queued": n}
 

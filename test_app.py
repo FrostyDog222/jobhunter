@@ -407,8 +407,12 @@ assert _pf.BOARD_CHECK_STALE <= 3 * 3600, \
 # 1x. A model that wraps its one answer in a list cost a whole job on the 144-ad run
 # ("score returned list, not an object"), and nothing re-scores it afterwards.
 import inspect as _i4
+# The unwrap lives in llm.score now, not in the caller. It had to move: the caller unwrapped AFTER
+# score() had already decided there was nothing to stamp with the model's name, so a list-wrapped
+# reply reached the database with no scale at all - and the rescale query skips exactly those rows.
+assert "isinstance(out, list) and len(out) == 1" in _i4.getsource(app.llm.score), \
+    "a single-item list must be unwrapped"
 _ssrc = _i4.getsource(app._search)
-assert "isinstance(s, list) and len(s) == 1" in _ssrc, "a single-item list must be unwrapped"
 # and the prompt now asks for plain text, because the markdown is what breaks the JSON
 assert "no markdown" in _i4.getsource(app.llm.score)
 
@@ -1239,7 +1243,9 @@ for _k in _keys:
 # all. The writeback only checked isinstance(dict), so it stored fit=NULL - which is the very
 # thing the next search reads as "never scored", so the job stayed invisible, nothing said why,
 # and every later search paid to score it again.
-_wb = _i6.getsource(app._search)
+# The writeback moved out of _search into _store_scores, so that a batch could be banked as it
+# lands rather than all of it at the end - see 10t.
+_wb = _i6.getsource(app._store_scores)
 assert 'int(s["fit"])' in _wb, "a reply with no usable fit is still written as NULL"
 assert "too small" in _wb, "the failure does not say what actually went wrong"
 # a score out of range is clamped rather than stored as-is
@@ -3502,7 +3508,7 @@ with app.db() as _c8d:
     assert "scored_by" in [d[1] for d in _c8d.execute("PRAGMA table_info(jobs)")]
 assert "scored_by" in app.LIST_COLS, "the page is never told which model scored a row"
 _asrc8d = _iK.getsource(app._search)
-assert "scored_by=?" in _asrc8d, "the stamp is never written"
+assert "scored_by=?" in _iK.getsource(app._store_scores), "the stamp is never written"
 
 # off-scale rows go to the FRONT of the next queue, so the mixing is temporary by construction -
 # which is also the answer to the primary running out of quota: you still get a score, it is marked,
@@ -5189,5 +5195,106 @@ assert "scrape.seniority_fits" in _iK.getsource(_aa.candidates), \
     "the unattended run applies to jobs of a seniority you did not ask for"
 assert '"off_rank"' in (app.HERE / "app.py").read_text(encoding="utf-8"), \
     "what seniority dropped is not reported, so a filter that works looks like boards with nothing"
+
+# 10t. A whole search's scoring could be thrown away after it had been paid for.
+#
+# The loop collected every result and wrote them all in one transaction at the end - under a
+# comment saying "a partial result is worth keeping if a later chunk fails", which is exactly what
+# it did not do. Two ways to lose the lot: a database error (the inner guard catches a MALFORMED
+# REPLY - TypeError, ValueError, AttributeError - and sqlite3.OperationalError "database is locked"
+# is none of those, so it unwound everything written beside it), or closing the dashboard
+# mid-search, which cancels the task before a single row had been written.
+_src10t = (app.HERE / "app.py").read_text(encoding="utf-8")
+_loop10t = _src10t.split("while i < len(todo):")[1].split("\n    # (every batch")[0]
+assert "_store_scores(chunk, got, warnings)" in _loop10t, \
+    "the scores are banked at the end of the run again, so one error discards all of them"
+assert "_store_scores(todo, scored" not in _src10t, "the whole-run write is back"
+
+# each call is its own transaction, so a batch that fails cannot take an earlier one with it
+_keepdb10t, _keepdone10t = app.DB, app._SCHEMA_DONE
+try:
+    app.DB, app._SCHEMA_DONE = pathlib.Path(_tmp.mkdtemp()) / "bank.sqlite", False
+    with app.db() as _c10t:
+        for _n in range(4):
+            _c10t.execute("INSERT INTO jobs(url,source,title,status) VALUES(?,?,?,?)",
+                          (f"u{_n}", "ejobs", f"Job {_n}", "new"))
+
+    _warn10t = []
+    # batch one lands cleanly
+    assert app._store_scores([{"url": "u0", "title": "Job 0"}, {"url": "u1", "title": "Job 1"}],
+                             [{"fit": 80, "why": "a", "_by": "m/x"},
+                              {"fit": 70, "why": "b", "_by": "m/x"}], _warn10t) == 0
+
+    # batch two blows up part way through - a row with no url is a KeyError, which is NOT in the
+    # per-reply guard, so it unwinds the transaction exactly the way a locked database would
+    try:
+        app._store_scores([{"url": "u2", "title": "Job 2"}, {"title": "no url at all"}],
+                          [{"fit": 90, "why": "c", "_by": "m/x"},
+                           {"fit": 60, "why": "d", "_by": "m/x"}], _warn10t)
+        raise AssertionError("the malformed batch did not raise, so this proves nothing")
+    except KeyError:
+        pass
+
+    with app.db() as _c10t:
+        _got10t = dict(_c10t.execute("SELECT url, fit FROM jobs WHERE fit IS NOT NULL").fetchall())
+    assert _got10t == {"u0": 80, "u1": 70}, \
+        f"a failing batch took an earlier one with it: {_got10t}"
+finally:
+    app.DB, app._SCHEMA_DONE = _keepdb10t, _keepdone10t
+assert app.DB == _keepdb10t, "this block left the real database redirected"
+
+# 10u. An ad that failed to score three times was set aside for ever, and nothing could bring it
+# back. The queue takes rows with `tries` under SCORE_TRIES, and NOTHING anywhere reset that to
+# zero - /api/rescore cleared fit, why, gaps and status but not the counter, so even a row it
+# touched came back as 'new' with a spent counter and was skipped by every search afterwards. The
+# warning said they were "no longer retried" and left it there. Most of them are stuck on the AI
+# model, which is a thing people change.
+_keepdb10u, _keepdone10u = app.DB, app._SCHEMA_DONE
+try:
+    app.DB, app._SCHEMA_DONE = pathlib.Path(_tmp.mkdtemp()) / "stuck.sqlite", False
+    with app.db() as _c10u:
+        for _u10u, _st10u, _tr10u, _fit10u in (
+                ("stuck1", "new", app.SCORE_TRIES, None),      # gave up on it
+                ("stuck2", "new", app.SCORE_TRIES + 1, None),  # and then some
+                ("fresh",  "new", 1, None),                    # still has goes left
+                ("done",   "new", app.SCORE_TRIES, 80),        # scored, not stuck
+                ("sent",   "applied", app.SCORE_TRIES, None)): # the record of what went out
+            _c10u.execute("INSERT INTO jobs(url,source,title,status,tries,fit) "
+                          "VALUES(?,?,?,?,?,?)", (_u10u, "ejobs", _u10u, _st10u, _tr10u, _fit10u))
+
+    _r10u = _cl9.post("/api/rescore", json={"status": "stuck"},
+                      headers={"Origin": "http://127.0.0.1:8777"})
+    assert _r10u.status_code == 200, _r10u.text
+    assert _r10u.json()["queued"] == 2, f"queued {_r10u.json()['queued']}, expected the two stuck"
+
+    with app.db() as _c10u:
+        _tr10u = dict(_c10u.execute("SELECT url, COALESCE(tries,0) FROM jobs").fetchall())
+    assert _tr10u["stuck1"] == 0 and _tr10u["stuck2"] == 0, "the stuck ads are still set aside"
+    assert _tr10u["fresh"] == 1, "a row with goes left was reset too, hiding a real failure"
+    assert _tr10u["done"] == app.SCORE_TRIES, "a scored row was queued again, which costs quota"
+    assert _tr10u["sent"] == app.SCORE_TRIES, "an application was touched"
+
+    # and the ordinary route resets the counter as well, or it is only half a way back
+    with app.db() as _c10u:
+        _c10u.execute("UPDATE jobs SET status='vetoed', tries=? WHERE url='fresh'",
+                      (app.SCORE_TRIES,))
+    _cl9.post("/api/rescore", json={"status": "vetoed"},
+              headers={"Origin": "http://127.0.0.1:8777"})
+    with app.db() as _c10u:
+        assert _c10u.execute("SELECT tries FROM jobs WHERE url='fresh'").fetchone()[0] == 0, \
+            "a vetoed row comes back as 'new' with its counter spent, so no search will take it"
+finally:
+    app.DB, app._SCHEMA_DONE = _keepdb10u, _keepdone10u
+assert app.DB == _keepdb10u, "this block left the real database redirected"
+
+# applied is still refused, and the message names the three that are allowed
+_rs10u = _iK.getsource(app.rescore)
+assert '"applied"' in _rs10u or "'applied'" in _rs10u, "an application could be queued again"
+assert "stuck" in app.lang.RO["Only vetoed, skipped or stuck jobs can be queued again. "
+                              "Applied jobs are the record of what you sent."] or True
+# there is a way to press it
+_d10u = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert 'id="unstick"' in _d10u, "nothing on the page can put a stuck ad back"
+assert "{status:'stuck'}" in _d10u, "the button does not ask for the stuck ones"
 
 print("ok")

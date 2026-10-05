@@ -211,6 +211,12 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <button id="savellm">Save &amp; test</button></div>
   </div>
   <p class="muted" id="llmnote"></p>
+  <!-- Here because the AI model is what most stuck ads are stuck on: one too small to follow the
+       format fails every ad it is given, three times each, and they then sit at no score where
+       nothing shows them and no search picks them up again. -->
+  <button class="ghost" id="unstick"
+    title="Ads that failed to score three times are set aside and never retried. This puts them
+      back in the queue - worth pressing after changing the model above.">Try the ads that could not be scored</button>
 
   <!-- Opens by itself the moment Ollama is picked, because that is when it is wanted. -->
   <details id="ollamahelp" style="margin-top:10px">
@@ -2952,6 +2958,19 @@ $('#rescore').onclick = e => busy(e.target, async () => {
   const r = await api('/api/rescore', {status:'vetoed'});
   toast(fill('{n} job(s) queued — press Search & score to re-run them.', {n: r.queued}), 8000);
   $('#filter').value = ''; await load();
+}, 'queueing...');
+
+// Ads that failed to score three times are left at status 'new' with no score, which no filter
+// shows and no search picks up again - the warning said they were "no longer retried" and that was
+// the end of it. Usually they are stuck on something that has since changed, the AI model most of
+// all, so this is next to where the model is chosen.
+$('#unstick').onclick = e => busy(e.target, async () => {
+  const r = await api('/api/rescore', {status:'stuck'});
+  toast(r.queued
+    ? fill('{n} ad(s) put back in the queue — press Search & score to try them again.',
+           {n: r.queued})
+    : t('Nothing is stuck - every ad has either been scored or is still waiting its turn.'), 8000);
+  await load();
 }, 'queueing...');
 
 // What one apply_batch call accepts. Must equal app.BATCH_CAP, and the suite asserts it does:
