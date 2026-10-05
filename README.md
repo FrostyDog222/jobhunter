@@ -331,7 +331,13 @@ just showing you an empty list — that is a setting to lower, not a market with
 **Scores only compare within one model.** The same ad can score 85 from one model and 35 from
 another, so your score floor means something slightly different if you change model. The app records
 which model scored each job and quietly re-scores anything that came from a different one, so your
-list settles back onto one scale by itself.
+list settles back onto one scale by itself. The unattended run holds back a job still carrying an
+older model's score rather than applying on a number the current one did not give.
+
+**If some ads could not be scored**, usually the model is too small to follow the format. After
+three failed attempts an ad is set aside so it stops costing you quota, and *Try the ads that could
+not be scored*, under the AI model settings, puts them all back in the queue — worth pressing after
+changing the model, which is what most of them are stuck on.
 
 **If a model stops working**, the app finds a replacement for you: it asks the provider what it
 currently offers and tries them until one answers, then tells you in the AI panel which it picked. A
