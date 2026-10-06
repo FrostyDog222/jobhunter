@@ -993,6 +993,16 @@ def board_applications(board, headless=True):
             if any(d in page.url.lower() for d in BOARD_UI[board]["denied"]):
                 raise RuntimeError(f"not signed in to {board}")
             for r in page.evaluate(_APPS_WALK, frag):
+                # An advert's url carries the board's posting id; a menu item's does not. eJobs
+                # files "Cele mai noi joburi" and "Locuri de munca Strainatate" under the same
+                # /locuri-de-munca/ path as a real advert, and the walk reached a dated ancestor
+                # for both, so two navigation links were being read as applications. Harmless
+                # while they matched nothing, but they inflated the count this reports and they
+                # are exactly the kind of row that should never reach the adopt.
+                #
+                # bestjobs ids are the url slug, so this never drops anything there.
+                if board in ("ejobs", "hipo") and not posting_id(r["url"]):
+                    continue
                 row = r.get("row") or ""
                 m = re.search(r"data aplic[aă]rii:\s*(\d{2})-(\d{2})-(\d{4})", row, re.I)
                 out.append({"url": r["url"], "title": r["title"],

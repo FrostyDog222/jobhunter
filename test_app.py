@@ -5674,4 +5674,29 @@ finally:
     app.DB, app._SCHEMA_DONE = _keep10gg, _done10gg
 assert app.DB == _keep10gg
 
+# 10hh. A menu item is not an application.
+#
+# eJobs files "Cele mai noi joburi" and "Locuri de munca Strainatate" under the same
+# /locuri-de-munca/ path as a real advert, and the walk finds a dated ancestor for both, so two
+# navigation links were read as applications - 15 reported where the account has 13. They matched
+# nothing, so nothing was mis-adopted, but a row that reaches the adopt at all is one that could.
+#
+# An advert's url carries the board's posting id. A menu item's does not.
+import prefill as _pfid
+_pf10hh = (app.HERE / "prefill.py").read_text(encoding="utf-8")
+assert 'if board in ("ejobs", "hipo") and not posting_id(r["url"])' in _pf10hh, \
+    "navigation links are still read as applications"
+
+for _u10hh in ("https://www.ejobs.ro/locuri-de-munca/cele-mai-noi-joburi",
+               "https://www.ejobs.ro/locuri-de-munca/strainatate",
+               "https://www.ejobs.ro/locuri-de-munca/"):
+    assert not _pfid.posting_id(_u10hh), f"a menu item looks like an advert: {_u10hh}"
+for _u10hh in ("https://www.ejobs.ro/locuri-de-munca/agent-call-center/1989320",
+               "https://www.ejobs.ro/user/locuri-de-munca/agent-call-center/1989320"):
+    assert _pfid.posting_id(_u10hh) == "1989320", \
+        f"a real advert would now be dropped: {_u10hh} -> {_pfid.posting_id(_u10hh)!r}"
+# bestjobs ids are the url slug, so the guard must never reach it - every bestjobs url has one
+assert _pfid.posting_id("https://www.bestjobs.eu/loc-de-munca/operator-call-center-1234567"), \
+    "the bestjobs id went empty, which this guard would read as a menu item"
+
 print("ok")
