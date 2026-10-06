@@ -273,6 +273,16 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
         # Romanian boards. Off by default because that is the answer nobody has to think about,
         # and it is a preference rather than a rule - the people looking for it are looking for it.
         "allow_adult": False,
+        # Whether the unattended run may answer an employer's screening questions and send.
+        #
+        # Off by default, and auto_apply.py's own header says why: a model writing answers into a
+        # mini-interview and pressing Trimite with nobody watching is a different thing from
+        # sending a CV that was already written. Some people want it - somebody running this for
+        # another person, daily, cannot be at the keyboard for every posting that asks three
+        # questions - so it is a choice rather than a rule, and the guards underneath it are real:
+        # answers come only from the profile, anything unanswerable comes back empty, and a single
+        # blank field stops the send.
+        "auto_answer": False,
         # Ask the boards once a month which saved jobs they still have, and remove the ones they
         # say are gone. Off by default: it only ever deletes on an unambiguous answer, but it does
         # delete, and that is a choice to make rather than inherit.
@@ -587,6 +597,7 @@ def _set_auto(body):
     cur = settings()
     for k in ("auto_enabled", "auto_days", "auto_time", "auto_query", "auto_location",
               "auto_county", "auto_country", "keep_signed_in", "skip_families", "recheck",
+              "auto_answer",
               "allow_adult",
               "auto_fresh", "auto_work_mode", "auto_seniority", "auto_ats",
               "auto_min_fit", "auto_apply", "auto_apply_min_fit",

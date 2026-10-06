@@ -1358,9 +1358,24 @@ for _who, _t, _b in (
 # 4b. Applying. Nothing here has happened - auto_apply is off - but the weekly run was one
 # checkbox away from every one of them.
 import inspect as _iB
-# the unattended run must never submit a screening answer nobody read
-assert '"auto_send": False' in (app.HERE / "auto_apply.py").read_text(encoding="utf-8"), \
-    "the weekly run would submit model-written answers to an employer"
+# The unattended run submits a screening answer only where that was deliberately switched on, and
+# it starts off. It used to be a hard False here; somebody running this for another person, daily,
+# cannot be at the keyboard for every posting that asks three questions - so it became a choice.
+# What must hold is that it is a CHOICE, not a default, and that the guards behind it are intact.
+assert app.DEFAULTS["auto_answer"] is False, "screening answers are sent unless you opt out"
+assert '"auto_send": bool(settings.get("auto_answer"))' in \
+    (app.HERE / "auto_apply.py").read_text(encoding="utf-8"), \
+    "the run no longer reads the setting, so the switch means nothing"
+# the guards that make it defensible, each checked where it lives
+_aq = _iB.getsource(app.prefill.answer_questions)
+assert "TRUST BOUNDARY" in _aq, "a question worded as an instruction is obeyed"
+assert "never guess and never" in _aq, "answers are no longer held to the profile"
+for _protected in ("gender", "salary", "disability", "age"):
+    assert _protected in _aq, f"{_protected} is no longer the candidate's own to answer"
+# one unanswerable question stops the whole send - this is what keeps a person in the loop
+_ba = _iB.getsource(app.prefill.board_apply)
+assert "if blank or not auto_send:" in _ba, \
+    "a form with a blank field would now be submitted half-answered"
 # and a caller that forgets the flag must not thereby send
 assert 'body.get("auto_send", False)' in _iB.getsource(app.apply_batch)
 assert _iB.signature(app.prefill.board_apply).parameters["auto_send"].default is False

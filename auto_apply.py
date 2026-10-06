@@ -9,8 +9,11 @@ minute:
     are left alone, so nothing is ever sent twice and a job you rejected is not resurrected
   - only scores at or above the floor you set, highest first
   - never more than the cap you set, per run
-  - no browser windows: a posting that turns out to have screening questions is marked and left
-    for you, because nobody is at the keyboard at 09:00 on a Sunday to answer them
+  - no browser windows, ever: nobody is at the keyboard at 09:00 on a Sunday to use one
+  - a posting with screening questions is marked and left for you, UNLESS "answer screening
+    questions" was switched on. With it on the model answers them from the profile and sends -
+    and a single question it cannot answer from the profile still stops the whole send, so the
+    ones that need a person still reach one
 
 It sends the CV that sits on your board profile, and the salary figure from your profile page,
 to employers whose ads nobody read. That is the deal; the dashboard says so before you switch
@@ -303,11 +306,17 @@ def run(app, prefill, settings, log):
         "urls": [p["url"] for p in picks],
         # no windows: a screening question is marked and left, never opened on an empty desk
         "hand_off": False,
-        # ...and never submit a screening answer with nobody at the keyboard. hand_off only
-        # stops a WINDOW opening; without this the run filled an employer's mini-interview with
-        # model-written text and pressed Trimite, which is the opposite of what this file's own
-        # header promises.
-        "auto_send": False,
+        # Whether a screening answer may be sent with nobody at the keyboard. Off unless it was
+        # deliberately switched on, because a model writing into an employer's mini-interview and
+        # pressing Trimite unwatched is a different thing from sending a CV that was already
+        # written - and hand_off only stops a WINDOW opening, never the submit.
+        #
+        # What stands behind it when it IS on: answer_questions opens with a trust boundary, so a
+        # question worded as an instruction is answered with nothing; answers come only from the
+        # profile, never invented; gender, age, salary and the rest come back empty by rule; and
+        # board_apply refuses to send at all if a single field came back blank, which is what
+        # turns "the model could not answer this" into "a person gets this one".
+        "auto_send": bool(settings.get("auto_answer")),
     }))
 
     fit = {p["url"]: p["fit"] for p in picks}

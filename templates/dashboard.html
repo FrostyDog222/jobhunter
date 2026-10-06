@@ -484,6 +484,17 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
       font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="auto_apply"
       style="width:auto"> <b style="color:var(--mid)">Also apply for me, without asking</b></label>
+    <!-- Inside applyrow, so it fades with the rest when applying is off: it means nothing on its
+         own. Off by default - a model writing into an employer's mini-interview and pressing send
+         unwatched is a different thing from sending a CV that was already written. -->
+    <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
+      font-size:13.5px;cursor:pointer;margin-top:10px"><input type="checkbox" id="auto_answer"
+      style="width:auto"> Also answer the employer's screening questions</label>
+    <p class="muted" style="margin:4px 0 10px">Some postings ask two or three questions before they
+      accept an application. Left unticked those are set aside for you. Ticked, they are answered
+      from your profile and sent — only from what your profile actually says, never invented, and
+      questions about age, gender, health or salary are always left for you. <b>If even one question
+      cannot be answered from your profile, nothing is sent and the job waits for you anyway.</b></p>
     <div class="row" id="applyrow">
       <div><label for="auto_apply_min_fit">Only jobs scoring</label><input id="auto_apply_min_fit" type="number"
         min="0" max="100" step="5" value="85"></div>
@@ -917,7 +928,7 @@ $('#importhist').onclick = e => busy(e.target, async () => {
 const AUTO_FIELDS = ['auto_fresh', 'auto_work_mode', 'auto_seniority', 'auto_ats',
                      'auto_enabled', 'auto_days', 'auto_time', 'auto_query', 'auto_location',
                      'auto_county', 'auto_country', 'keep_signed_in', 'recheck', 'allow_adult',
-                     'auto_min_fit', 'auto_apply', 'auto_apply_min_fit',
+                     'auto_min_fit', 'auto_apply', 'auto_answer', 'auto_apply_min_fit',
                      'auto_apply_cap'];
 // the floor and the cap only mean anything while applying is on
 const applyRow = () => $('#applyrow').style.opacity = $('#auto_apply').checked ? '1' : '.45';

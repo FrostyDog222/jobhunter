@@ -649,6 +649,20 @@ RO = {
     "Tick it and save, then untick and save, to clear it.":
         "⚠ {who} este OPRIT aici dar ÎNCĂ programat în Windows, deci rulează oricum. "
         "Bifează și salvează, apoi debifează și salvează, ca să îl ștergi.",
+    "Also answer the employer's screening questions":
+        "Răspunde și la întrebările de selecție ale angajatorului",
+    "Some postings ask two or three questions before they accept an application. Left unticked "
+    "those are set aside for you. Ticked, they are answered from your profile and sent — only from "
+    "what your profile actually says, never invented, and questions about age, gender, health or "
+    "salary are always left for you.":
+        "Unele anunțuri pun două-trei întrebări înainte de a accepta o candidatură. Nebifat, "
+        "acelea sunt lăsate deoparte pentru tine. Bifat, li se răspunde din profilul tău și se "
+        "trimit — doar din ce scrie efectiv în profil, niciodată inventat, iar întrebările despre "
+        "vârstă, gen, sănătate sau salariu îți sunt lăsate ție întotdeauna.",
+    "If even one question cannot be answered from your profile, nothing is sent and the job waits "
+    "for you anyway.":
+        "Dacă fie și o singură întrebare nu poate fi răspunsă din profilul tău, nu se trimite "
+        "nimic și jobul te așteaptă oricum.",
     # reordering the fallback chain
     "Try this one earlier": "Încearcă-l mai devreme",
     "Try this one later": "Încearcă-l mai târziu",
