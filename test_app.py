@@ -5611,4 +5611,67 @@ assert "if(!saw) return" in _w10ff, \
     "opening the page with no run announces that a run has finished"
 assert "missed < 3" in _w10ff, "one slow read ends the watch"
 
+# 10gg. "pressed apply, no confirmation seen" - settled by asking the board, not by assuming.
+#
+# eJobs frequently presses through and then shows nothing; its own redirect hangs. So a real
+# application was filed as unconfirmed and left for a person to check by hand - four of them in one
+# day on this install, and one of those turned out to have landed while another had not. Treating
+# silence as success would have recorded an application that did not exist, which is the worse
+# error of the two: it stops the job ever being applied to properly.
+#
+# The boards publish the list of what you have applied to. Being ON that list IS the application.
+_src10gg = (app.HERE / "app.py").read_text(encoding="utf-8")
+_ab10gg = _iK.getsource(app.apply_batch)
+assert "unconfirmed" in _ab10gg and "prefill.board_applications" in _ab10gg, \
+    "an application the board would not confirm is still left as a guess"
+assert "posting_id" in _ab10gg, \
+    "matched on the url alone - eJobs stores a /user/ prefix its application list does not use"
+# one read per BOARD, not per job: a batch of ten unconfirmed must not load the page ten times
+assert "for board in {b for _, _, b in unconfirmed" in _ab10gg, \
+    "the application list is read once per job rather than once per board"
+
+# and the standing reconciliation adopts what it reads, instead of recording it and doing nothing
+_rb10gg = _iK.getsource(app.refresh_board_states)
+assert "status='applied'" in _rb10gg and "adopted" in _rb10gg, \
+    "the board says Trimisă and the row still says 'opened'"
+assert "status <> 'applied'" in _rb10gg, "an existing application could be rewritten"
+assert "COALESCE(applied_at" in _rb10gg, \
+    "a date that was already recorded would be overwritten with today"
+assert "no confirmation" in _rb10gg, "the stale 'check the board' note is left on a settled row"
+
+# behaviour, on a throwaway database
+_keep10gg, _done10gg = app.DB, app._SCHEMA_DONE
+_realapps10gg = app.prefill.board_applications
+try:
+    app.DB, app._SCHEMA_DONE = pathlib.Path(_tmp.mkdtemp()) / "bs.sqlite", False
+    with app.db() as _c:
+        for _u, _st, _at in (
+                ("https://www.ejobs.ro/user/locuri-de-munca/x/111", "opened", None),
+                ("https://www.ejobs.ro/user/locuri-de-munca/y/222", "applied", "2026-01-01 09:00"),
+                ("https://www.ejobs.ro/user/locuri-de-munca/z/333", "new", None)):
+            _c.execute("INSERT INTO jobs(url,source,title,status,applied_at,note) "
+                       "VALUES(?,?,?,?,?,?)",
+                       (_u, "ejobs", _u[-3:], _st, _at, "pressed apply, no confirmation seen"))
+    # the board lists the first two, not the third
+    app.prefill.board_applications = lambda b, **k: [
+        {"url": "https://www.ejobs.ro/locuri-de-munca/x/111", "title": "111",
+         "when": "2026-10-06", "state": "sent", "state_word": "Trimis\u0103"},
+        {"url": "https://www.ejobs.ro/locuri-de-munca/y/222", "title": "222",
+         "when": "2026-10-06", "state": "sent", "state_word": "Trimis\u0103"}]
+    _out10gg = app.refresh_board_states(["ejobs"])
+    with app.db() as _c:
+        _got10gg = {r["url"][-3:]: (r["status"], r["applied_at"], r["note"])
+                    for r in _c.execute("SELECT url, status, applied_at, note FROM jobs")}
+    assert _got10gg["111"][0] == "applied", "a job the board lists was not adopted"
+    assert _got10gg["111"][1] == "2026-10-06 00:00:00", \
+        f"the board's own date was not used: {_got10gg['111'][1]}"
+    assert "no confirmation" not in (_got10gg["111"][2] or ""), "the stale note survived"
+    assert _got10gg["222"][1] == "2026-01-01 09:00", "an existing application date was rewritten"
+    assert _got10gg["333"][0] == "new", "a job the board does NOT list was marked applied"
+    assert _out10gg["adopted"] == 1, _out10gg
+finally:
+    app.prefill.board_applications = _realapps10gg
+    app.DB, app._SCHEMA_DONE = _keep10gg, _done10gg
+assert app.DB == _keep10gg
+
 print("ok")

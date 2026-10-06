@@ -2184,7 +2184,8 @@ def refresh_board_states(boards=None):
     one stored advert. Where it names several, nothing is written and `ambiguous` counts it.
     """
     when = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    out = {"read": 0, "matched": 0, "ambiguous": 0, "states": {}, "unknown": [], "failed": {}}
+    out = {"read": 0, "matched": 0, "adopted": 0, "ambiguous": 0, "states": {}, "unknown": [],
+           "failed": {}}
     for board in (boards or sorted(prefill.APPLICATIONS)):
         try:
             got = prefill.board_applications(board)
@@ -2225,7 +2226,11 @@ def refresh_board_states(boards=None):
                 # either not a job in your list, or an id that names more than one of them
                 out["ambiguous"] += 1
                 continue
-            rows.append((a["state"], a.get("state_word", ""), when, url))
+            # the read time for board_state_at (that is when WE looked), but the board's own
+            # "data aplicarii" for applied_at: the record should say when the application was
+            # made, not when this noticed it. Date only, same 00:00:00 as the import above.
+            rows.append((a["state"], a.get("state_word", ""), when, url,
+                         f"{a['when']} 00:00:00" if a.get("when") else ""))
         for a in got:
             if a.get("state"):
                 out["states"][a["state"]] = out["states"].get(a["state"], 0) + 1
@@ -2235,10 +2240,25 @@ def refresh_board_states(boards=None):
                 out["unknown"].append(f"{board}: {a.get('state_word') or a.get('title', '')[:40]}")
         if rows:
             with db() as c:
-                for state, word, stamp, url in rows:
+                for state, word, stamp, url, filed in rows:
                     out["matched"] += c.execute(
                         "UPDATE jobs SET board_state = ?, board_state_at = ? WHERE url = ?",
                         (f"{state}:{word}" if word else state, stamp, url)).rowcount
+                    # Being ON the board's list IS the application. This read the truth and then
+                    # declined to act on it: a row the board calls Trimisă sat at 'opened' with
+                    # "pressed apply, no confirmation seen" against it, because eJobs hangs on its
+                    # redirect and the app would not claim a send it had not watched land. The
+                    # board is the one place that actually knows, so its answer settles it.
+                    #
+                    # Only upwards, and never over 'applied': this promotes a row nobody could
+                    # confirm, and must not rewrite a date or a history that already exists.
+                    # applied_at is the board's own date where it gave one, so the record
+                    # says when the application was really made.
+                    out["adopted"] += c.execute(
+                        "UPDATE jobs SET status='applied', "
+                        "applied_at = COALESCE(applied_at, NULLIF(?, ''), datetime('now','localtime')), "
+                        "note = CASE WHEN note LIKE '%no confirmation%' THEN '' ELSE note END "
+                        "WHERE url = ? AND status <> 'applied'", (filed, url)).rowcount
     return out
 
 
@@ -3250,7 +3270,7 @@ async def apply_batch(body: dict = Body(...)):
     urls = [u for u in dict.fromkeys(body.get("urls") or []) if u][:BATCH_CAP]
     if not urls:
         raise HTTPException(400, "nothing selected")
-    p, results = profile(), []
+    p, results, unconfirmed = profile(), [], []
     for url in urls:
         try:
             j = _job(url)
@@ -3329,6 +3349,9 @@ async def apply_batch(body: dict = Body(...)):
             elif res.get("clicked"):
                 # Pressed, not confirmed. Recorded as done-for-now rather than left untouched:
                 # leaving it 'new' put it straight back into next week's list and applied twice.
+                # Resolved properly below, by asking the board - this is only the fallback for
+                # when even the board cannot say.
+                unconfirmed.append((url, j["title"], board))
                 with db() as c:
                     c.execute("UPDATE jobs SET status=CASE WHEN status IN ('new','ready') "
                               "THEN 'opened' ELSE status END, "
@@ -3351,6 +3374,39 @@ async def apply_batch(body: dict = Body(...)):
                             "error": f"stopped here ({type(e).__name__}) - anything above "
                                      f"this line was still sent"})
             break
+    # Ask the board whether the ones it would not confirm actually landed.
+    #
+    # eJobs frequently presses through and then shows nothing - its own redirect hangs - so the
+    # application was filed as "pressed apply, no confirmation seen" and left for a person to check
+    # by hand. That is a real application nobody can account for, and it happened to four jobs in
+    # one day here. The board knows: all three publish the list of what you have applied to, which
+    # is what refresh_board_states already reads.
+    #
+    # So instead of trusting silence - which would record applications that may not exist - this
+    # goes and looks. One read of the list per board, however many were unconfirmed, and matched on
+    # the board's own posting id because an advert has more than one url: eJobs stores a /user/
+    # prefix its application list does not use.
+    if unconfirmed:
+        for board in {b for _, _, b in unconfirmed if b in prefill.APPLICATIONS}:
+            mine = [(u, t) for u, t, b in unconfirmed if b == board]
+            try:
+                listed = await off(lambda bb=board: prefill.board_applications(bb))
+            except Exception as e:
+                print(f"[apply] could not read {board}'s application list: {type(e).__name__}: {e}")
+                continue
+            ids = {prefill.posting_id(a.get("url") or "") for a in listed}
+            ids.discard("")
+            for u, title in mine:
+                if prefill.posting_id(u) not in ids:
+                    continue                     # the board does not list it: genuinely not sent
+                with db() as c:
+                    _mark_applied(c, u)
+                    c.execute("UPDATE jobs SET note='' WHERE url=?", (u,))
+                for r in results:
+                    if r["url"] == u:
+                        r.update(submitted=True, error=None, confirmed_by_board=True)
+                print(f"[apply] {board} lists {title[:50]!r} as applied - recorded")
+
     return {"results": results,
             "sent": sum(1 for r in results if r.get("submitted")),
             "skipped": sum(1 for r in results if r.get("already")),
