@@ -649,6 +649,12 @@ RO = {
     "Tick it and save, then untick and save, to clear it.":
         "⚠ {who} este OPRIT aici dar ÎNCĂ programat în Windows, deci rulează oricum. "
         "Bifează și salvează, apoi debifează și salvează, ca să îl ștergi.",
+    "{n} were somewhere else.": "{n} erau în altă parte.",
+    "{n} were the wrong work mode.": "{n} aveau alt mod de lucru.",
+    "{n} were the wrong seniority.": "{n} aveau alt nivel de experiență.",
+    "{n} were already in your list from another board.":
+        "{n} erau deja în lista ta, de pe alt site.",
+    "{n} were adult-industry work.": "{n} erau din industria pentru adulți.",
     "Include adult-industry jobs (videochat and similar)":
         "Include joburi din industria pentru adulți (videochat și similare)",
     # three entries, not one: the <b> in the middle of this paragraph splits it into separate text

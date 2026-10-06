@@ -3160,6 +3160,16 @@ $('#go').onclick = e => busy(e.target, async () => {
           (r.expired ? ' ' + fill('{n} closed or aged out.', {n: r.expired}) : '') +
           (r.expired_good ? ' ' + fill('{n} of those a job you wanted, closed by the employer.',
                                        {n: r.expired_good}) : '') +
+          // What the filters removed. app.py has said since these were written that "a filter you
+          // cannot see the effect of is a filter you cannot trust" - and then the toast never
+          // printed one of them, so a county filter doing its job looked exactly like boards that
+          // returned almost nothing.
+          (r.off_area ? ' ' + fill('{n} were somewhere else.', {n: r.off_area}) : '') +
+          (r.off_mode ? ' ' + fill('{n} were the wrong work mode.', {n: r.off_mode}) : '') +
+          (r.off_rank ? ' ' + fill('{n} were the wrong seniority.', {n: r.off_rank}) : '') +
+          (r.off_dupe ? ' ' + fill('{n} were already in your list from another board.',
+                                   {n: r.off_dupe}) : '') +
+          (r.off_adult ? ' ' + fill('{n} were adult-industry work.', {n: r.off_adult}) : '') +
           ((r.warnings || []).length ? ' ⚠ ' + r.warnings.map(friendly).join('; ') : '') +
           (r.failed ? ' ' + fill('{n} failed — search again to retry them.',
                                  {n: r.failed}) : ''), 8000);
