@@ -2274,7 +2274,16 @@ async function loadLlm(){
   const inChain = Object.fromEntries((LLM.chain || []).map(c => [c.provider, c]));
   const known = Object.entries(LLM.providers || {})
     .filter(([n, p]) => p.keyed || p.paused)
-    .sort(([a], [b]) => ((inChain[b] ? 1 : 0) - (inChain[a] ? 1 : 0)) || a.localeCompare(b));
+    // In the order they are ACTUALLY tried, not alphabetically. Sorting by name showed gemini on
+    // the first row while groq was the one leading - and the row order is now something you can
+    // change, so it has to mean what it looks like it means.
+    .sort(([a], [b]) => {
+      const ia = (LLM.chain || []).findIndex(c => c.provider === a);
+      const ib = (LLM.chain || []).findIndex(c => c.provider === b);
+      if(ia !== ib) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);   // unused ones last
+      return a.localeCompare(b);
+    });
+  const order = known.map(([n]) => n).filter(n => inChain[n]);
   $('#chain').innerHTML = '<div class="muted" style="margin-top:8px">'
     + t('Fallback order — when one runs out of quota the next takes over:') + '</div>'
     + known.map(([n, p]) => {
@@ -2289,6 +2298,12 @@ async function loadLlm(){
              title="${esc(c.blocked)}">${/no usable model/.test(c.blocked)
                ? t('no model') : t('spent')}</span>` : ''}
          <span class="gap"></span>
+         ${c ? `<button class="ghost tiny" data-move="${esc(n)}" data-dir="-1"
+             ${order.indexOf(n) <= 0 ? 'disabled' : ''}
+             title="${t('Try this one earlier')}">↑</button>
+           <button class="ghost tiny" data-move="${esc(n)}" data-dir="1"
+             ${order.indexOf(n) >= order.length - 1 ? 'disabled' : ''}
+             title="${t('Try this one later')}">↓</button>` : ''}
          <button class="ghost tiny" data-pause="${esc(n)}" data-to="${p.paused ? '0' : '1'}"
            title="${p.paused ? t('Start using this one again') : t('Keep the key, but stop using this one for now')}"
            >${p.paused ? t('Resume') : t('Pause')}</button>
@@ -2476,6 +2491,29 @@ document.addEventListener('click', async e => {
     window.addEventListener('focus', recheck, {once:true});
   });
 });
+// Move one provider up or down the chain. The first row is the one in charge - which is not only
+// about who answers first: it is the SCALE every score is compared on, so the panel says what the
+// move actually costs rather than treating it as cosmetic.
+document.addEventListener('click', async e => {
+  const move = e.target.dataset && e.target.dataset.move;
+  if(!move) return;
+  const dir = +e.target.dataset.dir;
+  const now = (LLM.chain || []).map(c => c.provider);
+  const i = now.indexOf(move), j = i + dir;
+  if(i < 0 || j < 0 || j >= now.length) return;
+  now[i] = now[j]; now[j] = move;
+  const head = now[0];
+  await busy(e.target, async () => {
+    LLM = await api('/api/llm/order', {order: now});
+    loadLlm();
+    toast(head === move && dir < 0
+      ? fill('{p} now leads. Scores from the others are re-done towards it a batch at a time, '
+           + 'and the unattended run holds a job back until its score is on this scale.',
+             {p: move})
+      : fill('Moved {p}.', {p: move}), 9000);
+  }, t('reordering...'));
+});
+
 document.addEventListener('click', async e => {
   const pause = e.target.dataset && e.target.dataset.pause;
   if(!pause) return;

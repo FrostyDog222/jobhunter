@@ -1482,6 +1482,39 @@ def pause_llm(body: dict = Body(...)):
     return get_llm()
 
 
+@app.post("/api/llm/order")
+def order_llm(body: dict = Body(...)):
+    """Put the fallback chain in the order asked for. The first one becomes the model in charge.
+
+    The order mattered and could not be set. The head came from whichever provider was last saved
+    in the panel, and the rest followed in alphabetical order - so "use nvidia first, then groq"
+    was not expressible, and the list on screen was sorted alphabetically too, which showed a
+    first row that was not the one actually leading.
+
+    The head is not only about which model answers first. It is the SCALE every score is compared
+    on: scored_by stamps it, the unattended run refuses to apply on a score from a different one,
+    and the search re-scores stale rows towards it. Changing it is therefore a real decision, and
+    the panel says so rather than treating this as cosmetic.
+    """
+    want = [str(p) for p in (body.get("order") or [])]
+    if not want or any(p not in llm.PROVIDERS for p in want):
+        raise HTTPException(400, "order must be a list of known providers")
+    if len(set(want)) != len(want):
+        raise HTTPException(400, "the same provider twice")
+    have = {e[0]: e[1] for e in llm.chain()}
+    keep = [p for p in want if p in have]
+    if not keep:
+        raise HTTPException(400, "none of those providers is usable, so that would be an empty "
+                                 "chain and nothing could be scored")
+    head, rest = keep[0], keep[1:]
+    # The head is stored as the chosen provider, the rest as the pinned order - which is how
+    # chain() reads them back. Models are pinned with each one, or a provider that was deliberately
+    # set to a specific model would silently fall back to its default.
+    llm.set_cfg(LLM_PROVIDER=head, LLM_MODEL=have.get(head) or "",
+                LLM_CHAIN=",".join(f"{p}:{have[p]}" if have.get(p) else p for p in rest))
+    return get_llm()
+
+
 @app.post("/api/llm/forget")
 def forget_llm(body: dict = Body(...)):
     """Delete a provider's saved key. Not undoable - the key is gone and has to be pasted again."""

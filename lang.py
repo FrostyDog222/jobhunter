@@ -649,6 +649,15 @@ RO = {
     "Tick it and save, then untick and save, to clear it.":
         "⚠ {who} este OPRIT aici dar ÎNCĂ programat în Windows, deci rulează oricum. "
         "Bifează și salvează, apoi debifează și salvează, ca să îl ștergi.",
+    # reordering the fallback chain
+    "Try this one earlier": "Încearcă-l mai devreme",
+    "Try this one later": "Încearcă-l mai târziu",
+    "reordering...": "se reordonează...",
+    "Moved {p}.": "Mutat {p}.",
+    "{p} now leads. Scores from the others are re-done towards it a batch at a time, and the "
+    "unattended run holds a job back until its score is on this scale.":
+        "{p} conduce acum. Punctajele de la celelalte sunt refăcute către el, câte un lot pe "
+        "rulare, iar rularea automată reține un job până când punctajul lui este pe această scară.",
     # the live line under "Run it now"
     "Running now": "Rulează acum",
     "starting": "pornește",
