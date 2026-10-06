@@ -502,6 +502,9 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <button class="ghost" id="autonow">Run it now</button>
       <button class="ghost" id="autocopy" title="Copy what is in the search bar above into these boxes">Use my current search</button>
     </div>
+    <!-- Where the run has got to. Hidden until one is going, and shown whoever started it: a run
+         Windows began on its own is just as worth seeing as one started by the button above. -->
+    <div id="autonow_state" class="muted" style="display:none;margin-top:10px;font-size:13.5px"></div>
     <div id="autohistory" class="card muted"
      style="display:none;font-size:12.5px;margin:10px 0 0;max-height:280px;overflow:auto"></div>
 <div id="autostate" class="muted"></div>
@@ -1276,14 +1279,50 @@ $('#autonow').onclick = e => busy(e.target, async () => {
     return toast(t('One run is already going. Two at once can send the same application twice, '
                  + 'so this one was not started.'), 9000);
   toast(t('Running it now, exactly as Windows will. It takes a few minutes — '
-      + 'this panel shows the result when it lands.'), 9000);
-  // it runs as its own process, so poll for the report rather than awaiting it
-  let tries = 0;
-  const tick = setInterval(async () => {
-    await loadAuto(); await load();
-    if(++tries > 40) clearInterval(tick);
-  }, 15000);
+      + 'the line below says where it has got to.'), 9000);
+  watchAuto();
 }, 'starting...');
+
+// What the run is doing, while it does it.
+//
+// It is a separate process - this button starts one, and Task Scheduler starts its own - so the
+// progress bar this page uses for a manual search stays empty throughout. The only feedback used
+// to be a poll every 15 seconds for the finished report, which on a 27-term run meant several
+// minutes of a panel that looked broken. The run writes its progress to a file; this reads it.
+let AUTOWATCH = null;
+function watchAuto(){
+  if(AUTOWATCH) return;                        // one watcher, however many times this is called
+  const box = $('#autonow_state');
+  let missed = 0, saw = false;
+  const draw = (p) => {
+    if(!box) return;
+    box.style.display = '';
+    const bar = p.total
+      ? ` <span class="muted">${p.done}/${p.total}</span>` : '';
+    box.innerHTML = `<span class="spin"></span> <b>${esc(t('Running now'))}</b> · `
+      + `${esc(t(p.phase) || t('starting'))}${bar}`
+      + (p.note ? `<div class="muted" style="margin-left:22px">${esc(p.note)}</div>` : '');
+  };
+  AUTOWATCH = setInterval(async () => {
+    let p = null;
+    try { p = await api('/api/auto/progress', undefined, 'GET'); } catch(e){}
+    if(p && p.running){ missed = 0; saw = true; draw(p); return; }
+    // Two misses before believing it, because the file is rewritten every couple of seconds and
+    // one slow read is not the end of a run.
+    if(++missed < 3) return;
+    clearInterval(AUTOWATCH); AUTOWATCH = null;
+    if(box){ box.style.display = 'none'; box.innerHTML = ''; }
+    // ...and only announce an ending we actually watched. This also runs on every page load, to
+    // catch a run Windows started, and "the run has finished" over a page nobody ran anything
+    // from is a message about nothing.
+    if(!saw) return;
+    await loadAuto(); await load();            // the report has landed by now
+    toast(t('The run has finished — the result is in the panel below.'), 7000);
+  }, 2000);
+}
+// A run Windows started is still a run, and the panel should say so when the page is opened in
+// the middle of one.
+watchAuto();
 
 /* ---------- CV templates ---------- */
 function tplCards(selected){

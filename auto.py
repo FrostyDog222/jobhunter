@@ -12,8 +12,10 @@ Search & score button calls.
 import asyncio
 import datetime
 import json
+import os
 import pathlib
 import sys
+import threading
 import time
 import traceback
 
@@ -33,10 +35,47 @@ RUNS = HERE / "auto_runs.json"
 KEEP_RUNS = 20
 KEEP_LINES = 400                       # the log covers the last few runs, not for ever
 
+# Where this run says how far it has got, for a dashboard in another process to read.
+#
+# The progress bar lives in app.PROGRESS, which `step()` fills as the search works - and this runs
+# as its OWN process, started either by that button or by Task Scheduler, so the server's copy of
+# that dict stays empty and the page has nothing to show. Pressing "Run it now" looked like nothing
+# happening for several minutes: on 27 search terms the first phase alone is 108 requests.
+#
+# A file, because the two sides are separate processes and this is the smallest thing that crosses
+# that line. Rewritten every couple of seconds by a daemon thread, so it also covers the run
+# Windows starts on its own, which the server never hears about at all.
+NOW = HERE / ".auto_now.json"
+HEARTBEAT = 2.0
+_LAST_LINE = [""]
+
+
+def _beat():
+    """Mirror this process's progress to a file until the run ends. Daemon, so it never holds
+    the run open, and every failure is swallowed: a run must not die because a status file could
+    not be written."""
+    while True:
+        try:
+            p = dict(app.PROGRESS)
+            p["when"], p["note"] = time.time(), _LAST_LINE[0]
+            tmp = NOW.with_suffix(".tmp")
+            tmp.write_text(json.dumps(p), encoding="utf-8")
+            os.replace(tmp, NOW)
+        except Exception:
+            pass
+        time.sleep(HEARTBEAT)
+
+
+def _watch():
+    t = threading.Thread(target=_beat, daemon=True)
+    t.start()
+    return t
+
 
 def log(msg):
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"{stamp}  {msg}"
+    _LAST_LINE[0] = str(msg)[:200]     # the newest line, for the panel to show while this runs
     print(line)
     try:
         # errors="replace", and Exception rather than OSError. A partly-written line - a crash or a
@@ -314,8 +353,19 @@ if __name__ == "__main__":
     if not only_one(wait=0 if mode == "touch" else 180):
         log(f"the {mode} run stopped: another run is already going")
         sys.exit(0)                    # not a failure - Task Scheduler must not retry it
+    # Only the full run is worth watching: --touch is a couple of page loads and is over before a
+    # panel could draw anything about it.
+    if mode == "run":
+        _watch()
     try:
         touch() if mode == "touch" else run()
     except Exception:
         log(f"the {mode} run crashed:\n" + traceback.format_exc())
         raise
+    finally:
+        # The page decides a run is live from this file being recent, so leaving a stale one behind
+        # would show "still running" over a run that finished - or crashed - minutes ago.
+        try:
+            NOW.unlink(missing_ok=True)
+        except OSError:
+            pass

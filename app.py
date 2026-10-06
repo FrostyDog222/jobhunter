@@ -707,6 +707,31 @@ def run_auto():
     return {"ok": True}
 
 
+@app.get("/api/auto/progress")
+def auto_progress():
+    """How far the run in flight has got - whoever started it.
+
+    The run is its own process, so the progress bar this server keeps is empty while one works:
+    step() fills app.PROGRESS in THAT process. Pressing "Run it now" therefore looked like nothing
+    happening at all, for minutes - on 27 search terms the first phase alone is 108 requests - and
+    the only feedback was a poll every 15 seconds for the finished report.
+
+    Read from the file the run writes every couple of seconds, which also covers the run Windows
+    starts on its own. Recent, not merely present: a crashed run leaves its last file behind, and
+    "still going" over something that died twenty minutes ago is worse than saying nothing.
+    """
+    try:
+        d = json.loads((HERE / ".auto_now.json").read_text(encoding="utf-8"))
+        fresh = (time.time() - float(d.get("when") or 0)) < 20
+    except (OSError, ValueError, TypeError):
+        return {"running": False}
+    if not fresh:
+        return {"running": False}
+    return {"running": True, "phase": d.get("phase") or "", "pct": d.get("pct") or 0,
+            "done": d.get("done") or 0, "total": d.get("total") or 0,
+            "note": str(d.get("note") or "")[:200]}
+
+
 def _same_shape(value, default):
     """Is this value the kind of thing that default is? bools are not ints here."""
     if isinstance(default, bool):

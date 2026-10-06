@@ -5533,4 +5533,61 @@ assert "'allow_adult'" in _d10ee.split("const AUTO_FIELDS")[1].split("]")[0], \
     "the box is drawn but never saved or restored"
 assert "Include adult-industry jobs (videochat and similar)" in app.lang.RO
 
+# 10ff. "Run it now" looked like nothing happening, for minutes.
+#
+# The run is its OWN process - started by that button, or by Task Scheduler - and step() fills
+# app.PROGRESS in THAT process, so the server's copy stays empty the whole time. The only feedback
+# was a poll every 15 seconds for the finished report. On a 27-term schedule the first phase alone
+# is 108 requests, so the panel sat silent long enough to look broken; it was reported as the run
+# not working, and the run was working perfectly.
+_now10ff = _auto.NOW
+_keep10ff = _now10ff.read_text(encoding="utf-8") if _now10ff.exists() else None
+try:
+    _now10ff.unlink(missing_ok=True)
+    assert app.auto_progress() == {"running": False}, "no run reads as a run"
+
+    # what a run writes while it works
+    _p10ff = {"active": True, "phase": "searching the boards", "done": 37, "total": 108,
+              "pct": 12, "when": _time.time(), "note": "scheduled run starting"}
+    _now10ff.write_text(_json.dumps(_p10ff), encoding="utf-8")
+    _got10ff = app.auto_progress()
+    assert _got10ff["running"] is True, "a run in flight is invisible again"
+    assert _got10ff["phase"] == "searching the boards" and _got10ff["done"] == 37, _got10ff
+    assert _got10ff["note"], "the line saying what it is doing is dropped"
+
+    # RECENT, not merely present: a crashed run leaves its last file behind, and a spinner over
+    # something that died twenty minutes ago is worse than saying nothing at all
+    _p10ff["when"] = _time.time() - 1200
+    _now10ff.write_text(_json.dumps(_p10ff), encoding="utf-8")
+    assert app.auto_progress() == {"running": False}, "a dead run still reads as going"
+
+    # and a half-written file is not a 500 on the dashboard
+    _now10ff.write_text("{ not json", encoding="utf-8")
+    assert app.auto_progress() == {"running": False}
+finally:
+    if _keep10ff is None:
+        _now10ff.unlink(missing_ok=True)
+    else:
+        _now10ff.write_text(_keep10ff, encoding="utf-8")
+
+# the run writes it, and clears it however it ends - including when it crashes
+_asrc10ff = (app.HERE / "auto.py").read_text(encoding="utf-8")
+assert "def _beat(" in _asrc10ff and "daemon=True" in _asrc10ff, \
+    "nothing mirrors the run's progress out of its own process"
+assert "NOW.unlink" in _asrc10ff and "finally:" in _asrc10ff, \
+    "a finished run leaves its file behind, so the page shows it as still going"
+assert "os.replace" in _asrc10ff, "the status file is written in place and can be read half-written"
+# --touch is two page loads; watching it would be a spinner that never means anything
+assert 'if mode == "run":' in _asrc10ff
+
+# the page asks, and stops asking
+_d10ff = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "/api/auto/progress" in _d10ff, "the panel never asks how the run is going"
+_w10ff = _d10ff.split("function watchAuto(){")[1].split("\n}")[0]
+assert "clearInterval" in _w10ff, "the poll runs for ever once started"
+assert "if(AUTOWATCH) return" in _w10ff, "clicking twice starts two pollers"
+assert "if(!saw) return" in _w10ff, \
+    "opening the page with no run announces that a run has finished"
+assert "missed < 3" in _w10ff, "one slow read ends the watch"
+
 print("ok")

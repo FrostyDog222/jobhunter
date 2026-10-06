@@ -150,6 +150,13 @@ h2{font-size:15px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06e
 .chipmore{background:none;border:0;color:var(--accent);cursor:pointer;font-size:12.5px;
   padding:4px 2px;text-decoration:underline;width:auto;flex:0 0 auto}
 .chipmore:hover{text-decoration:none}
+/* A run happens in another process and can be quiet for a minute at a time - scoring is one model
+   call per ad. Something that moves is the difference between "working" and "dead". */
+.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--line);
+  border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;
+  vertical-align:-1px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none;border-top-color:var(--line)}}
 </style></head><body>
 <div id="bar"><i></i></div>
 <header>

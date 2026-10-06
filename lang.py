@@ -649,6 +649,18 @@ RO = {
     "Tick it and save, then untick and save, to clear it.":
         "⚠ {who} este OPRIT aici dar ÎNCĂ programat în Windows, deci rulează oricum. "
         "Bifează și salvează, apoi debifează și salvează, ca să îl ștergi.",
+    # the live line under "Run it now"
+    "Running now": "Rulează acum",
+    "starting": "pornește",
+    "searching the boards": "caută pe site-uri",
+    "reading the ads": "citește anunțurile",
+    "scoring": "punctează",
+    "The run has finished — the result is in the panel below.":
+        "Rularea s-a încheiat — rezultatul este în panoul de mai jos.",
+    "Running it now, exactly as Windows will. It takes a few minutes — the line below says where "
+    "it has got to.":
+        "Rulează acum, exact cum o va face Windows. Durează câteva minute — linia de mai jos arată "
+        "unde a ajuns.",
     "{n} were somewhere else.": "{n} erau în altă parte.",
     "{n} were the wrong work mode.": "{n} aveau alt mod de lucru.",
     "{n} were the wrong seniority.": "{n} aveau alt nivel de experiență.",
@@ -1218,6 +1230,5 @@ RO = {
         "Încearcă modelele acestui furnizor pe un anunț real și raportează care pot face treaba și cât de repede. Consumă din cotă.",
     "Could not read your settings just now, so the controls below show defaults. Nothing on disk was changed - reload to try again.":
         "Nu am putut citi setările acum, așa că opțiunile de mai jos arată valorile implicite. Nimic de pe disc nu a fost modificat - reîncarcă pagina pentru a încerca din nou.",
-    "Running it now, exactly as Windows will. It takes a few minutes — this panel shows the result when it lands.":
-        "Rulează acum, exact cum o va face Windows. Durează câteva minute — panoul afișează rezultatul când sosește.",}
+}
 
