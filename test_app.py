@@ -5699,4 +5699,60 @@ for _u10hh in ("https://www.ejobs.ro/locuri-de-munca/agent-call-center/1989320",
 assert _pfid.posting_id("https://www.bestjobs.eu/loc-de-munca/operator-call-center-1234567"), \
     "the bestjobs id went empty, which this guard would read as a menu item"
 
+# 10ii. A rate-limited search term is a MISSING search, not a slow one.
+#
+# eJobs limits a run almost continuously. Measured over its own 33 saved terms, twice: back to back
+# 194s, with a deliberate 1s gap between queries 200s and the same ~90 retries - the limit counts
+# requests over a window, so pausing politely buys nothing. Every query after the first needed 2-4
+# retries and one needed a fifth, one past where _get used to give up.
+#
+# discover() calls raise_for_status(), so running out of retries THREW, and that search term
+# contributed nothing from the biggest board for the entire run. It showed up only as three
+# identical "ejobs did not answer this time (HTTPStatusError)" lines - no term, no status.
+import scrape as _scr
+_sc10ii = (app.HERE / "scrape.py").read_text(encoding="utf-8")
+assert "def _get(c, url, tries=7" in _sc10ii, \
+    "the retry budget is back to where a rate-limited search term was dropped"
+assert "min(0.5 * 2 ** attempt, 8.0)" in _sc10ii, "the backoff cap is back under eJobs' window"
+
+# it must ride out MORE 429s than the measured worst case (5), and still stop eventually
+class _R10ii:
+    def __init__(self, code):
+        self.status_code = code
+
+
+class _C10ii:
+    def __init__(self, codes):
+        self.codes, self.n = list(codes), 0
+
+    def get(self, url):
+        c = self.codes[min(self.n, len(self.codes) - 1)]
+        self.n += 1
+        return _R10ii(c)
+
+
+_slept = []
+_c = _C10ii([429] * 5 + [200])
+assert _scr._get(_c, "u", _sleep=_slept.append).status_code == 200, \
+    "five 429s in a row still lose the search - exactly the measured failure"
+assert _c.n == 6, _c.n
+
+# and it gives up rather than hanging on a board that is simply down
+_slept.clear()
+_c = _C10ii([429])
+assert _scr._get(_c, "u", _sleep=_slept.append).status_code == 429, "a dead board is retried forever"
+assert _c.n == 7, _c.n
+assert sum(_slept) <= 40, f"a dead board now costs {sum(_slept):.0f}s per query"
+
+# 403/404 are answers, not hiccups: still no retry, or a closed ad costs seven requests
+for _code in (403, 404):
+    _c = _C10ii([_code])
+    assert _scr._get(_c, "u", _sleep=_slept.append).status_code == _code
+    assert _c.n == 1, f"{_code} was retried"
+
+# and a lost term now names itself
+_src10ii = (app.HERE / "app.py").read_text(encoding="utf-8")
+assert "that search found nothing on this run" in _src10ii and 'did not answer for' in _src10ii, \
+    "a failed search term is still reported without saying which term, or that it was skipped"
+
 print("ok")

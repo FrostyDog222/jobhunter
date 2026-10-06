@@ -2596,8 +2596,16 @@ async def _search(body, p):
                 got += await off(lambda bb=b, qq=q: scrape.discover(
                     bb, qq, loc, limit, country=country, filters=filters))
             except Exception as e:
-                warnings.append(f"{b} did not answer this time ({type(e).__name__})")
-                print(f"[scrape] {b} failed: {type(e).__name__}: {e}")
+                # Name the term and the status. A failed discover means that search term found
+                # NOTHING on that board for the whole run, and the message said only "ejobs did
+                # not answer this time (HTTPStatusError)" - three identical lines that named no
+                # term, no status, and gave no hint that three of the searches had simply not
+                # happened. eJobs rate-limits hard enough to produce this every single run.
+                code = getattr(getattr(e, "response", None), "status_code", "")
+                warnings.append(f"{b} did not answer for '{q[:40]}'"
+                                + (f" (HTTP {code})" if code else f" ({type(e).__name__})")
+                                + " - that search found nothing on this run")
+                print(f"[scrape] {b} failed on {q!r}: {type(e).__name__}: {e}")
             finally:
                 asked += 1
                 step("searching the boards", asked, to_ask)

@@ -160,13 +160,31 @@ def _url(board, query, location):
     return tpl.format(q=q, loc=f"{loc}/" if loc else "")
 
 
-def _get(c, url, tries=5, _sleep=time.sleep):
+def _get(c, url, tries=7, _sleep=time.sleep):
     """Retry only what is worth retrying: 429 and 5xx are hiccups, 403/404 are answers.
-    Exponential backoff capped at 5s, with jitter so parallel callers do not resynchronise."""
+    Exponential backoff capped at 8s, with jitter so parallel callers do not resynchronise.
+
+    Seven tries, not five, and the cap 8s rather than 5s, because eJobs rate-limits a search run
+    almost continuously. Measured over its own 33 saved search terms, twice: back to back, 194s and
+    90-odd retries; with a deliberate 1s gap between queries, 200s and the same retries - so the
+    limit counts requests over a window and no polite pause buys anything. Every query after the
+    first needed 2 to 4 retries and one needed a fifth, which is one past where this used to give
+    up.
+
+    That was not a slow search, it was a missing one. discover() calls raise_for_status(), so a
+    query that ran out of retries threw, and that search term contributed NOTHING from the biggest
+    board for the whole run - 3 to 5 of 33 terms, every run, reported only as three identical
+    "ejobs did not answer this time (HTTPStatusError)" lines.
+
+    eJobs sends no Retry-After and no rate-limit headers (checked: the 429 carries neither), so
+    there is nothing to honour and the budget has to be blind. Six retries is double the margin the
+    one measured failure needed, and costs nothing on a board that is not limiting - the sleep only
+    happens on a 429 or a 5xx.
+    """
     for attempt in range(tries):
         r = c.get(url)
         if r.status_code in (429, 500, 502, 503, 504) and attempt < tries - 1:
-            _sleep(min(0.5 * 2 ** attempt, 5.0) + random.random() * 0.5)
+            _sleep(min(0.5 * 2 ** attempt, 8.0) + random.random() * 0.5)
             continue
         return r
     return r
