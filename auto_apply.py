@@ -16,6 +16,8 @@ It sends the CV that sits on your board profile, and the salary figure from your
 to employers whose ads nobody read. That is the deal; the dashboard says so before you switch
 it on.
 """
+import collections
+
 import creds
 
 # The note a posting carries once its apply button has been found to leave the board.
@@ -87,7 +89,8 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode
         if not scale or not by or by == scale:
             return True
         if held is not None:
-            held.append(f'{col(r, "title")} (scored by {by}, not {scale})')
+            held.append(("another model's scale",
+                         f'{col(r, "title")} (scored by {by}, not {scale})'))
         return False
 
     def here(r):
@@ -100,14 +103,14 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode
         # would answer a different question from the one that was asked.
         if mode in ("remote", "onsite") and scrape.remote_job(job) != (mode == "remote"):
             if held is not None:
-                held.append(f'{col(r, "title")} (wrong work mode)')
+                held.append(("the wrong work mode", col(r, "title") or ""))
             return False
         # Seniority, for the third time and the same reason: the search filters what it DISCOVERS,
         # so rows stored before the setting was chosen contradict it. An application to a manager's
         # job when you asked for junior work is as unrecallable as one to the wrong city.
         if rank and not scrape.seniority_fits(job, rank):
             if held is not None:
-                held.append(f'{col(r, "title")} (wrong seniority)')
+                held.append(("the wrong seniority", col(r, "title") or ""))
             return False
         # And the skip list, for the fourth time and the same reason. It was enforced at discovery
         # only, so the rule stopped new ads of that family arriving and did nothing about the ones
@@ -119,7 +122,7 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode
             hit = scrape.off_target(col(r, "title") or "", families, [])
             if hit:
                 if held is not None:
-                    held.append(f'{col(r, "title")} (on your skip list: {hit})')
+                    held.append((f"on your skip list ({hit})", col(r, "title") or ""))
                 return False
         # And adult work, for the same reason as all of the above: the search filters what it
         # DISCOVERS, so everything stored before the box existed is still sitting there - and an
@@ -128,12 +131,13 @@ def candidates(app, prefill, min_fit, cap, boards=None, city="", county="", mode
                 {"title": col(r, "title"), "company": col(r, "company"),
                  "description": col(r, "description")}):
             if held is not None:
-                held.append(f'{col(r, "title")} (adult-industry work)')
+                held.append(("adult-industry work", col(r, "title") or ""))
             return False
         if scrape.job_in_area(job, city, county):
             return True
         if held is not None:
-            held.append(f'{r["title"]} ({r["location"] or "no location given"})')
+            held.append(("somewhere else",
+                         f'{r["title"]} ({r["location"] or "no location given"})'))
         return False
 
     return [r for r in rows
@@ -264,18 +268,26 @@ def run(app, prefill, settings, log):
                        families=settings.get("skip_families") or [],
                        allow_adult=bool(settings.get("allow_adult")), held=held)
     report["considered"] = len(picks)
-    report["held_for_location"] = len(held)
+    report["held_for_location"] = len(held)          # kept: older reports are read with this name
+    # Grouped by WHY. This started as one reason - outside the city or county - and the sentence
+    # said so; five more were added and the sentence was not, so a run with no city set reported
+    # "4 were outside ." to somebody trying to understand why nothing had been sent.
+    why = collections.Counter(reason for reason, _ in held)
+    report["held_by"] = dict(why)
     if held:
-        # said out loud: sending nothing because everything was somewhere else looks exactly like
-        # finding nothing, and the difference is the whole reason the filter exists
-        log(f"held back {len(held)} job(s) outside "
-            f"{settings.get('auto_location') or settings.get('auto_county')}: "
-            + "; ".join(held[:5]) + (" ..." if len(held) > 5 else ""))
+        # said out loud: sending nothing because everything was held looks exactly like finding
+        # nothing, and the difference is the whole reason the filters exist
+        log(f"held back {len(held)} job(s): "
+            + ", ".join(f"{n} {reason}" for reason, n in why.most_common()))
+        for _, line in held[:5]:
+            log(f"   {line}")
+        if len(held) > 5:
+            log(f"   ...and {len(held) - 5} more")
     if not picks:
         report["note"] = (f"Nothing scored {settings['auto_apply_min_fit']} or above on "
                           f"{' or '.join(usable)} on this run."
-                          + (f" {len(held)} were outside "
-                             f"{settings.get('auto_location') or settings.get('auto_county')}."
+                          + (" " + ", ".join(f"{n} were held back for {reason}"
+                                                for reason, n in why.most_common()) + "."
                              if held else "")
                           + (f" (Not signed in to {', '.join(out)}.)" if out else ""))
         log(report["note"])

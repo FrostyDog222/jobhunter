@@ -4410,7 +4410,13 @@ _held9u = []
 _got9u = _aa.candidates(_FakeApp(_rows9u), _FakeBoards({}, {}), 70, 10,
                         county="ilfov", held=_held9u)
 assert [r["title"] for r in _got9u] == ["near", "remote"], [r["title"] for r in _got9u]
-assert len(_held9u) == 1 and "Targu Mures" in _held9u[0]
+# each hold carries WHY, not just the job. It began as one reason - outside the city or county -
+# and five more were added later, while the sentence reporting it still said "outside {place}";
+# with no city set that printed "4 were outside ." to somebody reading a real run.
+assert len(_held9u) == 1 and isinstance(_held9u[0], tuple), \
+    "a held-back job no longer says why it was held"
+_why9u, _what9u = _held9u[0]
+assert _why9u == "somewhere else" and "Targu Mures" in _what9u, _held9u[0]
 # and with nothing asked for, nothing is held back - the old behaviour, unchanged
 assert len(_aa.candidates(_FakeApp(_rows9u), _FakeBoards({}, {}), 70, 10)) == 3
 
