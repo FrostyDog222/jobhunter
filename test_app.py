@@ -5491,6 +5491,31 @@ for _bad10ee in ("Model videochat", "Operator video chat", "Trainer Studio Video
 assert scrape.adult_job({"title": "Trainer/Teamleader", "company": "MISSJOY MODELS",
                          "description": "Suntem un studio de videochat certificat LiveJasmin"}), \
     "a videochat studio whose title says nothing is not being caught"
+# "Model online" is the Romanian word order and means videochat on these boards; measured over 908
+# ads it caught two more studios and nothing legitimate. The REVERSED order is not matched on
+# purpose - "online model" is how machine-learning ads talk.
+for _ro10ee in ("Model online", "Modele Online - cu sau fara experienta"):
+    assert scrape.adult_job({"title": _ro10ee}), f"{_ro10ee!r} is not caught"
+for _ml10ee in ("Online model inference engineer", "Senior ML Engineer - online model serving",
+                "Model Context Protocol developer", "Online Customer Support Agent",
+                "Online Marketing Specialist", "Online English Teacher"):
+    assert not scrape.adult_job({"title": _ml10ee}), \
+        f"the adult filter is eating ordinary online work: {_ml10ee!r}"
+
+# The guarantee, stated as a property rather than a list: across every ad stored, no job whose
+# TITLE names support work is ever filtered. Measured when written - 201 such ads here, 0 filtered,
+# and 165 of 450 in a fresh pool pulled from the boards, also 0.
+_sup10ee = _re.compile(r"support|suport|customer|client|call\s*center|servicii\s+clien", _re.I)
+_vid10ee = _re.compile(r"video\s*-?\s*chat|model|onlyfans|only\s*fans", _re.I)
+with app.db() as _c10ee:
+    _all10ee = [dict(r) for r in _c10ee.execute(
+        "SELECT title, company, description FROM jobs WHERE COALESCE(title,'') <> ''")]
+_supjobs10ee = [j for j in _all10ee if _sup10ee.search(j["title"])
+                and not _vid10ee.search(j["title"])]
+_wrong10ee = [j for j in _supjobs10ee if scrape.adult_job(j)]
+assert len(_supjobs10ee) > 50, f"only {len(_supjobs10ee)} support ads to check this against"
+assert not _wrong10ee, ("the adult filter is hiding support work, which is the one thing it must "
+                        f"never do: {[j['title'][:50] for j in _wrong10ee[:3]]}")
 
 # wired into the search and into the unattended run, like every other filter of this shape
 assert "scrape.adult_job" in _iK.getsource(app._search), "the search ignores the setting"

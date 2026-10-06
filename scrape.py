@@ -753,7 +753,13 @@ ADULT = re.compile(
     r"|escort\s+(service|agency|work)|servicii\s+de\s+escort[ăa]"
     r"|masaj\s+erotic|erotic\s+massage|masaj\s+senzual"
     r"|strip\s*tease|\bstripper|\bstriptease"
-    r"|\b18\s*\+\s*(content|con[tț]inut|only|model)", re.I)
+    r"|\b18\s*\+\s*(content|con[tț]inut|only|model)"
+    # "Model online" / "Modele online" - the Romanian word order only. On these boards that phrase
+    # is videochat and essentially nothing else: it caught two more studios in a 450-ad pool and
+    # nothing legitimate in 908. The REVERSED order is deliberately absent, because "online model"
+    # is how machine-learning ads talk - online model inference, online model serving - and this
+    # must not start eating AI jobs.
+    r"|\bmodel[ea]?\s+online\b", re.I)
 
 
 def adult_job(job):
