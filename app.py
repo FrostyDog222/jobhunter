@@ -273,6 +273,20 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
         # Romanian boards. Off by default because that is the answer nobody has to think about,
         # and it is a preference rather than a rule - the people looking for it are looking for it.
         "allow_adult": False,
+        # Whether to search freehire at all.
+        #
+        # freehire is the only board here that cannot be submitted to - it lists jobs that live on
+        # the employer's own ATS, so an application means opening the posting and filling their
+        # form yourself. It is also, by a distance, the loudest: measured on this database, 328 of
+        # 379 rows were freehire, and they held EVERY score above the apply floor while the three
+        # boards that can be applied to held thirteen rows whose best score was 45. A run would
+        # report "63 jobs at 50+ waiting" and send nothing, because not one of those 63 could be
+        # sent.
+        #
+        # So it is a real choice rather than a detail: somebody who wants the thing to run itself
+        # wants it off, and somebody willing to apply by hand wants it on. On by default, because
+        # turning a source off for people who never asked is the bigger surprise.
+        "search_freehire": True,
         # Whether the unattended run may answer an employer's screening questions and send.
         #
         # Off by default, and auto_apply.py's own header says why: a model writing answers into a
@@ -598,7 +612,7 @@ def _set_auto(body):
     for k in ("auto_enabled", "auto_days", "auto_time", "auto_query", "auto_location",
               "auto_county", "auto_country", "keep_signed_in", "skip_families", "recheck",
               "auto_answer",
-              "allow_adult",
+              "allow_adult", "search_freehire",
               "auto_fresh", "auto_work_mode", "auto_seniority", "auto_ats",
               "auto_min_fit", "auto_apply", "auto_apply_min_fit",
               "auto_apply_cap"):
@@ -1545,6 +1559,12 @@ BENCH_TRIES = 6
 # is unbounded: a comparison bug here re-scored the whole backlog every run, rewriting every fit, and
 # a bounded version of that mistake costs one batch instead of a quota.
 RESCALE_CAP = 25
+
+# How many results to take from a board we can submit an application to. Measured: one eJobs or
+# Hipo listing page carries 40 job links and BestJobs serves 100, while the default of 20 threw
+# the rest of an already-fetched page away. Only phase 2 pays for the extra - the listing request
+# is the same one either way.
+SUBMITTABLE_LIMIT = 40
 
 
 def _bench_prompt():
@@ -2559,6 +2579,10 @@ async def _search(body, p):
     country = body.get("country", "ro")
     filters = body.get("filters") or {}
     boards = body.get("boards") or scrape.SOURCES
+    # ...minus freehire when it is switched off. Done here rather than at the caller so it holds
+    # for the dashboard search and the scheduled run alike - the run passes no board list at all.
+    if not settings().get("search_freehire", True):
+        boards = [b for b in boards if b != "freehire"]
     limit = int(body.get("limit", 20))
 
     # Phase 1: discover cheaply - one request per board per query, no detail pages yet.
@@ -2591,10 +2615,21 @@ async def _search(body, p):
         prior = {r[0]: r[1] for r in c.execute("SELECT source, COUNT(*) FROM jobs GROUP BY source")}
     for b in boards:
         got = []
+        # Ask the boards we can actually APPLY to for more, because their extra results are
+        # already in our hands. eJobs and Hipo answer a search with one listing page holding 40
+        # job links and `limit` only decides how many of them we keep - we were discarding half
+        # of an page we had already paid for. BestJobs serves 100. freehire is left alone: it
+        # pages its API, so asking for more is more requests, and it is the one board that
+        # cannot be submitted to - 307 of the 328 jobs in this database are freehire, they hold
+        # every score above the floor, and not one of them can be applied to automatically.
+        #
+        # That imbalance is why a run can report "63 jobs at 50+ waiting" and still send nothing:
+        # measured on the three submittable boards, 13 unapplied rows and a best score of 45.
+        want = limit if b == "freehire" else max(limit, SUBMITTABLE_LIMIT)
         for q in queries:
             try:
-                got += await off(lambda bb=b, qq=q: scrape.discover(
-                    bb, qq, loc, limit, country=country, filters=filters))
+                got += await off(lambda bb=b, qq=q, n=want: scrape.discover(
+                    bb, qq, loc, n, country=country, filters=filters))
             except Exception as e:
                 # Name the term and the status. A failed discover means that search term found
                 # NOTHING on that board for the whole run, and the message said only "ejobs did

@@ -112,6 +112,17 @@ The dashboard shows a checklist until all three are done.
 Type what you are looking for and press *Search*. Four job boards are searched at once: **eJobs**,
 **BestJobs**, **Hipo** and **freehire** (international and remote).
 
+**freehire can be switched off,** under *Settings*, and it is worth knowing why you might. It is
+the only one of the four that **cannot be applied to for you** — its jobs live on the employer's
+own site, so applying means opening the posting and filling their form yourself. It also finds far
+more than the other three put together: on one real database 328 of 379 saved jobs were freehire,
+and they held *every* score above the apply floor while eJobs, BestJobs and Hipo between them held
+thirteen jobs whose best score was 45. That run reported "63 jobs at 50+ waiting" and sent nothing,
+because not one of the 63 was a job it could send.
+
+So: leave it on if you are happy to apply by hand and want the widest net. Turn it off if you want
+the unattended run to get on with it, and your list to hold only jobs that can actually be sent.
+
 Every job gets a score out of 100, a one-line reason, what you **bring** to it and what the
 **gaps** are. *Best for you* is everything at or above your score floor, which you set under
 *Settings*.
@@ -206,6 +217,11 @@ the same mix whatever you ask, and eJobs and Hipo never see it — so *Remote* a
 applied to the rest once each ad has been read, in the search and before the scheduled run applies.
 *Hybrid* is left to freehire alone, because "hybrid" reads as remote to that test and the two are
 different answers.
+
+Worth expecting, if you ask for *Remote* with freehire off: the Romanian boards carry few genuinely
+remote adverts. Measured on two live eJobs searches, 1 of 25 and 4 of 25 results were remote. The
+filter is doing its job — there simply is not much there — so a run that finds a handful is normal,
+and a wider set of job titles will do more for you than loosening the score floor.
 
 **Where a job is.** Pick a city, a county, or neither — and a genuinely remote job shows up whatever
 you picked, even when the ad names an office in another country. It reads the wording, not the word:

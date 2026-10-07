@@ -3643,8 +3643,22 @@ assert "list(_BLOWN.items())" in _iK.getsource(_L9a._save_down),     "the state 
 assert app.dead_words(101) == [], "with nothing above the floor it bans every common word"
 
 # a model answering with a list, or with string ids, must not 500 or silently return nothing
+#
+# On its own database. This read the REAL one and so only tested anything while that database
+# happened to hold a job above the shortlist floor - it went green for months on live rows and
+# then failed the day those rows were deleted, which is the wrong way round: a suite must fail
+# when the CODE breaks, not when the data moves.
 _k9b = (app.llm.shortlist, app.profile)
+_db9b, _sc9b = app.DB, app._SCHEMA_DONE
 try:
+    app.DB, app._SCHEMA_DONE = pathlib.Path(_tmp.mkdtemp()) / "sl.sqlite", False
+    with app.db() as _c:
+        for _i in range(2):
+            _c.execute("INSERT INTO jobs(url,source,title,company,fit,status) "
+                       "VALUES(?,?,?,?,?,?)",
+                       (f"https://www.ejobs.ro/locuri-de-munca/x/{_i}", "ejobs",
+                        f"Support Agent {_i}", "ACME", 90, "new"))
+    assert app.shortlist_rows(0), "the seeded rows are not visible"
     app.profile = lambda: {"title": "x"}
     app.llm.shortlist = lambda prof, jobs, pick=3, reply_in='': ["not", "a", "dict"]
     assert _cl.post("/api/shortlist", json={"refresh": True}).status_code == 200,         "a salvaged array from the model is a 500"
@@ -3655,6 +3669,8 @@ try:
     assert len(_j9["picks"]) == 1 and _j9["order"],         f"string ids silently produced an empty panel: {_j9}"
 finally:
     app.llm.shortlist, app.profile = _k9b
+    app.DB, app._SCHEMA_DONE = _db9b, _sc9b
+assert app.DB == _db9b
 
 # the smallest board had no sanity bound at all, and at exactly half nothing was refused
 _pd9 = _iK.getsource(scrape.still_listed)
@@ -5534,9 +5550,99 @@ with app.db() as _c10ee:
 _supjobs10ee = [j for j in _all10ee if _sup10ee.search(j["title"])
                 and not _vid10ee.search(j["title"])]
 _wrong10ee = [j for j in _supjobs10ee if scrape.adult_job(j)]
-assert len(_supjobs10ee) > 50, f"only {len(_supjobs10ee)} support ads to check this against"
 assert not _wrong10ee, ("the adult filter is hiding support work, which is the one thing it must "
                         f"never do: {[j['title'][:50] for j in _wrong10ee[:3]]}")
+
+# The sweep above runs over whatever the database happens to hold, so it proves nothing on a fresh
+# install - and it used to ASSERT a sample of 50+, which meant the day 326 rows were deleted the
+# suite failed for a reason that had nothing to do with the code. A guarantee about real adverts
+# needs real adverts kept where they cannot move: 80 titles taken from this install's own boards,
+# spread across the corpus rather than the first 80 alphabetically.
+_CORPUS10ee = (
+    "2nd Line Support Engineer",
+    "Agent Servicii Clienti - Italiana (Chat & Back-office)",
+    "Associate Customer Success Specialist - Modern Retail",
+    "Associate Operations Support Specialist II",
+    "Benefits Verification Specialist ( Call Center Agent- REMOTE)-Must have your own computer",
+    "Bilingual Troubleshooting Support (Trainee)",
+    "Call Center Agent",
+    "Chat/Phone Support Specialist - Remote",
+    "Client Onboarding Manager",
+    "Client Success Specialist",
+    "Client Support Analyst IRB/IBC (Remote)",
+    "Client Support Specialist (Philippines, Fully Remote)",
+    "Client Support Specialist - Regular hours | Tallinn, Estonia",
+    "Customer Account Manager - EMEA",
+    "Customer Care & Sales Representative",
+    "Customer Care Agent - perioada determinata",
+    "Customer Marketing Manager",
+    "Customer Onboarding Specialist, IRE",
+    "Customer Onboarding and Platform Support with German",
+    "Customer Relationship Manager with French",
+    "Customer Service Engineer",
+    "Customer Service Representative (Remote)",
+    "Customer Service Representative/Intermediate Help Desk Operator - El Paso, TX (60075)",
+    "Customer Service Team leader - Heredia CR",
+    "Customer Success Automation Workflow Specialist",
+    "Customer Success Manager (German speaking)",
+    "Customer Success Manager - Strategic Accounts",
+    "Customer Success Specialist",
+    "Customer Success Specialist (Contract)",
+    "Customer Success Specialist, SMB",
+    "Customer Success Team Lead (EMEA)",
+    "Customer Success Team Lead (Remote - EMEA)",
+    "Customer Support Agent",
+    "Customer Support Associate, Czech Speaking",
+    "Customer Support Manager - Risk",
+    "Customer Support Representative",
+    "Customer Support Representative Remote",
+    "Customer Support Specialist (Renewable Energy) Work from Home",
+    "Customer Support Team Lead (Spanish Speaker - Night Shift)",
+    "Customer Support Team Lead for US-Based Company (Remote)",
+    "Customer Support with Hebrew - Remote",
+    "Customer Support-Limba Germana-REMOTE",
+    "DUTCH CUSTOMER SUPPORT ANALYST (REMOTE)",
+    "Diagnostics Technical Support Representative (Remote)",
+    "Email Customer Support Team Lead",
+    "Environmental GIS Support Supervisor-1",
+    "French Bilingual Customer Support 1",
+    "French-Speaking Technical Support Specialist - AutoCAD",
+    "Governmental Service Customer Support, French or Bilingual",
+    "Hotel Customer Support Coordinator | Remote",
+    "Junior IT Support with German (Remote)",
+    "Lead Sales Support",
+    "Maintenance Support Manager",
+    "Manager, Customer Onboarding & Success",
+    "Operator Call Center (6/8h)",
+    "Operator Call Center - MAGHIARA",
+    "Pathways Vermont Support Line - First Shift Supervisor",
+    "Player Support Agent (German)",
+    "Polish Customer Support Analyst (Remote)",
+    "Product Support Specialist",
+    "Project Manager - Customer Onboarding",
+    "Remote Client Support Representative",
+    "Remote Customer Service Representative",
+    "Remote Outreach Coordinator / Community Support Assistant",
+    "Représentant(e) du soutien technique / Technical Support Representative",
+    "Senior Call Center Manager - Remote CA",
+    "Senior Customer Support and Market Data Specialist",
+    "Social Media Customer Support Team Lead",
+    "Specialist, Customer Success",
+    "Sr. Customer Success Specialist",
+    "Supervisor, Access Patient and Support",
+    "Support Engineer - Power Apps and Power Automate",
+    "Team Lead, Customer Support",
+    "Technical Client Success Specialist",
+    "Technical Support Agent (Bilingual French/English)",
+    "Technical Support Analyst – SaaS",
+    "Technical Support Engineer – Unity Software",
+    "Technical Support Representative",
+    "Technical Support Representative - Electronics and IT",
+    "Technical Support Specialist",
+)
+assert len(_CORPUS10ee) >= 80
+_bad10ee = [t for t in _CORPUS10ee if scrape.adult_job({"title": t})]
+assert not _bad10ee, f"the adult filter is hiding support work: {_bad10ee[:3]}"
 
 # wired into the search and into the unattended run, like every other filter of this shape
 assert "scrape.adult_job" in _iK.getsource(app._search), "the search ignores the setting"
@@ -5754,5 +5860,34 @@ for _code in (403, 404):
 _src10ii = (app.HERE / "app.py").read_text(encoding="utf-8")
 assert "that search found nothing on this run" in _src10ii and 'did not answer for' in _src10ii, \
     "a failed search term is still reported without saying which term, or that it was skipped"
+
+# 10jj. freehire can be switched off, and switching it off has to reach the unattended run.
+#
+# freehire is the only board here that cannot be submitted to, and by a distance the loudest.
+# Measured on the live database: 328 of 379 rows were freehire and they held EVERY score above the
+# apply floor, while eJobs, BestJobs and Hipo between them held 13 rows whose best score was 45.
+# The run reported "63 jobs at 50+ waiting" and sent nothing, because not one of the 63 could be
+# sent. So this is a real choice, and the run is where it has to take effect - auto.py passes no
+# board list at all, so a switch honoured only at the caller would do nothing where it matters.
+assert app.DEFAULTS["search_freehire"] is True, \
+    "a source was turned off for people who never asked for that"
+_sv10jj = _iK.getsource(app._set_auto)
+assert '"search_freehire"' in _sv10jj, "the switch cannot be saved from the scheduled-run page"
+
+_se10jj = _iK.getsource(app._search)
+assert 'settings().get("search_freehire"' in _se10jj and 'b != "freehire"' in _se10jj, \
+    "the switch is not honoured inside the search, so the scheduled run ignores it"
+# ...and inside _search, not at its callers: the dashboard passes a board list and the run does not
+assert _se10jj.index('boards = body.get("boards")') < _se10jj.index('b != "freehire"'), \
+    "the filter runs before the board list is resolved"
+
+# the checkbox exists and is saved with the rest of the run settings
+_h10jj = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert 'id="search_freehire"' in _h10jj, "there is no way to change it from the page"
+assert "'search_freehire'" in _h10jj, "the checkbox is not in AUTO_FIELDS, so it never saves"
+
+# and the honest reason is on the page, not just in here
+assert "never be applied to for you" in _h10jj, \
+    "the page does not say that freehire jobs cannot be sent for you"
 
 print("ok")

@@ -692,6 +692,21 @@ RO = {
     "{n} were adult-industry work.": "{n} erau din industria pentru adulți.",
     "Include adult-industry jobs (videochat and similar)":
         "Include joburi din industria pentru adulți (videochat și similare)",
+    "Search freehire too": "Caută și pe freehire",
+    # three entries, not one, for the same reason as the paragraph below: the <b> splits the
+    # paragraph into separate text nodes and localise() swaps whole nodes
+    "freehire lists jobs that live on the employer's own site, so":
+        "freehire listează joburi care stau pe site-ul angajatorului, așa că",
+    "they can never be applied to for you":
+        "nu se poate aplica niciodată la ele în locul tău",
+    "— you open the posting and fill their form yourself. It also finds far more than the other "
+    "three put together, so left on it can fill your list with jobs the unattended run is unable "
+    "to send. Turn it off to keep the list to eJobs, BestJobs and Hipo, which it can apply to on "
+    "its own.":
+        "— deschizi anunțul și completezi formularul lor chiar tu. Găsește și mult mai multe "
+        "decât celelalte trei la un loc, așa că lăsat pornit îți poate umple lista cu joburi pe "
+        "care rularea automată nu le poate trimite. Oprește-l ca să rămână doar eJobs, BestJobs "
+        "și Hipo, unde poate aplica singur.",
     # three entries, not one: the <b> in the middle of this paragraph splits it into separate text
     # nodes, and localise() swaps whole nodes
     "Left unticked, those never reach your list and are never applied to. Matched on wording that "

@@ -472,6 +472,15 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       applied to. Matched on wording that can only mean that work — <b>chat support, live chat and
       chat operator jobs are a different thing entirely and are never touched by this.</b> It would
       rather let one through than hide one of yours.</p>
+    <!-- On by default. Off is the right answer for anyone who wants this to run unattended. -->
+    <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
+      font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="search_freehire"
+      style="width:auto"> Search freehire too</label>
+    <p class="muted" style="margin:4px 0 0">freehire lists jobs that live on the employer's own
+      site, so <b>they can never be applied to for you</b> — you open the posting and fill their
+      form yourself. It also finds far more than the other three put together, so left on it can
+      fill your list with jobs the unattended run is unable to send. Turn it off to keep the list
+      to eJobs, BestJobs and Hipo, which it can apply to on its own.</p>
     <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
       font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="recheck"
       style="width:auto"> Ask the boards once a month which saved jobs they still have</label>
@@ -928,6 +937,7 @@ $('#importhist').onclick = e => busy(e.target, async () => {
 const AUTO_FIELDS = ['auto_fresh', 'auto_work_mode', 'auto_seniority', 'auto_ats',
                      'auto_enabled', 'auto_days', 'auto_time', 'auto_query', 'auto_location',
                      'auto_county', 'auto_country', 'keep_signed_in', 'recheck', 'allow_adult',
+                     'search_freehire',
                      'auto_min_fit', 'auto_apply', 'auto_answer', 'auto_apply_min_fit',
                      'auto_apply_cap'];
 // the floor and the cap only mean anything while applying is on
