@@ -5890,4 +5890,71 @@ assert "'search_freehire'" in _h10jj, "the checkbox is not in AUTO_FIELDS, so it
 assert "never be applied to for you" in _h10jj, \
     "the page does not say that freehire jobs cannot be sent for you"
 
+# 10kk. Never apply to a job the page merely RECOMMENDS.
+#
+# An eJobs posting advertises other jobs beside it, and each of those cards carries its own
+# one-click apply. Measured on a live posting: three controls matched the apply pattern - the
+# posting's own "Aplică" in DIV.jobs-show-main-header, and two "Aplică rapid" in
+# DIV.jobs-show-main-similar-jobs, one per recommended job.
+#
+# apply_control took the FIRST match in document order. That is the right one only while the
+# posting's own button exists; when it does not - a closed advert, an employer who takes
+# applications on their own site, a layout change - the next match belongs to a DIFFERENT JOB and
+# board_apply clicks it. A real application, under the account holder's name, to a posting never
+# scraped, never scored and never language-checked, recorded against the job it was asked about.
+#
+# On 2026-10-07 an application to "Senior Agent Fleet Front Office German Speaker" appeared on a
+# live account. No search, no run log and no database row mentioned it, and the account holder
+# reads no German.
+assert hasattr(_pfid, "OTHER_JOB"), "nothing stops a recommended job's apply button being clicked"
+_ac10kk = _iK.getsource(_pfid.apply_control)
+assert "closest" in _ac10kk and "OTHER_JOB" in _ac10kk, \
+    "apply_control does not check whether the control belongs to another job"
+# the class actually measured on eJobs has to be covered
+assert 'similar' in _pfid.OTHER_JOB and 'job-card' in _pfid.OTHER_JOB, \
+    f"the measured eJobs blocks are not covered: {_pfid.OTHER_JOB}"
+
+
+# the behaviour, on stub elements - the real function, no browser
+class _El10kk:
+    def __init__(self, text, href="", other=False):
+        self.text, self.href, self.other, self.clicked = text, href, other, False
+
+    def is_visible(self):
+        return True
+
+    def inner_text(self):
+        return self.text
+
+    def get_attribute(self, _n):
+        return self.href
+
+    def evaluate(self, _fn, _arg=None):
+        return self.other          # stands in for e.closest(OTHER_JOB)
+
+
+class _Pg10kk:
+    def __init__(self, els):
+        self.els = els
+
+    def query_selector_all(self, _sel):
+        return self.els
+
+
+_own10kk = _El10kk("Aplică")
+_rec10kk = _El10kk("Aplică rapid", other=True)
+
+# the posting's own button is taken even when recommendations come first in the document
+assert _pfid.apply_control(_Pg10kk([_rec10kk, _own10kk]), "ejobs") is _own10kk, \
+    "a recommended job's button is picked when it appears first"
+# and with the posting's own button gone, NOTHING is returned - not the recommendation
+assert _pfid.apply_control(_Pg10kk([_rec10kk]), "ejobs") is None, \
+    "with no apply button of its own, it falls through to another job's - this is the bug"
+# the ordinary case still works
+assert _pfid.apply_control(_Pg10kk([_own10kk]), "ejobs") is _own10kk
+# and a link that hands you off the board is still refused
+assert _pfid.apply_control(
+    _Pg10kk([_El10kk("Aplică", "https://www.hipo.ro/locuri-de-munca/redirectAnuntExtern/9")]),
+    "ejobs") is None, "a redirect off the board is treated as this posting's apply button"
+
 print("ok")

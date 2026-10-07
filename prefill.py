@@ -1102,8 +1102,34 @@ def external_apply(page, board):
 LEAVES_BOARD = re.compile(r"redirectanuntextern|/redirect", re.I)
 
 
+# A posting page also advertises OTHER jobs, and on eJobs each of those cards carries its own
+# one-click apply. Measured on a live posting: three controls matched the apply pattern - the
+# posting's own "Aplică" in DIV.jobs-show-main-header, and two "Aplică rapid" buttons sitting in
+# DIV.jobs-show-main-similar-jobs, one per recommended job.
+#
+# apply_control took the FIRST match in document order, which is the right one only while the
+# posting's own button is there. When it is not - a closed advert, an employer who takes
+# applications on their own site, a layout change - the next match is a DIFFERENT JOB's apply
+# button, and board_apply clicks it. That sends a real application, under the account holder's
+# name, to a posting this app never scraped, never scored and never language-checked, and then
+# records the result against the job it was actually asked about.
+#
+# This is not hypothetical: an application to "Senior Agent Fleet Front Office German Speaker"
+# appeared on a live account on 2026-10-07. It was in no search, in no run log and in no row of
+# the database, and the account holder reads no German.
+#
+# The property, stated once for every board rather than as a per-board selector: the posting's
+# own apply button is never inside a card advertising another job.
+OTHER_JOB = ('[class*="similar"], [class*="recommend"], [class*="job-card"], '
+             '[class*="jobcard"], [class*="job_card"], [class*="other-jobs"]')
+
+
 def apply_control(page, board):
-    """The board's own apply control: never a social-login variant, never a link off the board."""
+    """The board's own apply control for THIS posting.
+
+    Never a social-login variant, never a link off the board, and never a control belonging to one
+    of the other jobs the page advertises alongside it.
+    """
     ui = BOARD_UI[board]
     for el in page.query_selector_all("a, button"):
         try:
@@ -1115,6 +1141,11 @@ def apply_control(page, board):
             href = el.get_attribute("href") or ""
             if re.search(ui["avoid"], text + " " + href, re.I):
                 continue             # "Aplica cu LinkedIn" is a different flow entirely
+            # ...and never another job's. Returning None where the posting's own button cannot be
+            # found is the safe answer - board_apply reports that as a posting it cannot apply to,
+            # which is true and costs nothing, while clicking the wrong button cannot be undone.
+            if el.evaluate("(e, sel) => !!e.closest(sel)", OTHER_JOB):
+                continue
             if LEAVES_BOARD.search(href):
                 # Sampled eight live Hipo postings: five of them carried this. Clicking it sends
                 # nothing, opens the employer's site in a new tab, and leaves the row looking
