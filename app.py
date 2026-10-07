@@ -1560,10 +1560,30 @@ BENCH_TRIES = 6
 # a bounded version of that mistake costs one batch instead of a quota.
 RESCALE_CAP = 25
 
-# How many results to take from a board we can submit an application to. Measured: one eJobs or
-# Hipo listing page carries 40 job links and BestJobs serves 100, while the default of 20 threw
-# the rest of an already-fetched page away. Only phase 2 pays for the extra - the listing request
-# is the same one either way.
+# How many results to take from a board we can submit an application to. One eJobs or Hipo
+# listing page carries 40 job links and BestJobs serves 100, while the default of 20 threw the
+# rest of an already-fetched page away. Only phase 2 pays for the extra - the listing request is
+# the same one either way.
+#
+# Whether the second half is worth having was measured rather than assumed, because it is further
+# down eJobs' own relevance ranking. By title it is not worse: over six queries, 93 of 120 results
+# in positions 21-40 read as support work against 87 of 120 in positions 1-20.
+#
+# By WORK MODE it is worse, and that is the filter that decides whether she ever sees them. Over
+# four queries, hydrated and put through remote_job():
+#
+#     positions  1-20 : 6 remote of 80   (7.5%)
+#     positions 21-40 : 2 remote of 42   (4.8%)
+#
+# The tail is genuine support work that happens to be in a branch in Brasov or Targu Jiu. About a
+# quarter of the extra ads could not be read at all, which is eJobs rate-limiting the doubled
+# phase-2 load - so part of the cost buys nothing.
+#
+# Kept at 40 anyway, deliberately: the binding problem here is a drought of remote candidates, not
+# the request budget. At the time this was set the three submittable boards held 13 unapplied jobs
+# whose best score was 45, so two more real candidates per four queries is worth more than the
+# traffic. The number to revisit is this one, if the 429s come back - and they now name the search
+# term they cost, so that will be visible rather than guessed at.
 SUBMITTABLE_LIMIT = 40
 
 

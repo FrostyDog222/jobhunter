@@ -5957,4 +5957,23 @@ assert _pfid.apply_control(
     _Pg10kk([_El10kk("Aplică", "https://www.hipo.ro/locuri-de-munca/redirectAnuntExtern/9")]),
     "ejobs") is None, "a redirect off the board is treated as this posting's apply button"
 
+# 10ll. The submittable boards are asked for more than freehire, and on purpose.
+#
+# eJobs and Hipo answer a search with one listing page of 40 job links, BestJobs with 100, and
+# `limit` only decides how much of that page we keep - the default of 20 discarded half of
+# something already fetched. freehire is left alone: it pages its API, so asking for more is more
+# requests, and it is the board that cannot be submitted to.
+_lim10ll = _iK.getsource(app._search)
+assert "SUBMITTABLE_LIMIT" in _lim10ll and 'b == "freehire"' in _lim10ll, \
+    "every board is asked for the same number again, which is either too few or wasted"
+assert app.SUBMITTABLE_LIMIT >= 40, \
+    "below 40 this throws away part of a listing page it has already paid for"
+
+# the cost is real and was measured, so the comment has to carry the numbers rather than a claim
+_src10ll = (app.HERE / "app.py").read_text(encoding="utf-8")
+_at10ll = _src10ll[_src10ll.index("SUBMITTABLE_LIMIT = ") - 1600:
+                   _src10ll.index("SUBMITTABLE_LIMIT = ")]
+assert "6 remote of 80" in _at10ll and "2 remote of 42" in _at10ll, \
+    "the measured yield of positions 21-40 is gone, so the next person has only an assertion"
+
 print("ok")
