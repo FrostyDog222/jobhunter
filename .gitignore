@@ -18,6 +18,8 @@ signin.log
 srv.err.log
 settings.json
 .boards.json
+.auto_now.json
+.auto.lock
 .profile.test.json
 .profile.test.prev.json
 jobhunter.zip

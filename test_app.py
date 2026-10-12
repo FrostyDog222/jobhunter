@@ -2748,9 +2748,17 @@ assert not scrape.off_target("", _FAMS6R, _TERMS6R), "an ad with no title was ju
 
 # and the measurement that decided it: every job that scored 75+ survives the list. Run against
 # whatever is really in the database, so it keeps being true rather than having been true once.
+#
+# Rows the list could still act on, which is what "would have cost you" means: off_target runs
+# over what a search surfaces, so a job already applied to or opened cannot be taken from you by
+# it. Including them made this fail on "Support Engineer (German)" - a row that scored 75 only
+# because the language gate could not see a requirement split across lines by the employer's
+# markup, and was applied to before that was fixed. A stale consequence of a different bug is not
+# evidence about the skip list.
 with app.db() as _c6r:
     _scored6r = [(r["title"] or "", r["fit"]) for r in
-                 _c6r.execute("SELECT title, fit FROM jobs WHERE fit IS NOT NULL")]
+                 _c6r.execute("SELECT title, fit FROM jobs WHERE fit IS NOT NULL "
+                              "AND status IN ('new','ready','vetoed')")]
 if sum(1 for _, f in _scored6r if f >= 75) >= 10:      # only meaningful with some history
     _lost6r = [t for t, f in _scored6r if f >= 75 and scrape.off_target(t, _FAMS6R, _TERMS6R)]
     assert not _lost6r, f"the skip list would have cost you these: {[t[:44] for t in _lost6r]}"

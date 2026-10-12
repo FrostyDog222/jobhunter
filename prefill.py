@@ -1523,10 +1523,30 @@ def auto_signin(board, username, password, headless=True):
                 page.wait_for_timeout(6000)       # a SPA that never goes idle is still fine
             page.wait_for_timeout(2500)           # ...and let the token call after it finish
             if _probe_signed_in(page, board):
-                _save(ctx, only_host=BOARD_HOSTS.get(board),
+                # The purge is destructive: only_host deletes every stored cookie for this board
+                # before writing what this context holds. That is right after a sign-in that
+                # DEMONSTRABLY worked, and catastrophic after one that only looks like it did.
+                #
+                # _probe_signed_in answers True when the page says nothing either way - a
+                # deliberate choice, because a board that is merely quiet should not raise an
+                # alarm. But "I cannot tell" is not evidence, and acting destructively on it
+                # destroyed a working session here for three days: eJobs changed its pages, the
+                # markers stopped matching, every sign-in reported success, and each one purged
+                # the real cookies and wrote back the failed context's empty jar. The keep-alive
+                # log recorded the moment - before[user-access-token -11.2h, user-refresh-token
+                # 9587.8h] after[-] - a live refresh token deleted by a sign-in that had not
+                # signed in.
+                #
+                # So the purge now needs a POSITIVE answer. Where the board will not confirm, the
+                # save is additive: the session already on disk is left alone, because it may well
+                # be the good one. The cost of being wrong that way is a stale cookie; the cost of
+                # being wrong the other way is the account signed out until someone notices.
+                confirmed = signed_in_to(page, board) is True
+                _save(ctx, only_host=BOARD_HOSTS.get(board) if confirmed else None,
                       visited=(BOARD_HOSTS.get(board) or "",))
                 remember_signin(board, True)
-                return True, "signed in"
+                return True, "signed in" if confirmed else \
+                    "signed in, but the board would not confirm it - the stored session was kept"
             return False, "the sign-in did not take - wrong password, or the board asked "\
                           "something extra (a code, a captcha) that needs you at the keyboard"
         except Exception as e:
@@ -1614,7 +1634,14 @@ def run_signin(url):
             if ok:
                 # verified: now it is safe to drop the old cookies for this host, stale ones
                 # included, and keep only what this signed-in context holds
-                saved = _save(ctx, only_host=host0, visited=(host0,) if host0 else None) or saved
+                #
+                # ...but only where the board actually CONFIRMED it. _probe_signed_in says True
+                # when a page says nothing either way, and purging on that destroyed a live
+                # session for three days - see the note beside the same call in auto_signin.
+                # Without confirmation the save is additive and what is on disk survives.
+                confirmed = signed_in_to(page, board) is True
+                saved = _save(ctx, only_host=host0 if confirmed else None,
+                              visited=(host0,) if host0 else None) or saved
                 state = board_status()
                 state[board] = True
                 BOARD_STATE.write_text(json.dumps(state), encoding="utf-8")

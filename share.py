@@ -33,7 +33,11 @@ SKIP_NAMES = {"audit.json", "research_ux.json", ".profile.test.json",
               ".llm_down.json",
               # one ranking of one person's shortlist. Meaningless to anyone else, and stale the
               # moment their list differs - which it does, being their list.
-              ".shortlist.json"}
+              ".shortlist.json",
+              # the live progress of a run in flight: how far through it is, and the search terms
+              # it is running. Momentary on this machine and nobody else's business - it carries
+              # the job titles someone is looking for, which is as personal as the list itself.
+              ".auto_now.json"}
 NAME = "jobhunter"
 
 
