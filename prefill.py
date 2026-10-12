@@ -1679,6 +1679,24 @@ def _probe_signed_in(page, board, _retry=True):
     ui = BOARD_UI[board]
     page.goto(ui["probe"], wait_until="domcontentloaded", timeout=45000)
     page.wait_for_timeout(2500)
+    # Ask BEFORE touching the cookie wall, and leave it standing if the page already says yes.
+    #
+    # Dismissing it is not free. eJobs' consent manager, told to keep only what is necessary,
+    # rewrites the whole jar - and takes the session with it. Measured on a live sign-in, counting
+    # at every step:
+    #
+    #     after submit              26 ejobs cookies, user-access-token + user-refresh-token
+    #     after _probe_signed_in     0 ejobs cookies, none
+    #
+    # So the check that asks "are we signed in?" was signing us out, and auto_signin then saved
+    # the emptied jar over a working session. Three days of "signed in again" followed by still
+    # being signed out, and the applying step losing jobs seconds after a successful sign-in.
+    #
+    # A page that shows a positive marker has answered already; there is nothing the wall is
+    # blocking that we still need. Where it does NOT answer, the wall may genuinely be in the way,
+    # so dismiss it and ask again - that is the case this was written for.
+    if signed_in_to(page, board) is True:
+        return True
     dismiss_consent(page)
     page.wait_for_timeout(800)
 

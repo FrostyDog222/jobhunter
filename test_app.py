@@ -6044,4 +6044,38 @@ _bonus10mm = {"title": "Support Agent",
 assert "german" not in _L9a.required_languages(_bonus10mm), \
     "'German is a plus' is being read as a demand"
 
+# 10nn. The check that asks "are we signed in?" must not sign us out.
+#
+# _probe_signed_in dismissed the cookie wall before reading the page. eJobs' consent manager, told
+# to keep only what is necessary, rewrites the whole jar - and takes the session with it. Counted
+# at every step of a live sign-in:
+#
+#     after submit              26 ejobs cookies, user-access-token + user-refresh-token
+#     after _probe_signed_in     0 ejobs cookies, none
+#
+# auto_signin then saw the probe say True, ran the DESTRUCTIVE save, and wrote that emptied jar
+# over a working session - a 400-day refresh token deleted on 2026-10-09 and three days of
+# "signed in again" followed by still being signed out.
+#
+# A page showing a positive marker has already answered; the wall is only ever dismissed to
+# unblock a click, and there is nothing left to click. So: read first, and leave the wall alone
+# when the answer is yes.
+_pr10nn = _iK.getsource(_pfid._probe_signed_in)
+assert "dismiss_consent" in _pr10nn, "the consent wall is never dismissed, so a blocked page hangs"
+assert _pr10nn.index("signed_in_to(page, board) is True") < _pr10nn.index("dismiss_consent"), \
+    "the cookie wall is dismissed before the page is read, which is what wiped the session"
+assert "return True" in _pr10nn.split("dismiss_consent")[0], \
+    "a page that already says signed-in still has its cookie jar rewritten"
+
+# and the other half: a sign-in the board would not CONFIRM must never purge what is on disk
+_as10nn = _iK.getsource(_pfid.auto_signin)
+assert "confirmed = signed_in_to(page, board) is True" in _as10nn, \
+    "auto_signin purges on 'the page said nothing either way', which destroyed a live session"
+assert "only_host=BOARD_HOSTS.get(board) if confirmed else None" in _as10nn, \
+    "the destructive purge is no longer conditional on a positive answer"
+# the manual window shares the flaw and must share the fix
+_rs10nn = _iK.getsource(_pfid.run_signin)
+assert "only_host=host0 if confirmed else None" in _rs10nn, \
+    "the sign-in window can still purge a session the board would not confirm"
+
 print("ok")
