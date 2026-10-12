@@ -3334,6 +3334,8 @@ async def apply_batch(body: dict = Body(...)):
     if not urls:
         raise HTTPException(400, "nothing selected")
     p, results, unconfirmed = profile(), [], []
+    # Boards whose saved sign-in has already been spent on this batch. See the retry below.
+    resigned = set()
     for url in urls:
         try:
             j = _job(url)
@@ -3383,6 +3385,24 @@ async def apply_batch(body: dict = Body(...)):
                 # answers nobody read is not something to send on one click. The single Apply
                 # button, which asks about that one job by name, does submit them.
                 auto_send=body.get("auto_send", False)))
+            # A session can lapse BETWEEN the check at the top of the run and this job. Measured
+            # on 2026-10-12: the run checked the boards, started applying, and failed one job with
+            # "not signed in to ejobs" - then the keep-alive signed all three back in 90 minutes
+            # later, having had the saved password available the whole time. The job was simply
+            # lost, and the next run was a day away.
+            #
+            # So: one re-sign-in per board per batch, using exactly the helper the keep-alive and
+            # the pre-check use, which holds the guard that a password is never posted twice - an
+            # unattended retry posting a wrong password is how an account gets locked, and being
+            # signed out for two more hours is far cheaper than that.
+            if "not signed in" in (res.get("error") or "").lower() and board not in resigned:
+                resigned.add(board)
+                import auto_apply                 # here, not at the top: auto_apply imports app
+                if auto_apply.sign_back_in(prefill, [board],
+                                           lambda m: print(f"[apply] {m}")):
+                    res = await off(lambda u=url, t=j["title"]: prefill.board_apply(
+                        u, headless=True, profile=p, job_title=t,
+                        auto_send=body.get("auto_send", False)))
             if res.get("submitted") or res.get("already"):
                 with db() as c:
                     _mark_applied(c, url)

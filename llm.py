@@ -1642,11 +1642,60 @@ _ANY_LANG = re.compile("|".join(rf"\b{n}\b"
                                 for names in SPOKEN.values() for n in names))
 
 
+def _unwrap(text):
+    """Blank out line breaks a board put INSIDE a sentence, so a split requirement is still read.
+
+    required_languages deliberately refuses to match across a newline: that is what keeps "fluent
+    German" in one bullet from being read together with "Spanish is a plus" in the next. But some
+    employers' HTML emits a line break around every styled span, and then a single sentence arrives
+    as several lines:
+
+        • do you speak both \ngerman and english \nat \nadvanced level\n? then we're good to go!
+
+    "german" and "advanced level" are two lines apart, so the gate saw no demand at all - and the
+    job was scored 75 and APPLIED TO on 2026-10-08, for a role requiring a language the profile
+    does not have. The model's own reasoning said "they do not list German language skills" and
+    scored it above the floor regardless, which is exactly why this gate exists rather than being
+    left to the score.
+
+    A newline that starts a new bullet is a real boundary and is kept. One that does not is
+    markup, and becomes a space.
+
+    ONE CHARACTER FOR ONE CHARACTER, which is the whole trick. Only the \n itself is swapped, and
+    nothing is collapsed, so every offset is the same in both strings - and required_languages can
+    search this version while still measuring the "is it only a bonus?" clause on the original,
+    where the line breaks are intact.
+
+    That separation is not fussiness. Measured over 848 stored adverts, joining the lines for BOTH
+    purposes found the 1 requirement that was being missed and lost 37 others: a longer clause
+    reaches an "is a plus" further down and reads a real demand as a bonus. "Customer Advisor
+    (German and English)" and "Costumer support-ceha sau slovaca" both stopped demanding anything.
+    Trading one miss for thirty-seven of the same kind is not a fix.
+    """
+    out, i = [], 0
+    while i < len(text):
+        if text[i] != "\n":
+            out.append(text[i])
+            i += 1
+            continue
+        j = i + 1
+        while j < len(text) and text[j] in " \t\n":
+            j += 1
+        nxt = text[j] if j < len(text) else ""
+        # a bullet, a dash used as one, or a numbered item: a genuine new point
+        out.append("\n" if nxt in "\u2022\u00b7-\u2013\u2014*" or nxt.isdigit() else " ")
+        i += 1
+    return "".join(out)
+
+
 def required_languages(job):
     """Languages the ad demands. A language in the TITLE is always a demand ('Swedish Support
     Agent'); in the body it must sit next to a proficiency word, in a clause that does not mark
     it as a bonus, a choice, or something the employer teaches."""
     title, body = fold(job.get("title")), fold(job.get("description"))
+    # Searched with the markup line breaks blanked out; the clause below is still measured on
+    # `body`, where they are intact. Same length, so one offset serves both.
+    flat = _unwrap(body)
     if not (_ANY_LANG.search(title) or _ANY_LANG.search(body)):
         return set()                   # the ad names no language: nothing to demand
     here = {canon for canon, rx in _MENTIONED.items()
@@ -1669,8 +1718,8 @@ def required_languages(job):
             # through and read the body. Skipping it here let "Bakery Assistant German" past a
             # description that said "fluent German is required, mandatory".
         for n in names:
-            m = (re.search(rf"\b{n}\b[^.\n]{{0,40}}?{NEAR}", body)
-                 or re.search(rf"{NEAR}[^.\n]{{0,40}}?\b{n}\b", body))
+            m = (re.search(rf"\b{n}\b[^.\n]{{0,40}}?{NEAR}", flat)
+                 or re.search(rf"{NEAR}[^.\n]{{0,40}}?\b{n}\b", flat))
             if not m:
                 continue
             # The whole sentence, not the fragment between two commas. "Cunostinte de germana,

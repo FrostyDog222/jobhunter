@@ -2113,9 +2113,26 @@ for _f in ("templates/dashboard.html", "templates/profile.html"):
 # but it is still a stored password going to a login form, so it goes through sign_back_in like the
 # other two callers rather than around it, and inherits the one-attempt and two-strike guards.
 _appsrc5k = (app.HERE / "app.py").read_text(encoding="utf-8")
+# ...and in one more, added 2026-10-12: the retry inside apply_batch, when the board itself has
+# just said it is signed out. The rule this count protects is "never spend a saved password
+# without evidence it is needed", and the other callers earn that by probing with verify_boards
+# first. This one earns it more strongly: board_apply loaded the page and read the board's own
+# answer, which is a live probe and not a cached one.
+#
+# What must stay true is that it goes THROUGH sign_back_in, inheriting the one-attempt and
+# two-strike guards, and that it cannot loop - an unattended retry posting a wrong password is how
+# an account gets locked. Measured on 2026-10-12: the run checked the boards, lost a job to "not
+# signed in to ejobs" mid-batch, and the keep-alive signed all three back in 90 minutes later with
+# the saved password it had all along. The job was simply gone until the next day.
 # calls, not mentions - the docstring beside it names the function too
-assert _appsrc5k.count("sign_back_in(") == 1,     "a second caller in app.py bypasses the sign-in rules"
+assert _appsrc5k.count("sign_back_in(") == 2,     "a caller in app.py bypasses the sign-in rules"
 assert "auto_signin" not in _appsrc5k, "app.py reaches past sign_back_in to the raw sign-in"
+# the retry acts on the board's own answer, and at most once per board per batch
+_ab5k = _iK.getsource(app.apply_batch)
+assert '"not signed in" in (res.get("error") or "").lower()' in _ab5k, \
+    "the retry fires on something other than the board saying it is signed out"
+assert "board not in resigned" in _ab5k and "resigned.add(board)" in _ab5k, \
+    "a board's saved password can be posted more than once in one batch, which risks a lockout"
 _now5k = _iK.getsource(app.signin_now)
 assert "sign_back_in" in _now5k, "the one permitted caller is no longer the Save endpoint"
 assert "verify_boards" in _now5k and _now5k.index("verify_boards") < _now5k.index("sign_back_in("),     "the Save endpoint uses a saved password before checking whether it is needed"
@@ -5975,5 +5992,48 @@ _at10ll = _src10ll[_src10ll.index("SUBMITTABLE_LIMIT = ") - 1600:
                    _src10ll.index("SUBMITTABLE_LIMIT = ")]
 assert "6 remote of 80" in _at10ll and "2 remote of 42" in _at10ll, \
     "the measured yield of positions 21-40 is gone, so the next person has only an assertion"
+
+# 10mm. A requirement an employer's markup split across lines is still a requirement.
+#
+# required_languages refuses to match across a newline, and that is deliberate: it is what stops
+# "fluent German" in one bullet being read together with "Spanish is a plus" in the next. But some
+# employers' HTML emits a line break around every styled span, so one sentence arrives as several
+# lines:
+#
+#     • do you speak both \ngerman and english \nat \nadvanced level\n? then we're good to go!
+#
+# "german" and "advanced level" are two lines apart, the gate saw no demand, and on 2026-10-08 the
+# run scored that advert 75 and APPLIED TO IT - a role requiring a language the profile does not
+# have. The model's own reasoning even said "they do not list German language skills" and returned
+# 75 anyway, which is the whole reason this gate exists instead of trusting the score.
+_j10mm = {"title": "Support Engineer (German) - remote, from any city - Romania",
+          "description": "Want in? Let's see:\n\n\u2022 Do you speak both \nGerman and English \nat "
+                         "\nadvanced level\n? Then we're good to go!\n\u2022 If you enjoy helping "
+                         "your friends with \nIT related issues, come along."}
+assert "german" in _L9a.required_languages(_j10mm), \
+    "a requirement broken across lines by markup is still invisible"
+_ok10mm, _why10mm = _L9a.language_gate({"languages": [{"name": "English"}, {"name": "Romanian"}]},
+                                       _j10mm)
+assert not _ok10mm and "German" in _why10mm, _why10mm
+
+# The unwrap is one character for one character. That is what lets the demand be FOUND on the
+# joined text while "is it only a bonus?" is still measured on the original, where the line breaks
+# are intact - and it is not a nicety. Measured over 848 stored adverts, unwrapping for both
+# purposes found this one missing requirement and lost 37 others, because a longer clause reaches
+# an "is a plus" further down and reads a real demand as a bonus.
+for _t10mm in ("a\nb", "a\n\n\u2022 b", "x \n y", "\n", "", "a\n1. b", "a\n- b"):
+    assert len(_L9a._unwrap(_t10mm)) == len(_t10mm), f"_unwrap changed length on {_t10mm!r}"
+# a new bullet is a real boundary and survives; a break mid-sentence does not
+assert "\n" in _L9a._unwrap("fluent german\n\u2022 spanish is a plus"), \
+    "a bullet boundary was dissolved, which lets the next bullet's 'is a plus' reach this one"
+assert "\n" not in _L9a._unwrap("do you speak\ngerman at\nadvanced level"), \
+    "a line break inside a sentence survived, so the requirement is still unreadable"
+assert "\n" in _L9a._unwrap("fluent german\n1. spanish is a plus"), "a numbered item is a boundary"
+
+# and the bonus clause is still read on the ORIGINAL text, so the next bullet cannot reach back
+_bonus10mm = {"title": "Support Agent",
+              "description": "Requirements:\n\u2022 Fluent English\n\u2022 German is a plus"}
+assert "german" not in _L9a.required_languages(_bonus10mm), \
+    "'German is a plus' is being read as a demand"
 
 print("ok")
