@@ -731,6 +731,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     <span class="warn" style="flex:1;font-size:13px">Read each job ad first — these go straight to
       the employer with the salary from your profile. Up to 50 per run.</span>
     <button id="sendpicked" style="flex:0 0 auto">Apply to selected</button>
+    <button id="openpicked" class="ghost" style="flex:0 0 auto;display:none">Open selected</button>
     <button id="clearpicked" class="ghost" style="flex:0 0 auto">Clear</button>
   </div>
   <div id="pickedlist" class="muted" style="margin-top:8px;font-size:13px"></div>
@@ -2855,7 +2856,13 @@ function draw(){
           : 'closes in ' + left + ' days'}</span>`;
     })();
     const applied = j.status === 'applied';
-    const canPick = BOARD(j) && !applied;
+    // Anything not already applied to can be ticked. It used to be board jobs only, so a
+    // source the app cannot send - OLX, freehire - could not be collected at all, and there was
+    // no way to work through fifteen of them except one card at a time. What a tick MEANS is
+    // decided by the two buttons on the bar: Apply sends the board ones, Open opens the rest in
+    // this browser, where you are already signed in. apply_batch refuses a manual source on its
+    // own account too, so a mixed selection cannot send the wrong thing even by mistake.
+    const canPick = !applied;
     const primary = applied
       ? `<a href="${esc(j.url)}" target="_blank"><button class="ghost primary">Open posting</button></a>`
       : BOARD(j)
@@ -3049,8 +3056,23 @@ function drawPicked(){
   const onPage = new Set([...document.querySelectorAll('.sel')].map(c => c.dataset.url));
   const elsewhere = p.filter(u => !onPage.has(u)).length;
   $('#picked').style.display = p.length ? 'block' : 'none';
+  // Split by what a tick can actually do. A number that says "12 selected" beside a button
+  // reading "Apply to selected" promises twelve applications; if nine of them are OLX, three go
+  // and nine quietly do not, which is the sort of thing somebody only notices a week later.
+  const jobOf = u => JOBS.find(j => j.url === u) || {};
+  const sendable = p.filter(u => BOARD(jobOf(u)));
+  const openable = p.filter(u => !BOARD(jobOf(u)));
   $('#pickedn').textContent = `${p.length} selected`
     + (elsewhere ? ` (${elsewhere} on other pages)` : '');
+  const sendBtn = $('#sendpicked'), openBtn = $('#openpicked');
+  if(sendBtn){
+    sendBtn.style.display = sendable.length ? '' : 'none';
+    sendBtn.textContent = fill(t('Apply to {n}'), {n: sendable.length});
+  }
+  if(openBtn){
+    openBtn.style.display = openable.length ? '' : 'none';
+    openBtn.textContent = fill(t('Open {n} to apply yourself'), {n: openable.length});
+  }
   $('#pickedlist').textContent = p.map(u => (JOBS.find(j => j.url === u) || {}).title).join(' · ');
   // a running total on the toolbar, so the number is visible without scrolling to the bar
   const tally = $('#seltally');
@@ -3177,6 +3199,23 @@ $('#clear').onclick = e => busy(e.target, async () => {
 $('#clearpicked').onclick = () => {
   SELECTED.clear();
   document.querySelectorAll('.sel:checked').forEach(c => c.checked = false); drawPicked(); };
+
+$('#openpicked').onclick = () => {
+  // Opened from THIS browser, which is the whole point: it is the one you are signed in to OLX
+  // with. The app's own browser cannot sign in there, and nothing about that changes by trying
+  // harder - so the app finds, scores and filters, and the sending is a click per tab.
+  const urls = picked().filter(u => !BOARD(JOBS.find(j => j.url === u) || {}));
+  if(!urls.length) return;
+  const some = urls.slice(0, 10);
+  // one gesture opens a handful before a browser starts refusing: say so rather than let four
+  // of fifteen appear and look like a bug
+  some.forEach(u => window.open(u, '_blank', 'noopener'));
+  toast(urls.length > some.length
+    ? fill(t('Opened {n}. {r} still ticked — open them in another go; browsers stop a tab '
+            + 'storm from one click.'), {n: some.length, r: urls.length - some.length})
+    : fill(t('Opened {n}. Apply on each, then use Mark applied so they stop coming back.'),
+           {n: some.length}), 9000);
+};
 
 $('#sendpicked').onclick = e => {
   const all = picked();

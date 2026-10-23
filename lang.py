@@ -690,6 +690,15 @@ RO = {
     "{n} were already in your list from another board.":
         "{n} erau deja în lista ta, de pe alt site.",
     "{n} were adult-industry work.": "{n} erau din industria pentru adulți.",
+    "Apply to {n}": "Aplică la {n}",
+    "Open {n} to apply yourself": "Deschide {n} ca să aplici tu",
+    "Opened {n}. Apply on each, then use Mark applied so they stop coming back.":
+        "Am deschis {n}. Aplică la fiecare, apoi folosește Marchează ca aplicat "
+        "ca să nu mai revină.",
+    "Opened {n}. {r} still ticked — open them in another go; browsers stop a tab storm "
+    "from one click.":
+        "Am deschis {n}. {r} rămân bifate — deschide-le într-o altă "
+        "rundă; browserele opresc un val de taburi dintr-un singur clic.",
     "search": "caută",
     "Search this site": "Caută pe acest site",
     "not searched": "nu se caută",

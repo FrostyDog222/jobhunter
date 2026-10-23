@@ -6284,4 +6284,26 @@ assert _as10ss.index("if refused:") < _as10ss.index('return False, "the sign-in 
 _ref10ss = _as10ss.split("if refused:")[1].split("return")[1][:120]
 assert _ref10ss.lstrip().startswith("None"), "a refusal still counts against the two strikes"
 
+# 10tt. A tick on a job the app cannot send must still be worth something.
+#
+# Selection was board-jobs-only, so a source the app cannot apply to - OLX, freehire - could not
+# be collected at all and there was no way through fifteen of them except one card at a time.
+# Anything unapplied can be ticked now, and the two buttons decide what a tick means.
+_d10tt = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert "const canPick = !applied;" in _d10tt, "a job the app cannot send cannot be collected"
+assert 'id="openpicked"' in _d10tt, "there is no way to open a selection you send yourself"
+
+# the counts are split by what a tick can DO. "12 selected" beside "Apply to selected" promises
+# twelve applications; if nine are OLX, three go and nine quietly do not.
+assert "const sendable = p.filter(u => BOARD(jobOf(u)));" in _d10tt, \
+    "the bar counts jobs it cannot send among the ones it will"
+assert "const openable = p.filter(u => !BOARD(jobOf(u)));" in _d10tt
+
+# and the send path still takes only board jobs, on both sides
+_send10tt = _d10tt.split("$('#sendpicked').onclick")[1][:900]
+assert "BOARD(" in _send10tt or "picked()" in _send10tt
+_ab10tt = _iK.getsource(app.apply_batch)
+assert "apply to this one by hand" in _ab10tt, \
+    "the server would send a manual source if the page ever asked it to"
+
 print("ok")
