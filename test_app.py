@@ -6378,4 +6378,34 @@ _se10ww = _iK.getsource(app._search)
 assert "search_{b}" in _se10ww, "the search ignores the switch, which is the one thing it governs"
 assert "search_" not in _iK.getsource(_auto.touch),     "the keep-alive follows the switch now - a board turned off may hold applications already "     "sent, and reading those back needs a live session"
 
+# 10xx. REMOTE in the title is the employer answering the question.
+#
+# REMOTE_TEXT demands a phrase - "fully remote", "work from home", "telemunca" - because the bare
+# word turns up as a perk, as the job ("remote support tools"), and as its own opposite. That is
+# right for the BODY and wrong for the title: "Customer Support - German - REMOTE" is what the
+# employer called the job, and those adverts usually carry no phrase at all, which is exactly why
+# they were being thrown away.
+#
+# Measured over 152 live adverts on a remote-only search: remote_job found 10 and missed 4 whose
+# title ends in the word. Forty per cent more, on the one filter that drops three ads in four.
+for _t10xx in ("Customer Support - German - REMOTE",
+               "\U0001f4e2 Customer Support - HUNGARIAN => Remote",
+               "Kundenberater im deutschsprachigen Inbound\u2013 Remote",
+               "Agent Call Center (Remote)", "Customer Care, Remote", "Support Agent | Remote"):
+    assert scrape.remote_job({"title": _t10xx}), f"the employer said REMOTE and it was dropped: {_t10xx}"
+
+# ...and the ambiguity the body rule exists for is still refused on the title alone. Here the word
+# describes the SUPPORT, not where it is done from.
+for _t10xx in ("Junior Remote Technical Customer Support", "Remote Support Engineer",
+               "Specialist Suport Remote Desktop", "Remote Technical Support Specialist",
+               "Customer Support Representative", "Operator Call Center Bucuresti"):
+    assert not scrape.remote_job({"title": _t10xx}), \
+        f"the word modifies the job, not the arrangement: {_t10xx}"
+
+# the body rule is untouched: a perk and a refusal still do not make an advert remote
+assert not scrape.remote_job({"title": "Agent", "description": "the possibility to work remotely"})
+assert not scrape.remote_job(
+    {"title": "Agent", "description": "activitatea nu poate fi desfasurata remote"})
+assert scrape.remote_job({"title": "Agent", "description": "This is a fully remote position."})
+
 print("ok")

@@ -866,6 +866,19 @@ REMOTE = re.compile(r"(^|-)(remote|telemunca|munca-de-acasa|work-from-home|anywh
                     r"|toata-tara|nationwide|hybrid|hibrid)($|-)")
 
 
+# ...except in the TITLE, standing on its own, which is a different thing entirely.
+#
+# "Customer Support - German - REMOTE" is not a perk buried in a benefits list, it is what the
+# employer called the job. Requiring a phrase threw those away: measured over 152 live adverts,
+# remote_job found 10 and missed 4 more whose title ends in the word - "- REMOTE", "=> Remote",
+# "– Remote" - which is forty per cent more remote work, on the one search that is remote-only.
+#
+# Set off and not modifying anything: preceded by a separator, followed by punctuation or the end
+# of the title. That is what keeps "Junior Remote Technical Customer Support" out, where the word
+# describes the support and not the arrangement - the ambiguity the note below was written for.
+TITLE_REMOTE = re.compile(r"(?:^|[\s\-|(,/=>–—])\s*remote\s*(?=[-|,/)\]]|$)", re.I)
+
+
 # Phrases that assert the ARRANGEMENT. The bare word is never enough: in one real database it
 # turns up as "the possibility to work remotely" (a perk), "experience with remote support tools"
 # (the job, on a support profile) and "activitatea nu poate fi desfasurata remote" (the opposite).
@@ -1025,6 +1038,11 @@ def remote_job(job):
         return str(job.get(k) or "")
 
     if REMOTE.search(_slug(txt("location"))):
+        return True
+    # The title's own word, before the body is read at all. An employer who put REMOTE in the
+    # title has already answered the question, and no phrase in the body is going to say it
+    # better - these adverts usually carry none, which is exactly why they were being missed.
+    if TITLE_REMOTE.search(txt("title")):
         return True
     text = f"{txt('title')}\n{txt('description')}"
     for m in REMOTE_TEXT.finditer(text):
