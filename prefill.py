@@ -324,6 +324,15 @@ REJECT = r"reject all|reject|refuse|decline|necessary only|only necessary|essent
 SETTINGS = (r"manage|settings|preferences|customi[sz]e|more options|modific[ăa] set[ăa]rile|"
             r"set[ăa]ri|personalizeaz|mai multe op[țt]iuni|op[țt]iuni")
 SAVE = r"save settings|save preferences|save choices|confirm choices|save and close|"        r"salveaz[ăa] set[ăa]rile|salveaz[ăa]|confirm[ăa]"
+# Accepting, which this does only when nothing else would clear the wall. Deliberately narrow:
+# whole phrases that can only mean consent, never a bare "ok" or "da" that a page might use
+# for anything.
+ACCEPT = (r"^\s*(sunt de acord|accept(are)? (toate|total[ăa])|accept all|accept cookies|acceptare total[ăa]|de acord|i agree|agree and close)\s*$")
+
+# A "prove you are human" wall, which is an answer about the CLIENT and says nothing about
+# the password. Matched on the wording these services actually show rather than on a vendor
+# name, because the page is what the user would see.
+BOT_WALL = re.compile(r"verify you are human|performing security verification|are you a human|checking your browser|verifica.{0,12}sunte.{0,12}om|nu sunt robot|i am not a robot|captcha", re.I)
 
 
 def _click_matching(page, pattern, timeout=2500):
@@ -376,9 +385,22 @@ def dismiss_consent(page):
         if guarded(REJECT):
             return "rejected"
         if guarded(SETTINGS):
+            # The reject is often INSIDE the panel rather than on the first screen. publi24's
+            # wall offers only "SUNT DE ACORD" and "MAI MULTE OPȚIUNI"; behind the second is
+            # "RESPINGERE TOTALĂ", which is both the privacy answer and the one that clears the
+            # wall in a single click. Tried before the per-toggle walk because it is one action
+            # instead of a dozen, and it cannot leave a group switched on by accident.
+            if guarded(REJECT):
+                return "rejected"
             _turn_off_optional(page)
             if guarded(SAVE):
                 return "saved necessary-only"
+        # Last resort, and only because a wall left standing is not neutral: it covers the page
+        # and swallows every click behind it, so a sign-in reads as "could not find the form" and
+        # an apply as a timeout. Accepting is the worse answer about tracking and the only one
+        # that leaves the site usable, so it happens after every other route has failed.
+        if guarded(ACCEPT):
+            return "accepted"
         return ""
     except Exception:
         return ""
@@ -1583,6 +1605,16 @@ def auto_signin(board, username, password, headless=True):
                 remember_signin(board, True)
                 return True, "signed in" if confirmed else \
                     "signed in, but the board would not confirm it - the stored session was kept"
+            # A human-check page is not a rejected password, and must not be counted as one.
+            # publi24 answers an automated login with Cloudflare's "Verify you are human", and
+            # that came back as False - one of the two strikes that stop the app handing the
+            # password over at all. Two honest attempts would have disabled a sign-in that was
+            # never wrong. None says "nothing reached the board", which is exactly true: the
+            # password was typed and the board never looked at it.
+            if BOT_WALL.search(_fold_ro(page.inner_text("body"))[:4000]):
+                return None, ("the board asked for a human check (a captcha) before it would "
+                              "look at the password - use the sign-in button and tick it "
+                              "yourself; the session is saved from there")
             return False, "the sign-in did not take - wrong password, or the board asked "\
                           "something extra (a code, a captcha) that needs you at the keyboard"
         except Exception as e:
