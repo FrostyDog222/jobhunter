@@ -6363,22 +6363,19 @@ for _s10vv, _vars10vv in (("'{s} will be searched.'", "s"),
     assert "fill(" in _near10vv and f"{_vars10vv}:" in _near10vv, \
         f"{_s10vv} is printed without anything to fill {{{_vars10vv}}}"
 
-# 10ww. A site switched off is left alone entirely, applying included.
+# 10ww. The search switch stops the SEARCHING, and only that.
 #
-# The switch filtered the SEARCH only. Turning a board off stopped new adverts arriving and did
-# nothing about the ones already stored, so the next run would still send applications to a site
-# somebody had just said to stop using - and nothing warned about it, because from the run's
-# side those rows look like any other.
+# A job already found, read and scored has had a model call spent on it and has been in front of
+# somebody; switching the site off does not unmake it. Switching off a noisy source while still
+# wanting the good ones it already turned up is the ordinary reason to switch one off.
+#
+# Written the other way round first - off meaning off for everything - which reads well as a
+# principle and is wrong in practice, so the three paths are asserted separately rather than
+# left to be re-reasoned from scratch next time.
 _r10ww = _iK.getsource(_aa.run)
-assert 'settings.get(f"search_{b}", True)' in _r10ww, \
-    "the apply step ignores the switch, so a board turned off is still applied to"
-assert _r10ww.index("search_{b}") < _r10ww.index("usable = "), \
-    "the switch is applied after the usable list is built, which is too late to matter"
-
-# the three places that must agree about a board being off
+assert "search_" not in _r10ww,     "the run stopped applying to jobs already found on a switched-off site; they are already yours"
 _se10ww = _iK.getsource(app._search)
-assert "search_{b}" in _se10ww, "the search ignores it"
-assert "search_" not in _iK.getsource(_auto.touch), \
-    "the keep-alive now follows the switch too - deliberate or not, say which"
+assert "search_{b}" in _se10ww, "the search ignores the switch, which is the one thing it governs"
+assert "search_" not in _iK.getsource(_auto.touch),     "the keep-alive follows the switch now - a board turned off may hold applications already "     "sent, and reading those back needs a live session"
 
 print("ok")

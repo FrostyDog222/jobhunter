@@ -242,18 +242,18 @@ def run(app, prefill, settings, log):
     # One board being out is not a reason to skip the others. This used to return on the first
     # one it found signed out, so a lapsed eJobs session cost the week's BestJobs applications
     # too - on a session that runs six months and had nothing wrong with it.
-    # A site switched off is left alone entirely, applying included.
+    # The search switch is NOT consulted here, and that is the decision rather than an oversight.
     #
-    # The switch filtered the SEARCH only, so turning a board off stopped new adverts arriving
-    # and did nothing about the ones already stored: the next run would still send applications
-    # to a site somebody had just said to stop using. Nothing warned about it either, because
-    # from the run's side those rows look like any other.
+    # It says "stop looking for new jobs on that site". A job already found, read and scored is
+    # one this app has spent a model call on and the person has had a chance to see - switching
+    # the site off does not unmake it, and leaving it to rot in the list would quietly waste the
+    # work. Switching off a noisy source while still wanting the good ones it already turned up
+    # is the ordinary reason to switch one off at all.
     #
-    # Read per run rather than captured once, so a switch thrown between runs is honoured by the
-    # next one without a restart.
-    on = [b for b in prefill.AUTO_APPLY if settings.get(f"search_{b}", True)]
-    usable = [b for b in on if live.get(b, prefill.session_for(b))]
-    out = [b for b in on if b not in usable]
+    # Tried the other way round first, where off meant off for everything. It reads well as a
+    # principle and is wrong in practice: the jobs are already yours.
+    usable = [b for b in prefill.AUTO_APPLY if live.get(b, prefill.session_for(b))]
+    out = [b for b in prefill.AUTO_APPLY if b not in usable]
 
     # A board that is out, and whose sign-in you chose to save, gets one attempt. The keep-alive
     # does this too, every two hours, which is where it matters most - see sign_back_in.
