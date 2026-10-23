@@ -9,6 +9,66 @@ UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
                     "(KHTML, like Gecko) Chrome/131.0 Safari/537.36",
       "Accept-Language": "ro-RO,ro;q=0.9,en;q=0.8"}
 
+# Boards that answer a plain HTTP client with 403 and a real browser with 200.
+#
+# BestJobs started doing this between 2026-10-12 and 2026-10-23: every one of 50 queries came back
+# 403, from its API and its website alike, with our User-Agent and without one - while a browser
+# got 200 from both and the API returned its ordinary JSON. The app's own health check caught it
+# ("0 results but 41 stored previously"), which is the only reason it did not pass unnoticed.
+#
+# OLX has always been this way. So one browser serves both, opened once and kept for the whole
+# run - a launch per query would cost more than the requests do.
+NEEDS_BROWSER = ("bestjobs.eu", "olx.ro")
+_BROWSER = []            # [playwright, browser, context, page], empty until first use
+
+
+def needs_browser(url):
+    return any(h in (url or "") for h in NEEDS_BROWSER)
+
+
+def _page():
+    """The shared browser page, opened on first use. Carries the saved session, so a board that
+    shows more to a signed-in visitor shows it here too."""
+    if not _BROWSER:
+        import prefill                       # here, not at the top: prefill is the heavier module
+        from playwright.sync_api import sync_playwright
+        pw = sync_playwright().start()
+        browser, ctx, page = prefill._open(pw, headless=True)
+        _BROWSER.extend([pw, browser, ctx, page])
+    return _BROWSER[3]
+
+
+def close_browser():
+    """Shut the shared browser. Safe to call when it was never opened."""
+    if not _BROWSER:
+        return
+    pw, browser, _ctx, _page = _BROWSER
+    for shut in (browser.close, pw.stop):
+        try:
+            shut()
+        except Exception:
+            pass
+    _BROWSER.clear()
+
+
+# The run that opens it is usually a process that exits - a scheduled run, or a test - and atexit
+# closes it there. The long-lived server calls close_browser() at the end of each search instead,
+# so a browser is not left sitting open between them.
+import atexit as _atexit
+_atexit.register(close_browser)
+
+
+def browser_get(url, timeout=45000):
+    """-> the page's text for a url a plain client is refused. Raises like _get would."""
+    import prefill
+    page = _page()
+    page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+    page.wait_for_timeout(2000)
+    prefill.dismiss_consent(page)
+    page.wait_for_timeout(600)
+    return page
+
+
 BOARDS = {
     # name: (listing url template, regex finding job-detail paths in the listing html)
     "ejobs": ("https://www.ejobs.ro/locuri-de-munca/{loc}{q}",
@@ -94,10 +154,19 @@ def bestjobs(query, limit=25, timeout=30):
     how many people have already applied, the employer's own salary as distinct from the board's
     estimate of it, and whether Apply leaves the board for the employer's own site.
     """
+    url = httpx.URL(BESTJOBS, params={"keyword": (query or "").translate(DIACRITICS)})
     with httpx.Client(headers={**UA, "Accept": "application/json"}, timeout=timeout) as c:
-        r = _get(c, httpx.URL(BESTJOBS, params={"keyword": (query or "").translate(DIACRITICS)}))
-        r.raise_for_status()
-        items = r.json().get("items") or []
+        r = _get(c, url)
+        if r.status_code == 403:
+            # BestJobs began refusing plain clients between 2026-10-12 and 2026-10-23: 403 on the
+            # API and the website alike, with our User-Agent and without one, while a browser got
+            # 200 from both. Fifty queries returned nothing and the board was silently out of the
+            # run for days. The API itself is unchanged - it answers the same JSON, it just wants
+            # to be asked by a browser now.
+            items = json.loads(browser_get(str(url)).inner_text("body")).get("items") or []
+        else:
+            r.raise_for_status()
+            items = r.json().get("items") or []
     jobs = []
     for j in items:
         slug = (j.get("slug") or "").strip()

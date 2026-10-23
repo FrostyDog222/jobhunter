@@ -1943,7 +1943,10 @@ _bj_items = [
 
 
 class _FakeResp:
-    def __init__(self, payload): self._p = payload
+    # status_code since 2026-10-23: bestjobs answers a plain client 403 now and the browser
+    # fallback keys off it, so a stub without one is a stub of the old world
+    def __init__(self, payload, status_code=200):
+        self._p, self.status_code = payload, status_code
     def raise_for_status(self): pass
     def json(self): return self._p
 
@@ -6161,5 +6164,46 @@ _d10pp = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
 _sb10pp = _d10pp.split("const SBOARDS = {")[1].split("}")[0]
 for _b10pp in _pfid.LOGIN_FORM:
     assert f"{_b10pp}:" in _sb10pp, f"{_b10pp} has a login form but no card on the page"
+
+# 10qq. A board that starts refusing plain HTTP clients must not go quietly missing.
+#
+# BestJobs began answering 403 between 2026-10-12 and 2026-10-23 - every one of 50 queries, from
+# its API and its website alike, with our User-Agent and without one - while a real browser got
+# 200 from both and the API returned its ordinary JSON. The board was out of the run for days.
+# Only the health check noticed, with "0 results but 41 stored previously".
+_sc10qq = (app.HERE / "scrape.py").read_text(encoding="utf-8")
+assert "status_code == 403" in _iK.getsource(_scr.bestjobs), \
+    "a 403 from bestjobs is fatal again, which takes the board silently out of the run"
+assert "browser_get" in _iK.getsource(_scr.bestjobs), "there is no way past a 403"
+
+# One browser for the whole run. A launch per query is seconds each across fifty terms.
+assert "_BROWSER" in _sc10qq and "def close_browser" in _sc10qq, \
+    "the browser is opened per call rather than shared"
+assert "_atexit.register(close_browser)" in _sc10qq, "a run that raises leaves Chromium running"
+# ...and the long-lived server shuts it between searches rather than at exit, which never comes
+assert "scrape.close_browser()" in _iK.getsource(app._finish), \
+    "the server keeps a browser open between searches"
+
+# the fallback fires on 403 and ONLY on 403
+_seen10qq = []
+_keep10qq = (_scr._get, _scr.browser_get)
+
+
+class _Pg10qq:
+    def inner_text(self, _sel):
+        return json.dumps({"items": []})
+
+
+try:
+    _scr.browser_get = lambda u, **k: (_seen10qq.append(u), _Pg10qq())[1]
+    _scr._get = lambda c, u, **k: _FakeResp({"items": []}, status_code=403)
+    _scr.bestjobs("x", limit=3)
+    assert _seen10qq, "a 403 did not reach the browser"
+    _seen10qq.clear()
+    _scr._get = lambda c, u, **k: _FakeResp({"items": []}, status_code=200)
+    _scr.bestjobs("x", limit=3)
+    assert not _seen10qq, "a 200 opened a browser it did not need"
+finally:
+    _scr._get, _scr.browser_get = _keep10qq
 
 print("ok")

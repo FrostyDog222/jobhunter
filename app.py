@@ -2146,6 +2146,10 @@ def _finish():
     saying "16%, still going" until the 360-second staleness rule noticed - six minutes with the
     Search button disabled and nothing to explain it."""
     PROGRESS.update(active=False, phase="", done=0, total=0, pct=100)
+    # ...and shut the browser the boards that refuse plain HTTP clients needed. A scheduled run
+    # exits and atexit would do it anyway; this app does not exit for weeks, and a Chromium left
+    # open between searches is a few hundred MB sitting there for nothing.
+    scrape.close_browser()
 
 
 def step(phase, done=0, total=0):
