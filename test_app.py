@@ -4176,7 +4176,10 @@ try:
     finally:
         app.prefill.verify_boards = _keep9l
     assert _r9l["boards"]["hipo"] is True and _r9l["boards"]["bestjobs"] is True,         f"a board that was never probed came back as signed out: {_r9l['boards']}"
-    assert _r9l["unchecked"] == ["bestjobs", "hipo"],         f"the boards that were not reached are not named: {_r9l.get('unchecked')}"
+    # derived, not written out: the point is "every board the probe did not reach is named", and
+    # hardcoding the four that existed made adding a fifth look like a bug in the endpoint
+    _want9l = sorted(b for b in app.prefill.BOARD_UI if b != "ejobs")
+    assert _r9l["unchecked"] == _want9l,         f"the boards that were not reached are not named: {_r9l.get('unchecked')} != {_want9l}"
 finally:
     _sh6.copy(_tmp9l, _SIGN9)
     _sh6.rmtree(_tmp9l.parent, ignore_errors=True)

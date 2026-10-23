@@ -772,6 +772,23 @@ BOARD_UI = {
         "avoid":      r"linkedin|facebook|google|apple",
         "applied":    ("ai aplicat", "aplicare trimis", "candidatura ta", "deja aplicat"),
     },
+    "publi24": {
+        # The cleanest probe of the four, and the reason this one can be trusted: /cv is
+        # members-only and answers a signed-out request with a redirect to
+        # /Account/Login?ReturnUrl=%2fcv. A url is not markup, so it cannot drift the way eJobs'
+        # page text did - and the "I cannot tell" case that destroyed sessions for three days
+        # does not arise, because the redirect IS the answer.
+        "probe":      "https://www.publi24.ro/cv",
+        "profile":    "https://www.publi24.ro/cv",
+        "denied":     ("account/login", "returnurl"),
+        "signed_in":  ("contul meu", "cv-ul meu", "anunturile mele", "anunțurile mele"),
+        "signed_out": ("intră în cont", "intra in cont", "creează cont", "creeaza cont"),
+        # the apply control on an ad opens the "Aplică cu CV" dialog; the send button inside it
+        # is matched separately, because pressing it is the application
+        "apply":      r"aplic[ăa] cu cv|trimite mesaj",
+        "avoid":      r"linkedin|facebook|google|apple",
+        "applied":    ("mesajul a fost trimis", "ai aplicat", "deja aplicat", "candidatura ta"),
+    },
 }
 
 
@@ -1454,6 +1471,13 @@ LOGIN_FORM = {
     "hipo": {"url": "https://www.hipo.ro/locuri-de-munca/logincontcandidat",
              "user": 'input[name="emaillogin"]', "pass": 'input[name="parolalogin"]',
              "submit": r"^login$"},
+    # publi24 also offers Facebook sign-in and has a four-digit code step on its login page
+    # ("Confirmă codul"). If it asks for one, auto_signin cannot answer it and says so - that is
+    # the "the board asked something extra that needs you at the keyboard" branch, and the right
+    # answer then is the sign-in window, where a person can type the code.
+    "publi24": {"url": "https://www.publi24.ro/login",
+                "user": 'input[name="Email"]', "pass": 'input[name="Password"]',
+                "submit": r"intr[ăa] [îi]n cont"},
 }
 
 
