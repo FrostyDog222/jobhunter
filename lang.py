@@ -694,17 +694,19 @@ RO = {
         "Include joburi din industria pentru adulți (videochat și similare)",
     "Search freehire too": "Caută și pe freehire",
     "Search publi24 too": "Caută și pe publi24",
-    # two entries, not one: the <b> splits the paragraph into separate text nodes
-    "publi24 is signed in the same way, but":
-        "publi24 se conectează la fel, dar",
-    "it is not applied to for you yet.":
-        "deocamdată nu se aplică în locul tău acolo.",
-    "Its ads do take an application — a message and the CV from your publi24 account — "
-    "and that will be wired up once it has been tested against a real account. Until then signing "
-    "in is what lets you apply there yourself in one click.":
-        "Anunțurile lui chiar primesc candidaturi — un mesaj și CV-ul din contul tău publi24 "
-        "— iar asta va fi pusă la punct după ce e testată pe un cont real. Până atunci, "
-        "conectarea e ceea ce îți permite să aplici acolo singur, dintr-un clic.",
+    # three entries: the <b> and <i> split the paragraph into separate text nodes
+    "publi24 is not signed in to here at all, and":
+        "publi24 nu se conectează deloc de aici și",
+    "cannot be applied to for you.": "nu se poate aplica în locul tău acolo.",
+    "Its login sits behind a bot check that does not resolve in an automated browser — the "
+    "spinner never finishes, whoever is at the keyboard. Its ads are still searched, read and "
+    "scored like any other;":
+        "Autentificarea lui stă în spatele unei verificări anti-robot care nu se "
+        "termină într-un browser automat — roțița nu se oprește "
+        "niciodată, oricine ar fi la tastatură. Anunțurile lui sunt totuși "
+        "căutate, citite și punctate ca oricare altele;",
+    "takes you to one in your own browser, signed in as yourself, and you send it from there.":
+        "te duce la unul în browserul tău, conectat ca tine, și îl trimiți de acolo.",
     "publi24 is classifieds, and it carries the work the other four barely do \u2014":
         "publi24 e site de anunțuri și are munca pe care celelalte patru aproape că nu o au \u2014",
     "drivers, construction, warehouse, cleaning, kitchens, trades.":
