@@ -109,8 +109,16 @@ The dashboard shows a checklist until all three are done.
 
 ## Finding jobs
 
-Type what you are looking for and press *Search*. Four job boards are searched at once: **eJobs**,
-**BestJobs**, **Hipo** and **freehire** (international and remote).
+Type what you are looking for and press *Search*. Six sources are searched at once: **eJobs**,
+**BestJobs**, **Hipo**, **freehire** (international and remote), and the two classifieds sites,
+**OLX** and **publi24**. Each of the last three can be switched off under *Settings*.
+
+**OLX** carries the most remote work of any of them — measured on one set of search terms, 48
+results for "call center" of which 36 read as support work and 6 said remote. It is also the
+slowest: OLX refuses anything that is not a browser, on its listings and on every advert, so those
+pages are read through one, about two seconds an advert against a tenth of that elsewhere. Only
+adverts nobody has read before pay that. **It cannot be applied to for you**, so its jobs wait for
+you to send them yourself.
 
 **freehire can be switched off,** under *Settings*, and it is worth knowing why you might. It is
 the only one of the four that **cannot be applied to for you** — its jobs live on the employer's

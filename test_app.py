@@ -6206,4 +6206,45 @@ try:
 finally:
     _scr._get, _scr.browser_get = _keep10qq
 
+# 10rr. OLX: read through a browser, because it will not answer anything else.
+#
+# The biggest classifieds site here and the one with the most remote support work on it - 48
+# cards for "call center", 36 of them support, 6 saying remote, against publi24's 24 and none.
+# It refuses a plain HTTP client on the listing AND on every advert, so both go through the one
+# shared browser.
+assert "olx" in _scr.SOURCES, "OLX is not searched"
+assert _scr.needs_browser("https://www.olx.ro/oferta/loc-de-munca/x-IDa.html"), \
+    "OLX adverts would be fetched with a client it refuses"
+_ol10rr = _iK.getsource(_scr.olx)
+assert "browser_get" in _ol10rr, "the listing is fetched with a plain client"
+assert "data-cy=l-card" in _scr._OLX_CARDS, \
+    "the cards are read from raw html, which on a client-rendered page holds no adverts at all"
+
+# hydrate must send those adverts to the browser and keep the pool for everything else
+_hy10rr = _iK.getsource(_scr.hydrate)
+assert "needs_browser" in _hy10rr, "OLX adverts go to the pool, which gets a 403 for each one"
+assert _hy10rr.index("slow = [") < _hy10rr.index("quick = ["), "the split is gone"
+assert "pool.map(fetch, quick)" in _hy10rr, \
+    "everything now waits behind the browser, one page at a time"
+
+# the cookie wall is answered once per host, not once per page: that was 12s an advert
+_bg10rr = _iK.getsource(_scr.browser_get)
+assert "_CONSENTED" in _bg10rr and "host not in _CONSENTED" in _bg10rr, \
+    "every advert searches the whole page for a wall that went down on the first one"
+assert "_CONSENTED.clear()" in _iK.getsource(_scr.close_browser), \
+    "a new browser would believe the old one's walls are still down"
+
+# and the switch reaches the scheduled run, like the other two sources
+assert app.DEFAULTS["search_olx"] is True
+_se10rr = _iK.getsource(app._search)
+assert 'settings().get("search_olx"' in _se10rr and 'b != "olx"' in _se10rr, \
+    "the switch is not honoured inside the search"
+
+# the card parser: location is the line before the contract type, not the line with a date
+_card10rr = ["Agent call center", "ConnectSphere", "6 000 - 8 000 lei",
+             "Bucuresti, Sectorul 5", "Nedeterminat", "Norma intreaga", "Azi la 13:19"]
+_rest = _card10rr[1:]
+_at = next(i for i, x in enumerate(_rest) if x.lower() == "nedeterminat")
+assert _rest[_at - 1] == "Bucuresti, Sectorul 5", "the place is no longer before the contract type"
+
 print("ok")

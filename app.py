@@ -298,6 +298,16 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
         # switch rather than a default. On, because a source nobody asked to lose should not
         # disappear; off here, where the search is for remote customer support.
         "search_publi24": True,
+        # Whether to search OLX.
+        #
+        # The biggest classifieds site in Romania, and the one with the most REMOTE support work
+        # on it. Measured against this install's own terms: 48 cards for "call center" of which
+        # 36 read as support work and 6 said remote, against publi24's 24 and none.
+        #
+        # It costs more than the others. OLX refuses a plain HTTP client, listing and advert
+        # alike, so every page goes through the shared browser - about 2 seconds an advert
+        # against a tenth of that for eJobs. Only adverts nobody has read before pay it.
+        "search_olx": True,
         # Whether the unattended run may answer an employer's screening questions and send.
         #
         # Off by default, and auto_apply.py's own header says why: a model writing answers into a
@@ -623,7 +633,7 @@ def _set_auto(body):
     for k in ("auto_enabled", "auto_days", "auto_time", "auto_query", "auto_location",
               "auto_county", "auto_country", "keep_signed_in", "skip_families", "recheck",
               "auto_answer",
-              "allow_adult", "search_freehire", "search_publi24",
+              "allow_adult", "search_freehire", "search_publi24", "search_olx",
               "auto_fresh", "auto_work_mode", "auto_seniority", "auto_ats",
               "auto_min_fit", "auto_apply", "auto_apply_min_fit",
               "auto_apply_cap"):
@@ -2628,6 +2638,8 @@ async def _search(body, p):
         boards = [b for b in boards if b != "freehire"]
     if not settings().get("search_publi24", True):
         boards = [b for b in boards if b != "publi24"]
+    if not settings().get("search_olx", True):
+        boards = [b for b in boards if b != "olx"]
     limit = int(body.get("limit", 20))
 
     # Phase 1: discover cheaply - one request per board per query, no detail pages yet.

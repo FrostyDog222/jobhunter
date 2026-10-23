@@ -694,6 +694,16 @@ RO = {
         "Include joburi din industria pentru adulți (videochat și similare)",
     "Search freehire too": "Caută și pe freehire",
     "Search publi24 too": "Caută și pe publi24",
+    "Search OLX too": "Caut\u0103 \u0219i pe OLX",
+    "The biggest classifieds site here, and the one with the most":
+        "Cel mai mare site de anun\u021buri de aici \u0219i cel cu cea mai mult\u0103",
+    "remote": "munc\u0103 remote",
+    "work on it \u2014 but it cannot be applied to for you, so those jobs wait for you to send "
+    "them yourself. It is also the slowest to read, because OLX refuses anything that is not a "
+    "browser.":
+        "pe el \u2014 dar nu se poate aplica \u00een locul t\u0103u, a\u0219a c\u0103 acele "
+        "joburi a\u0219teapt\u0103 s\u0103 le trimi\u021bi tu. E \u0219i cel mai lent de "
+        "citit, fiindc\u0103 OLX refuz\u0103 orice nu e un browser.",
     # two entries, not one: the <b> splits the paragraph into separate text nodes
     "publi24 is signed in the same way, but":
         "publi24 se conectează la fel, dar",

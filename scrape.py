@@ -1,6 +1,6 @@
 """Job scraping. Every serious board emits schema.org JobPosting JSON-LD for Google Jobs,
 so one generic extractor covers them all - a new board is one entry in BOARDS."""
-import datetime, functools, html, json, random, re, time, unicodedata
+import datetime, functools, html, itertools, json, random, re, time, unicodedata
 from concurrent.futures import ThreadPoolExecutor
 import httpx
 from urllib.parse import quote_plus, unquote, urlsplit
@@ -49,6 +49,7 @@ def close_browser():
         except Exception:
             pass
     _BROWSER.clear()
+    _CONSENTED.clear()
 
 
 # The run that opens it is usually a process that exits - a scheduled run, or a test - and atexit
@@ -58,14 +59,24 @@ import atexit as _atexit
 _atexit.register(close_browser)
 
 
+_CONSENTED = set()      # hosts whose cookie wall this browser has already answered
+
+
 def browser_get(url, timeout=45000):
-    """-> the page's text for a url a plain client is refused. Raises like _get would."""
+    """-> the page a plain client is refused, loaded in the shared browser."""
     import prefill
     page = _page()
     page.goto(url, wait_until="domcontentloaded", timeout=timeout)
-    page.wait_for_timeout(2000)
-    prefill.dismiss_consent(page)
-    page.wait_for_timeout(600)
+    page.wait_for_timeout(1200)
+    # Once per host, not once per page. The wall is answered with a cookie, so it does not come
+    # back - but dismiss_consent cannot know that and walks every link and button on the page
+    # looking for it, three patterns deep. On OLX that was most of the cost: four adverts took
+    # 48 seconds, nearly all of it searching pages whose wall had been down since the first one.
+    host = urlsplit(url).netloc
+    if host not in _CONSENTED:
+        prefill.dismiss_consent(page)
+        page.wait_for_timeout(600)
+        _CONSENTED.add(host)
     return page
 
 
@@ -97,7 +108,7 @@ BASE = {"ejobs": "https://www.ejobs.ro", "hipo": "https://www.hipo.ro",
         "publi24": "https://www.publi24.ro"}
 # BOARDS are HTML boards scraped via JSON-LD; freehire and bestjobs are JSON APIs, each handled
 # separately below.
-SOURCES = ["freehire", "bestjobs"] + list(BOARDS)
+SOURCES = ["freehire", "bestjobs", "olx"] + list(BOARDS)
 
 BESTJOBS = "https://api.bestjobs.eu/v1/jobs"
 BESTJOBS_AD = "https://www.bestjobs.eu/loc-de-munca/{slug}"
@@ -142,6 +153,61 @@ def _bj_pay(text):
     """
     t = _clean(text)
     return f"{t} EUR/month" if t and re.fullmatch(r"[\d][\d\s.,-]*", t) else t
+
+
+OLX = "https://www.olx.ro/locuri-de-munca/{loc}q-{q}/"
+
+# Each result card, straight out of the rendered page. OLX is a client-rendered app: the listing
+# html a plain request would get carries no adverts at all, so there is nothing to regex and the
+# DOM is the only source. Taken per CARD rather than per link, because a card also holds the
+# location and the salary, and matching those up afterwards by url is guesswork.
+_OLX_CARDS = """() => [...document.querySelectorAll('[data-cy=l-card]')].map(c => {
+    const a = c.querySelector('a[href]');
+    const t = (c.innerText || '').split('\\n').map(x => x.trim()).filter(Boolean);
+    return {href: a ? a.getAttribute('href') : '', lines: t};
+}).filter(x => x.href && x.href.includes('/oferta/'))"""
+
+
+def olx(query, limit=25, timeout=30, location=""):
+    """Romania's biggest classifieds site, and the one with the most remote support work on it.
+
+    Measured against this install's own terms: 48 cards for "call center" of which 36 read as
+    support work and 6 said remote, against publi24's 24 and none. The adverts carry full
+    JSON-LD - description, date, employer, location - so phase 2 reads them like any other board
+    once it can fetch them, which it can only do through a browser.
+    """
+    loc = f"{_slug(location)}/" if location else ""
+    url = OLX.format(loc=loc, q=_slug(query) or "")
+    page = browser_get(url, timeout=timeout * 1000)
+    out, seen = [], set()
+    for card in page.evaluate(_OLX_CARDS):
+        href = card["href"].split("?")[0]
+        link = href if href.startswith("http") else "https://www.olx.ro" + href
+        if link in seen:
+            continue
+        seen.add(link)
+        lines = card["lines"]
+        title = lines[0] if lines else _slug_title(href)
+        # A card reads: title, then the employer and a salary where it gives them, then the
+        # place, then the contract type, the hours, and a date last. The place is the line
+        # immediately before the contract type, and that anchor held on every card sampled -
+        # where "the line with a date in it" did not, because plenty say only "Reactualizat azi
+        # la 17:24" and name no place on that line at all.
+        rest = lines[1:]
+        at = next((i for i, x in enumerate(rest)
+                   if re.fullmatch(r"(ne)?determinat|colaborare|internship|sezonier", x, re.I)),
+                  None)
+        where = rest[at - 1] if at else ""
+        pay = next((x for x in rest if re.search(r"\d[\d\s.]*lei", x, re.I)), "")
+        firm = next((x for x in rest[:max(0, (at or 1) - 1)]
+                     if x != pay and x != where), "")
+        out.append({"source": "olx", "url": link, "title": _clean(title)[:160],
+                    "company": _clean(firm)[:120], "location": _clean(where)[:120],
+                    "posted": "", "description": "", "note": "",
+                    "salary": _clean(pay)[:60], "lang": "", "_full": False})
+        if len(out) >= limit:
+            break
+    return out
 
 
 def bestjobs(query, limit=25, timeout=30):
@@ -1065,6 +1131,8 @@ def discover(board, query, location="", limit=25, timeout=30, country="ro", filt
         return jobs
     if board == "bestjobs":
         return bestjobs(query, limit, timeout)
+    if board == "olx":
+        return olx(query, limit, timeout, location)
 
     base, (tpl, pat) = BASE[board], BOARDS[board]
     with httpx.Client(headers=UA, follow_redirects=True, timeout=timeout) as c:
@@ -1229,6 +1297,20 @@ def hydrate(jobs, timeout=30, on_progress=None, report=None):
     todo = [j for j in jobs if not j.get("_full")]
     if not todo:
         return [dict(j, **{}) for j in jobs]
+    # Boards that refuse a plain client are read through the one shared browser, which means one
+    # at a time: a browser page is not something five threads can hold at once. They go first and
+    # the rest keep the parallel pool, so a handful of OLX adverts does not serialise everything
+    # else behind them. In the steady state this is small - only ads nobody has read before get
+    # here at all, the dedupe having dropped the rest.
+    slow = [j for j in todo if needs_browser(j["url"])]
+    quick = [j for j in todo if not needs_browser(j["url"])]
+
+    def by_browser(j):
+        try:
+            return j, browser_get(j["url"], timeout=timeout * 1000).content()
+        except Exception:
+            return j, None
+
     with httpx.Client(headers=UA, follow_redirects=True, timeout=timeout) as c:
         def fetch(j):
             try:
@@ -1237,7 +1319,7 @@ def hydrate(jobs, timeout=30, on_progress=None, report=None):
                 return j, None
 
         with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
-            pages = pool.map(fetch, todo)
+            pages = itertools.chain((by_browser(j) for j in slow), pool.map(fetch, quick))
             for done, (j, page) in enumerate(pages, 1):
                 if on_progress:
                     on_progress(done, len(todo))
