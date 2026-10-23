@@ -316,7 +316,13 @@ def _editable_inputs(page):
 # Preference order is deliberate: decline outright, else open the settings panel and save it
 # with nothing extra enabled. "Accept all" is never clicked - a consent wall in the way is not a
 # reason to opt someone into tracking on their behalf.
-REJECT = r"reject all|reject|refuse|decline|necessary only|only necessary|essential only|"          r"respinge|refuz|doar necesare|doar cele necesare|continu[ăa] f[ăa]r[ăa]"
+# "accepta necesare" is OLX's wording and belongs here rather than under ACCEPT, despite the verb:
+# it is the button that takes the necessary cookies ONLY, which is the same answer as "reject
+# optional" with the words the other way round. Reading it as an accept would have agreed to
+# everything on a site that was offering the opposite.
+REJECT = (r"reject all|reject|refuse|decline|necessary only|only necessary|essential only|"
+          r"accept(?:[ăa]|only)? necesare|accept necessary|"
+          r"respinge|refuz|doar necesare|doar cele necesare|continu[ăa] f[ăa]r[ăa]")
 #  "mai multe optiuni" is Quantcast's Romanian wording, and it is the ONLY way past publi24's
 # wall: that dialog offers "SUNT DE ACORD" and "MAI MULTE OPȚIUNI" and nothing else, so with no
 # reject at the top level and no match here, the wall stayed up and intercepted every click on
@@ -327,7 +333,7 @@ SAVE = r"save settings|save preferences|save choices|confirm choices|save and cl
 # Accepting, which this does only when nothing else would clear the wall. Deliberately narrow:
 # whole phrases that can only mean consent, never a bare "ok" or "da" that a page might use
 # for anything.
-ACCEPT = (r"^\s*(sunt de acord|accept(are)? (toate|total[ăa])|accept all|accept cookies|acceptare total[ăa]|de acord|i agree|agree and close)\s*$")
+ACCEPT = (r"^\s*(sunt de acord|accept(a|ă|are)? ?(toate|total[ăa])|accept all|accept cookies|de acord|i agree|agree and close)\s*$")
 
 # A "prove you are human" wall, which is an answer about the CLIENT and says nothing about
 # the password. Matched on the wording these services actually show rather than on a vendor
