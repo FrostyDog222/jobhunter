@@ -690,20 +690,14 @@ RO = {
     "{n} were already in your list from another board.":
         "{n} erau deja în lista ta, de pe alt site.",
     "{n} were adult-industry work.": "{n} erau din industria pentru adulți.",
+    "search": "caută",
+    "Search this site": "Caută pe acest site",
+    "not searched": "nu se caută",
+    "searched · you apply yourself": "se caută · aplici tu",
+    "{s} will be searched.": "Se va căuta pe {s}.",
+    "{s} will not be searched.": "Nu se va mai căuta pe {s}.",
     "Include adult-industry jobs (videochat and similar)":
         "Include joburi din industria pentru adulți (videochat și similare)",
-    "Search freehire too": "Caută și pe freehire",
-    "Search publi24 too": "Caută și pe publi24",
-    "Search OLX too": "Caut\u0103 \u0219i pe OLX",
-    "The biggest classifieds site here, and the one with the most":
-        "Cel mai mare site de anun\u021buri de aici \u0219i cel cu cea mai mult\u0103",
-    "remote": "munc\u0103 remote",
-    "work on it \u2014 but it cannot be applied to for you, so those jobs wait for you to send "
-    "them yourself. It is also the slowest to read, because OLX refuses anything that is not a "
-    "browser.":
-        "pe el \u2014 dar nu se poate aplica \u00een locul t\u0103u, a\u0219a c\u0103 acele "
-        "joburi a\u0219teapt\u0103 s\u0103 le trimi\u021bi tu. E \u0219i cel mai lent de "
-        "citit, fiindc\u0103 OLX refuz\u0103 orice nu e un browser.",
     # two entries, not one: the <b> splits the paragraph into separate text nodes
     "publi24 is signed in the same way, but":
         "publi24 se conectează la fel, dar",
@@ -715,28 +709,6 @@ RO = {
         "Anunțurile lui chiar primesc candidaturi — un mesaj și CV-ul din contul tău publi24 "
         "— iar asta va fi pusă la punct după ce e testată pe un cont real. Până atunci, "
         "conectarea e ceea ce îți permite să aplici acolo singur, dintr-un clic.",
-    "publi24 is classifieds, and it carries the work the other four barely do \u2014":
-        "publi24 e site de anunțuri și are munca pe care celelalte patru aproape că nu o au \u2014",
-    "drivers, construction, warehouse, cleaning, kitchens, trades.":
-        "șoferi, construcții, depozit, curățenie, bucătărie, meserii.",
-    "For office or remote work it finds almost nothing, so leave it off unless the search is for "
-    "one of those.":
-        "Pentru muncă de birou sau remote nu găsește aproape nimic, așa că lasă-l oprit dacă nu "
-        "cauți una dintre acestea.",
-    # three entries, not one, for the same reason as the paragraph below: the <b> splits the
-    # paragraph into separate text nodes and localise() swaps whole nodes
-    "freehire lists jobs that live on the employer's own site, so":
-        "freehire listează joburi care stau pe site-ul angajatorului, așa că",
-    "they can never be applied to for you":
-        "nu se poate aplica niciodată la ele în locul tău",
-    "— you open the posting and fill their form yourself. It also finds far more than the other "
-    "three put together, so left on it can fill your list with jobs the unattended run is unable "
-    "to send. Turn it off to keep the list to eJobs, BestJobs and Hipo, which it can apply to on "
-    "its own.":
-        "— deschizi anunțul și completezi formularul lor chiar tu. Găsește și mult mai multe "
-        "decât celelalte trei la un loc, așa că lăsat pornit îți poate umple lista cu joburi pe "
-        "care rularea automată nu le poate trimite. Oprește-l ca să rămână doar eJobs, BestJobs "
-        "și Hipo, unde poate aplica singur.",
     # three entries, not one: the <b> in the middle of this paragraph splits it into separate text
     # nodes, and localise() swaps whole nodes
     "Left unticked, those never reach your list and are never applied to. Matched on wording that "

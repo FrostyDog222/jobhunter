@@ -805,6 +805,20 @@ BOARD_UI = {
         "avoid":      r"linkedin|facebook|google|apple",
         "applied":    ("ai aplicat", "aplicare trimis", "candidatura ta", "deja aplicat"),
     },
+    "olx": {
+        # /myaccount/ answers a signed-out request with a redirect to login.olx.ro, which is the
+        # kind of signal that cannot drift: a url, not a form of words. OLX renders everything
+        # client-side, so page text is the least reliable thing about it.
+        "probe":      "https://www.olx.ro/myaccount/",
+        "profile":    "https://www.olx.ro/myaccount/",
+        "denied":     ("login.olx.ro", "/login"),
+        "signed_in":  (),
+        "signed_out": (),
+        "apply":      r"^aplic[ăa]$|aplicare cu cv|trimite mesaj",
+        "avoid":      r"linkedin|facebook|google|apple",
+        "applied":    ("ai aplicat", "aplicare trimis", "candidatura ta", "deja aplicat",
+                       "mesajul a fost trimis"),
+    },
     "publi24": {
         # The cleanest probe of the four, and the reason this one can be trusted: /cv is
         # members-only and answers a signed-out request with a redirect to
@@ -1583,6 +1597,13 @@ LOGIN_FORM = {
     # ("Confirmă codul"). If it asks for one, auto_signin cannot answer it and says so - that is
     # the "the board asked something extra that needs you at the keyboard" branch, and the right
     # answer then is the sign-in window, where a person can type the code.
+    # OLX's own login host. Two buttons read "Intră în cont" - one switches to the login tab and
+    # one submits - and this takes the first visible match, so the form may need a second press.
+    # Left as it is: OLX does not challenge an automated browser, so if the first click is the
+    # wrong one the sign-in simply reports it rather than silently half-working.
+    "olx": {"url": "https://www.olx.ro/myaccount/",
+            "user": 'input[name="username"]', "pass": 'input[name="password"]',
+            "submit": r"intr[ăa] [îi]n cont"},
     "publi24": {"url": "https://www.publi24.ro/login",
                 "user": 'input[name="Email"]', "pass": 'input[name="Password"]',
                 "submit": r"intr[ăa] [îi]n cont"},

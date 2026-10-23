@@ -21,6 +21,11 @@
 .boardrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
 .boardcard{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;
   border:1px solid var(--line);background:var(--card);flex:0 1 auto}
+/* the per-source search switch sitting on each card */
+.srcsw{display:flex;align-items:center;gap:5px;font-size:12px;opacity:.85;cursor:pointer;
+  text-transform:none;letter-spacing:0;margin-left:auto}
+.srcsw input{width:auto;margin:0}
+
 .boardcard.on{border-color:color-mix(in srgb,var(--good) 50%,var(--line))}
 .boardcard.off{border-color:color-mix(in srgb,var(--bad) 60%,var(--line));
   background:color-mix(in srgb,var(--bad) 7%,var(--card))}
@@ -476,29 +481,6 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       applied to. Matched on wording that can only mean that work — <b>chat support, live chat and
       chat operator jobs are a different thing entirely and are never touched by this.</b> It would
       rather let one through than hide one of yours.</p>
-    <!-- On by default. Off is the right answer for anyone who wants this to run unattended. -->
-    <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
-      font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="search_freehire"
-      style="width:auto"> Search freehire too</label>
-    <p class="muted" style="margin:4px 0 0">freehire lists jobs that live on the employer's own
-      site, so <b>they can never be applied to for you</b> — you open the posting and fill their
-      form yourself. It also finds far more than the other three put together, so left on it can
-      fill your list with jobs the unattended run is unable to send. Turn it off to keep the list
-      to eJobs, BestJobs and Hipo, which it can apply to on its own.</p>
-    <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
-      font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="search_publi24"
-      style="width:auto"> Search publi24 too</label>
-    <p class="muted" style="margin:4px 0 0">publi24 is classifieds, and it carries the work the
-      other four barely do — <b>drivers, construction, warehouse, cleaning, kitchens, trades.</b>
-      For office or remote work it finds almost nothing, so leave it off unless the search is for
-      one of those.</p>
-    <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
-      font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="search_olx"
-      style="width:auto"> Search OLX too</label>
-    <p class="muted" style="margin:4px 0 0">The biggest classifieds site here, and the one with
-      the most <b>remote</b> work on it — but it cannot be applied to for you, so those jobs wait
-      for you to send them yourself. It is also the slowest to read, because OLX refuses anything
-      that is not a browser.</p>
     <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;
       font-size:13.5px;cursor:pointer;margin-top:12px"><input type="checkbox" id="recheck"
       style="width:auto"> Ask the boards once a month which saved jobs they still have</label>
@@ -955,7 +937,6 @@ $('#importhist').onclick = e => busy(e.target, async () => {
 const AUTO_FIELDS = ['auto_fresh', 'auto_work_mode', 'auto_seniority', 'auto_ats',
                      'auto_enabled', 'auto_days', 'auto_time', 'auto_query', 'auto_location',
                      'auto_county', 'auto_country', 'keep_signed_in', 'recheck', 'allow_adult',
-                     'search_freehire', 'search_publi24', 'search_olx',
                      'auto_min_fit', 'auto_apply', 'auto_answer', 'auto_apply_min_fit',
                      'auto_apply_cap'];
 // the floor and the cap only mean anything while applying is on
@@ -1020,6 +1001,11 @@ async function loadAuto(){
     if(el.type === 'checkbox') el.checked = !!v;
     else el.value = Array.isArray(v) ? v.join(',') : (v ?? '');
   }
+  // the per-source switches live on the board cards, not in AUTO_FIELDS: they save themselves
+  // the moment they are thrown, so there is nothing for Save to collect
+  SEARCH_ON = {};
+  for(const k of Object.keys(SOURCES)) SEARCH_ON[k] = a.settings['search_' + k] !== false;
+  loadSignins();            // the cards carry the switches, so redraw them with the answers
   // written straight onto .value, which fires nothing, so the chips have to be asked
   for(const id of CHIPBOXES) drawChips(id);
   drawTimePicker();          // #auto_time is hidden now; the two selects are what you see
@@ -2357,7 +2343,13 @@ async function loadLlm(){
   drawOllamaHelp();   // ticks the steps that are already done on this PC
 }
 
-const SBOARDS = {ejobs:'eJobs', bestjobs:'BestJobs', hipo:'Hipo', publi24:'publi24'};
+// Sources the app can sign in to...
+const SBOARDS = {ejobs:'eJobs', bestjobs:'BestJobs', hipo:'Hipo', olx:'OLX', publi24:'publi24'};
+// ...and every source it searches, which is the longer list: freehire has no account at all.
+const SOURCES = {ejobs:'eJobs', bestjobs:'BestJobs', hipo:'Hipo', olx:'OLX',
+                 publi24:'publi24', freehire:'freehire'};
+// search_<source> from the settings, filled by the same load that fills every other field
+let SEARCH_ON = {};
 const NAMES = {...SBOARDS};
 let recheckedOnce = false;
 // Which boards have a saved sign-in. The endpoint never returns the username or the password -
@@ -2472,14 +2464,25 @@ async function loadSignins(){
     return `<span style="margin-right:12px"><span class="dot ${
       guessing ? '' : (on ? 'on' : 'off')}"></span>${name}</span>`;
   }).join('');
-  $('#signinrow').innerHTML = Object.entries(SBOARDS).map(([k,name]) => {
-    const on = st.boards && st.boards[k];
-    return `<div class="boardcard ${guessing ? '' : (on ? 'on' : 'off')}">
+  // One card per SOURCE, not per board-with-a-login. Every source gets a switch that decides
+  // whether it is searched at all; the ones that can be signed in to also get that. They used to
+  // be two unrelated things in two places - three loose checkboxes further up the page for the
+  // sources added late, and cards down here for the three that have logins - so eJobs could not
+  // be turned off and OLX could not be signed in to, with nothing saying why either.
+  $('#signinrow').innerHTML = Object.entries(SOURCES).map(([k,name]) => {
+    const can = k in SBOARDS;                 // has a sign-in
+    const on = can && st.boards && st.boards[k];
+    const searched = SEARCH_ON[k] !== false;
+    return `<div class="boardcard ${!searched ? 'off' : (can ? (guessing ? '' : (on ? 'on' : 'off')) : '')}">
       <span class="who"><b>${esc(name)}</b><span>${
-        guessing ? esc(t('checking…')) : (on ? '✓ signed in' : '✕ signed out')}</span></span>
-      <button class="${on ? 'quiet' : ''}" data-signin="${k}"
+        !searched ? esc(t('not searched'))
+        : !can ? esc(t('searched · you apply yourself'))
+        : guessing ? esc(t('checking…')) : (on ? '✓ signed in' : '✕ signed out')}</span></span>
+      <label class="srcsw" title="${esc(t('Search this site'))}"><input type="checkbox"
+        data-searchsrc="${k}" ${searched ? 'checked' : ''}><span>${esc(t('search'))}</span></label>
+      ${can ? `<button class="${on ? 'quiet' : ''}" data-signin="${k}"
         title="${on ? 'Opens ' + esc(name) + ' so you can sign in again' : 'Sign in so the app can apply for you'}"
-        >${on ? 'Re-sign in' : 'Sign in'}</button></div>`;
+        >${on ? 'Re-sign in' : 'Sign in'}</button>` : ''}</div>`;
   }).join('');
 
   // An expired sign-in is silent otherwise: nothing fails until you try to apply, and the
@@ -2497,6 +2500,16 @@ async function loadSignins(){
   localiseDOM();   // this panel is innerHTML, so the server pass never saw it
 }
 document.addEventListener('click', async e => {
+  const src = e.target.dataset.searchsrc;
+  if(src){
+    // Saved on the spot: a switch that needs a separate Save is a switch people believe they
+    // have already thrown.
+    SEARCH_ON[src] = e.target.checked;
+    await api('/api/auto', {['search_' + src]: e.target.checked});
+    toast(e.target.checked ? t('{s} will be searched.', {s: SOURCES[src] || src})
+                           : t('{s} will not be searched.', {s: SOURCES[src] || src}), 4000);
+    return;
+  }
   const board = e.target.dataset.signin; if(!board) return;
   await busy(e.target, async () => {
     await api('/api/signin', {board});

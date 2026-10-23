@@ -5924,20 +5924,28 @@ _sv10jj = _iK.getsource(app._set_auto)
 assert '"search_freehire"' in _sv10jj, "the switch cannot be saved from the scheduled-run page"
 
 _se10jj = _iK.getsource(app._search)
-assert 'settings().get("search_freehire"' in _se10jj and 'b != "freehire"' in _se10jj, \
+assert 'search_{b}' in _se10jj, \
     "the switch is not honoured inside the search, so the scheduled run ignores it"
 # ...and inside _search, not at its callers: the dashboard passes a board list and the run does not
-assert _se10jj.index('boards = body.get("boards")') < _se10jj.index('b != "freehire"'), \
+assert _se10jj.index('boards = body.get("boards")') < _se10jj.index('search_{b}'), \
     "the filter runs before the board list is resolved"
+# ONE lookup covering every source, not an if per source. It was three hand-written ifs for the
+# three sources added late, which is why eJobs, BestJobs and Hipo could not be turned off at all.
+assert _se10jj.count('search_') == 1, "a source-specific branch is back"
+for _b10jj in ("ejobs", "bestjobs", "hipo", "freehire", "publi24", "olx"):
+    assert app.DEFAULTS[f"search_{_b10jj}"] is True, f"{_b10jj} has no switch"
 
-# the checkbox exists and is saved with the rest of the run settings
+# A switch on the page for every source, and a card to put it on. These were three loose
+# checkboxes for the three sources added late, so a source could be searchable with no way to
+# say no to it - which is how eJobs, BestJobs and Hipo were, for the whole life of the setting.
 _h10jj = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
-assert 'id="search_freehire"' in _h10jj, "there is no way to change it from the page"
-assert "'search_freehire'" in _h10jj, "the checkbox is not in AUTO_FIELDS, so it never saves"
-
-# and the honest reason is on the page, not just in here
-assert "never be applied to for you" in _h10jj, \
-    "the page does not say that freehire jobs cannot be sent for you"
+_src10jj = _h10jj.split("const SOURCES = {")[1].split("}")[0]
+for _b10jj in ("ejobs", "bestjobs", "hipo", "freehire", "publi24", "olx"):
+    assert f"{_b10jj}:" in _src10jj, f"{_b10jj} has no card, so no switch"
+assert 'data-searchsrc="${k}"' in _h10jj, "the cards carry no switch"
+assert "'search_' + src" in _h10jj, "throwing the switch saves nothing"
+# ...and it saves itself rather than waiting for Save, which is what people assume anyway
+assert "SEARCH_ON[src] = e.target.checked" in _h10jj, "the switch is drawn but never remembered"
 
 # 10kk. Never apply to a job the page merely RECOMMENDS.
 #
@@ -6237,8 +6245,7 @@ assert "_CONSENTED.clear()" in _iK.getsource(_scr.close_browser), \
 # and the switch reaches the scheduled run, like the other two sources
 assert app.DEFAULTS["search_olx"] is True
 _se10rr = _iK.getsource(app._search)
-assert 'settings().get("search_olx"' in _se10rr and 'b != "olx"' in _se10rr, \
-    "the switch is not honoured inside the search"
+assert "search_{b}" in _se10rr, "the switch is not honoured inside the search"
 
 # the card parser: location is the line before the contract type, not the line with a date
 _card10rr = ["Agent call center", "ConnectSphere", "6 000 - 8 000 lei",
