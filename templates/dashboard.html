@@ -266,11 +266,10 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
     When an application goes through it simply removes the apply button, so that is what the app
     reads as success. Many Hipo ads also hand you to the employer's own site rather than taking
     an application; those are marked and opened for you, never submitted.</p>
-  <p class="muted">publi24 is not signed in to here at all, and <b>cannot be applied to for
-    you.</b> Its login sits behind a bot check that does not resolve in an automated browser —
-    the spinner never finishes, whoever is at the keyboard. Its ads are still searched, read and
-    scored like any other; <i>Open</i> takes you to one in your own browser, signed in as
-    yourself, and you send it from there.</p>
+  <p class="muted">publi24 is signed in the same way, but <b>it is not applied to for you yet.</b>
+    Its ads do take an application — a message and the CV from your publi24 account — and that
+    will be wired up once it has been tested against a real account. Until then signing in is
+    what lets you apply there yourself in one click.</p>
   <div id="signedout" style="display:none;margin:10px 0;padding:10px 12px;border-radius:8px;
     border:1px solid color-mix(in srgb,var(--bad) 45%,var(--line));
     background:color-mix(in srgb,var(--bad) 8%,transparent)">
@@ -2351,7 +2350,7 @@ async function loadLlm(){
   drawOllamaHelp();   // ticks the steps that are already done on this PC
 }
 
-const SBOARDS = {ejobs:'eJobs', bestjobs:'BestJobs', hipo:'Hipo'};
+const SBOARDS = {ejobs:'eJobs', bestjobs:'BestJobs', hipo:'Hipo', publi24:'publi24'};
 const NAMES = {...SBOARDS};
 let recheckedOnce = false;
 // Which boards have a saved sign-in. The endpoint never returns the username or the password -

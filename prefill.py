@@ -804,6 +804,32 @@ BOARD_UI = {
         "avoid":      r"linkedin|facebook|google|apple",
         "applied":    ("ai aplicat", "aplicare trimis", "candidatura ta", "deja aplicat"),
     },
+    "publi24": {
+        # The cleanest probe of the four, and the reason this one can be trusted: /cv is
+        # members-only and answers a signed-out request with a redirect to
+        # /Account/Login?ReturnUrl=%2fcv. A url is not markup, so it cannot drift the way eJobs'
+        # page text did - and the "I cannot tell" case that destroyed sessions for three days
+        # does not arise, because the redirect IS the answer.
+        "probe":      "https://www.publi24.ro/cv",
+        "profile":    "https://www.publi24.ro/cv",
+        "denied":     ("account/login", "returnurl"),
+        # No positive marker, deliberately - the same shape as BestJobs, and for the same reason.
+        # Those words live in publi24's HEADER, which an advert page does not carry: measured on a
+        # live ad while signed in, neither a signed-in nor a signed-out marker appeared anywhere
+        # on it. Declaring positives made signed_in_to answer False on every ad - "no 'contul
+        # meu' here, so you must be signed out" - and board_apply refuses to click on a False.
+        #
+        # The redirect is the real signal and it is already where it matters: /cv bounces a
+        # signed-out request to /Account/Login, which the probe reads. On an advert, nothing
+        # saying no is the best answer there is.
+        "signed_in":  (),
+        "signed_out": ("intră în cont", "intra in cont", "creează cont", "creeaza cont"),
+        # the apply control on an ad opens the "Aplică cu CV" dialog; the send button inside it
+        # is matched separately, because pressing it is the application
+        "apply":      r"aplic[ăa] cu cv|trimite mesaj",
+        "avoid":      r"linkedin|facebook|google|apple",
+        "applied":    ("mesajul a fost trimis", "ai aplicat", "deja aplicat", "candidatura ta"),
+    },
 }
 
 
@@ -825,16 +851,7 @@ BOARD_UI = {
 # identity, and it was proved three times over by signing out completely and back in from a
 # saved password, then reading a members-only page from a separate headless context.
 AUTO_APPLY = ("ejobs", "bestjobs", "hipo")
-# publi24. Its listing and ad pages are plain html and scrape fine - that is where its jobs come
-# from - but its LOGIN sits behind Cloudflare's bot check, and that check does not resolve in a
-# browser under automation. Not "fails the challenge": it never offers one. The window opens, the
-# spinner says Verifying, and it stays there, whoever is sitting at the keyboard.
-#
-# Getting past that would mean hiding the fact that the browser is automated, which is the one
-# thing the check exists to find out. So publi24 is a board you apply to yourself: Open signs you
-# in as you, in your own browser, where you already are. The ads are still found, read and scored
-# like any other - only the sending is yours.
-MANUAL_APPLY = ("publi24",)
+MANUAL_APPLY = ()
 
 
 def apply_mode(source):
@@ -1283,6 +1300,66 @@ def _hipo_form(page, out):
         print(f"[hipo] could not preselect the form: {type(e).__name__}: {e}")
 
 
+# publi24's "Aplică cu CV" dialog. Clicking the control on the advert only OPENS it; the message
+# box and the send button live inside, and pressing send IS the application.
+#
+# There is no form to get wrong: the CV is whichever one is on the publi24 account, and the only
+# thing this app writes is a covering line. So the message is taken from the profile's own words
+# and never invented - the same rule the screening-question filler follows - and if the profile
+# has nothing to say, the box is left empty, which publi24 accepts.
+P24_SEND = "#sendmicrocv"
+P24_MESSAGE = "#applymicrocv-message"
+P24_SENT = ("mesajul a fost trimis", "mesaj trimis")
+
+
+def _publi24_send(page, out, profile, job_title, auto_send):
+    """Fill the covering message and send, once the dialog is open. Sets out[] in place."""
+    send = page.query_selector(P24_SEND)
+    box = page.query_selector(P24_MESSAGE)
+    if not (send and send.is_visible()):
+        return                      # dialog not open yet - the caller loops and we try again
+    out["questions"] = ["covering message"]
+    line = _p24_message(profile, job_title)
+    if box and box.is_visible():
+        try:
+            box.fill(line)
+            out["filled"] = ["covering message"] if line else []
+        except Exception:
+            pass
+    # Same gate as every other board: with auto_send off this stops here and hands the open
+    # dialog back to a person, because a message sent under somebody's name unwatched is a
+    # different thing from a CV the board already holds.
+    if not auto_send:
+        out["needs_you"] = True
+        return
+    try:
+        send.click(timeout=8000)
+    except Exception as e:
+        out["error"] = f"could not press send: {type(e).__name__}"
+        return
+    out["clicked"] = True
+    for _ in range(12):
+        page.wait_for_timeout(1000)
+        low = _fold_ro(own_text(page))
+        if any(m in low for m in P24_SENT):
+            out["submitted"] = True
+            return
+    # pressed, nothing said so. apply_batch asks publi24 itself afterwards rather than guessing.
+
+
+def _p24_message(profile, job_title):
+    """A covering line in the candidate's own words, or "" when they have not written any.
+
+    Never composed from the advert: that is how a message ends up claiming experience nobody
+    typed. The summary is what they wrote about themselves on the profile page.
+    """
+    said = ((profile or {}).get("summary") or "").strip()
+    if not said:
+        return ""
+    said = " ".join(said.split())[:600]
+    return f"Bună ziua, aș dori să aplic pentru {job_title}.\n\n{said}" if job_title else said
+
+
 def board_apply(url, headless=True, profile=None, job_title="", auto_send=False):
     """Press a board's one-click apply.
 
@@ -1356,6 +1433,10 @@ def board_apply(url, headless=True, profile=None, job_title="", auto_send=False)
                     return out
                 if board == "hipo":
                     _hipo_form(page, out)
+                if board == "publi24":
+                    _publi24_send(page, out, profile, job_title, auto_send)
+                    if out["submitted"] or out["needs_you"] or out["error"]:
+                        return out
                 fields = mini_interview(page, board)
                 # Plenty of Hipo employers ask nothing at all. Gating the send on there being
                 # questions would leave those applications filled in and never sent - the form
@@ -1497,6 +1578,13 @@ LOGIN_FORM = {
     "hipo": {"url": "https://www.hipo.ro/locuri-de-munca/logincontcandidat",
              "user": 'input[name="emaillogin"]', "pass": 'input[name="parolalogin"]',
              "submit": r"^login$"},
+    # publi24 also offers Facebook sign-in and has a four-digit code step on its login page
+    # ("Confirmă codul"). If it asks for one, auto_signin cannot answer it and says so - that is
+    # the "the board asked something extra that needs you at the keyboard" branch, and the right
+    # answer then is the sign-in window, where a person can type the code.
+    "publi24": {"url": "https://www.publi24.ro/login",
+                "user": 'input[name="Email"]', "pass": 'input[name="Password"]',
+                "submit": r"intr[ăa] [îi]n cont"},
 }
 
 
