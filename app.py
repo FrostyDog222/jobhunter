@@ -3547,12 +3547,17 @@ def get_cv(name: str):
 
 
 # only boards the app actually submits on need a stored session
-SIGNIN = {"ejobs": "https://accounts.ejobs.ro/login",
-          "bestjobs": "https://www.bestjobs.eu/ro/login",
-          # Hipo stays manual until a sign-in made here is still accepted afterwards. The button
-          # is back so that can be tested: every context now shares one browser identity, which
-          # is the leading explanation for why its sessions used to die.
-          "hipo": "https://www.hipo.ro/locuri-de-munca/logincontcandidat"}
+# Where the sign-in window opens, taken from the login forms rather than written out again.
+#
+# This was a second copy of the same three urls, and the copy is what broke: publi24 was added to
+# LOGIN_FORM, the app could sign in to it headlessly, the card appeared on the page - and its
+# button did nothing at all, because the endpoint behind it looked in here and raised "unknown
+# board". A board that can be signed in to automatically is a board a person can sign in to by
+# hand; there is no list where that is not true, so there is no list.
+#
+# (Hipo kept its button through the period when it was manual, so that a sign-in made here could
+# be tested for whether it still worked afterwards. It does, and Hipo applies like the others.)
+SIGNIN = {b: f["url"] for b, f in prefill.LOGIN_FORM.items()}
 
 
 @app.get("/api/signin/saved")

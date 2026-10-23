@@ -6143,4 +6143,23 @@ finally:
     app.DB, app._SCHEMA_DONE = _keep10oo, _done10oo
 assert app.DB == _keep10oo
 
+# 10pp. Every board the app can sign in to is one a person can sign in to by hand.
+#
+# SIGNIN used to be a second, hand-written copy of the same urls that LOGIN_FORM already holds,
+# and the copy is what broke: publi24 went into LOGIN_FORM, the app could sign in to it headlessly,
+# its card appeared on the page - and the button did nothing at all, because the endpoint behind it
+# looked in SIGNIN and raised "unknown board 'publi24'". Nothing in the UI said so; the click just
+# died. Derived now, so the two cannot drift again.
+assert set(app.SIGNIN) == set(_pfid.LOGIN_FORM), \
+    f"a board can be signed in to automatically but not by hand: {set(_pfid.LOGIN_FORM) - set(app.SIGNIN)}"
+for _b10pp, _f10pp in _pfid.LOGIN_FORM.items():
+    assert app.SIGNIN[_b10pp] == _f10pp["url"], \
+        f"{_b10pp}: the window opens somewhere other than the form the app types into"
+
+# and the same for the cards: a board with no card cannot be signed in to at all
+_d10pp = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+_sb10pp = _d10pp.split("const SBOARDS = {")[1].split("}")[0]
+for _b10pp in _pfid.LOGIN_FORM:
+    assert f"{_b10pp}:" in _sb10pp, f"{_b10pp} has a login form but no card on the page"
+
 print("ok")
