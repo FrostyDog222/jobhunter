@@ -1662,7 +1662,15 @@ def auto_signin(board, username, password, headless=True):
                        None)
             if not btn:
                 return None, "could not find the sign-in button"
-            btn.click()
+            try:
+                btn.click()
+            except Exception:
+                # Something is sitting over it. OLX's header is sticky and covers its own submit
+                # button once the page has scrolled - "header intercepts pointer events" - and
+                # the sign-in failed there without ever reaching the form. A direct DOM click
+                # presses the button we already found and identified, rather than whatever
+                # happens to be at those coordinates, so an overlay cannot take it.
+                btn.evaluate("e => e.click()")
             # A login is ONE navigation. Wait for it to land, then ask the board once.
             #
             # Not in a loop: _probe_signed_in navigates to a members-only page, waits, dismisses

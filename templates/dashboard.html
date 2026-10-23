@@ -314,7 +314,11 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
       <b>Not trusting a tool from the internet with your password is a perfectly sensible
       choice.</b> Leave these empty and sign in by hand with the buttons above — everything else
       in the app works exactly the same, you just sign in yourself when a session lapses.</p>
-    <div class="row" id="credsrow"></div>
+    <!-- A column per board that takes a saved sign-in. Sized so all of them sit on one
+         line: at 210px five wrapped and the last sat alone across the full width, which
+         read as a different kind of thing rather than the fifth of five. -->
+    <div class="row" id="credsrow" style="display:grid;gap:10px;
+      grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
     <p class="muted" id="credsnote" style="margin:8px 0 0;font-size:12.5px"></p>
   </details>
 
@@ -2359,7 +2363,7 @@ async function loadCreds(){
   try { d = await api('/api/signin/saved', undefined, 'GET'); } catch(e){ return; }
   $('#credsrow').innerHTML = d.supported.map(b => {
     const st = (d.boards || {})[b] || {};
-    return `<div style="flex:1 1 210px">
+    return `<div style="min-width:0">
       <label for="cu_${esc(b)}">${esc(SBOARDS[b] || b)}</label>
       <input id="cu_${esc(b)}" autocomplete="off"
         placeholder="${esc(st.saved ? t('saved — type to replace') : t('email or username'))}">
