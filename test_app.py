@@ -385,7 +385,13 @@ assert _pf._probe_signed_in(_p, "ejobs") is True and _p.loads == 1    # healthy 
 # Without either, ticking it looked like it worked and changed nothing.
 import inspect as _i3
 _src = _i3.getsource(app.get_auto)
-assert 'k == "keep_signed_in"' in _src, "get_auto must return the switch, or it draws unticked"
+# The property, not the line that used to carry it. get_auto named two kinds of key - the ones
+# starting with auto_, and this one - and everything else the page edits was dropped: recheck,
+# allow_adult, and later a search switch per source. They drew at their defaults and the next
+# Save wrote the default back. It returns the settings now, so what has to be true is that this
+# one arrives, not how.
+assert '"settings": dict(s)' in _src and 'k.startswith("auto_")' not in _src, \
+    "get_auto is filtering by name again, so this switch and the rest draw unticked"
 assert "keep_signed_in" in _i3.getsource(app._set_auto), "set_auto must accept it"
 assert "keep_signed_in" in _i3.getsource(app.keep_signed_in)
 # It has to fire more often than the SHORTEST session it is keeping alive, not the longest.
@@ -6305,5 +6311,34 @@ assert "BOARD(" in _send10tt or "picked()" in _send10tt
 _ab10tt = _iK.getsource(app.apply_batch)
 assert "apply to this one by hand" in _ab10tt, \
     "the server would send a manual source if the page ever asked it to"
+
+# 10uu. A setting the page can change is a setting the page must be told.
+#
+# /api/auto returned only the keys starting with "auto_", plus keep_signed_in. The page edits
+# more than that - recheck, allow_adult, skip_families, and a search switch per source - and a
+# checkbox with nothing to restore from renders at its default. So unticking one and reloading
+# showed it ticked again, and the next Save wrote that default back over the real answer. The
+# per-source switches made it visible; the same thing had been quietly resetting allow_adult and
+# recheck on every save before anyone noticed.
+_ga10uu = _iK.getsource(app.auto_settings if hasattr(app, "auto_settings") else app._set_auto)
+_app10uu = (app.HERE / "app.py").read_text(encoding="utf-8")
+assert 'k.startswith("auto_") or k == "keep_signed_in"' not in _app10uu, \
+    "/api/auto is filtering settings by their names again, so the rest cannot be restored"
+
+# every field the page loads must come back from the endpoint
+_d10uu = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+_fields10uu = _d10uu.split("const AUTO_FIELDS = [")[1].split("]")[0]
+_names10uu = [x.strip().strip("',\"") for x in _fields10uu.split(",") if x.strip().strip("',\"")]
+_keep10uu, _done10uu = app.DB, app._SCHEMA_DONE
+try:
+    app.DB, app._SCHEMA_DONE = pathlib.Path(_tmp.mkdtemp()) / "a.sqlite", False
+    _got10uu = _cl.get("/api/auto").json()["settings"]
+finally:
+    app.DB, app._SCHEMA_DONE = _keep10uu, _done10uu
+for _f10uu in _names10uu:
+    assert _f10uu in _got10uu, f"the page loads {_f10uu} and the endpoint never sends it"
+# ...and the per-source switches, which live on the cards rather than in AUTO_FIELDS
+for _b10uu in ("ejobs", "bestjobs", "hipo", "freehire", "publi24", "olx"):
+    assert f"search_{_b10uu}" in _got10uu, f"the switch for {_b10uu} cannot be restored"
 
 print("ok")

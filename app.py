@@ -620,8 +620,17 @@ def get_auto():
     # goes on opening a browser and handing saved passwords to the boards every couple of hours
     # under a switch that reads OFF and help text promising nothing runs in the background.
     ghosts = [name for name, want, got in pairs if got and not want]
-    return {"settings": {k: v for k, v in s.items()
-                         if k.startswith("auto_") or k == "keep_signed_in"},
+    # Every setting, not the ones whose names happen to start with "auto_".
+    #
+    # The page edits more than that - recheck, allow_adult, skip_families, and a search switch
+    # per source - and none of them were being sent back. A checkbox with nothing to restore
+    # from renders at its default, so unticking one and reloading showed it ticked again, and
+    # the next Save wrote that default over the real answer. The switches made it obvious; the
+    # same thing had been quietly resetting allow_adult and recheck on every save.
+    #
+    # Nothing here is a secret: /api/settings already serves the whole file, and the password
+    # store is a separate thing that never appears in settings at all.
+    return {"settings": dict(s),
             "task": task, "keep": keep, "drift": drift, "ghosts": ghosts, "last": last,
             # the rolling history, newest first for the panel. Absent until the first run writes it.
             "runs": _run_history()}
