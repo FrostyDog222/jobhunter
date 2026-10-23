@@ -2511,8 +2511,10 @@ document.addEventListener('click', async e => {
     // have already thrown.
     SEARCH_ON[src] = e.target.checked;
     await api('/api/auto', {['search_' + src]: e.target.checked});
-    toast(e.target.checked ? t('{s} will be searched.', {s: SOURCES[src] || src})
-                           : t('{s} will not be searched.', {s: SOURCES[src] || src}), 4000);
+    // fill(), not t(): t translates and nothing else, so its second argument was ignored and
+    // the toast said "{s} will not be searched." at somebody, braces and all.
+    toast(fill(e.target.checked ? '{s} will be searched.' : '{s} will not be searched.',
+               {s: SOURCES[src] || src}), 4000);
     return;
   }
   const board = e.target.dataset.signin; if(!board) return;
@@ -3067,11 +3069,11 @@ function drawPicked(){
   const sendBtn = $('#sendpicked'), openBtn = $('#openpicked');
   if(sendBtn){
     sendBtn.style.display = sendable.length ? '' : 'none';
-    sendBtn.textContent = fill(t('Apply to {n}'), {n: sendable.length});
+    sendBtn.textContent = fill('Apply to {n}', {n: sendable.length});
   }
   if(openBtn){
     openBtn.style.display = openable.length ? '' : 'none';
-    openBtn.textContent = fill(t('Open {n} to apply yourself'), {n: openable.length});
+    openBtn.textContent = fill('Open {n} to apply yourself', {n: openable.length});
   }
   $('#pickedlist').textContent = p.map(u => (JOBS.find(j => j.url === u) || {}).title).join(' · ');
   // a running total on the toolbar, so the number is visible without scrolling to the bar
@@ -3211,9 +3213,9 @@ $('#openpicked').onclick = () => {
   // of fifteen appear and look like a bug
   some.forEach(u => window.open(u, '_blank', 'noopener'));
   toast(urls.length > some.length
-    ? fill(t('Opened {n}. {r} still ticked — open them in another go; browsers stop a tab '
-            + 'storm from one click.'), {n: some.length, r: urls.length - some.length})
-    : fill(t('Opened {n}. Apply on each, then use Mark applied so they stop coming back.'),
+    ? fill('Opened {n}. {r} still ticked — open them in another go; browsers stop a tab '
+         + 'storm from one click.', {n: some.length, r: urls.length - some.length})
+    : fill('Opened {n}. Apply on each, then use Mark applied so they stop coming back.',
            {n: some.length}), 9000);
 };
 

@@ -6341,4 +6341,26 @@ for _f10uu in _names10uu:
 for _b10uu in ("ejobs", "bestjobs", "hipo", "freehire", "publi24", "olx"):
     assert f"search_{_b10uu}" in _got10uu, f"the switch for {_b10uu} cannot be restored"
 
+# 10vv. A placeholder shown to a person is a bug, not a typo.
+#
+# t() translates and nothing else; fill() translates and THEN drops the values in. Calling
+# t('{s} will not be searched.', {s: name}) is accepted silently by javascript - the second
+# argument goes nowhere - and the toast read "{s} will not be searched." at somebody, braces and
+# all. Nothing failed, nothing logged, and only a person looking at the screen could see it.
+_d10vv = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+import re as _re10vv
+_bad10vv = _re10vv.findall(r"\bt\(\s*(['\"])((?:(?!\1).)*\{[a-z]+\}(?:(?!\1).)*)\1\s*,", _d10vv)
+assert not _bad10vv, \
+    f"t() given values to substitute, which it ignores: {[b[1][:48] for b in _bad10vv[:3]]}"
+
+# and every placeholder the page prints has to come from a fill() that supplies it
+for _s10vv, _vars10vv in (("'{s} will be searched.'", "s"),
+                          ("'Apply to {n}'", "n"),
+                          ("'Open {n} to apply yourself'", "n")):
+    _i10vv = _d10vv.find(_s10vv)
+    assert _i10vv > 0, f"{_s10vv} is gone from the page"
+    _near10vv = _d10vv[max(0, _i10vv - 90):_i10vv + 200]
+    assert "fill(" in _near10vv and f"{_vars10vv}:" in _near10vv, \
+        f"{_s10vv} is printed without anything to fill {{{_vars10vv}}}"
+
 print("ok")
