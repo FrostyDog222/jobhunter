@@ -287,6 +287,17 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
         # wants it off, and somebody willing to apply by hand wants it on. On by default, because
         # turning a source off for people who never asked is the bigger surprise.
         "search_freehire": True,
+        # Whether to search publi24.
+        #
+        # It is classifieds rather than a job board, and reads like it. Measured over this
+        # install's own search terms, 144 ads came back and not one was customer support or
+        # mentioned remote: its categories are drivers, construction, sewing, cleaning, warehouse,
+        # hairdressing, security. There is no support or call-centre category at all.
+        #
+        # That makes it the best of the five for trades and the worst for office work, so it is a
+        # switch rather than a default. On, because a source nobody asked to lose should not
+        # disappear; off here, where the search is for remote customer support.
+        "search_publi24": True,
         # Whether the unattended run may answer an employer's screening questions and send.
         #
         # Off by default, and auto_apply.py's own header says why: a model writing answers into a
@@ -612,7 +623,7 @@ def _set_auto(body):
     for k in ("auto_enabled", "auto_days", "auto_time", "auto_query", "auto_location",
               "auto_county", "auto_country", "keep_signed_in", "skip_families", "recheck",
               "auto_answer",
-              "allow_adult", "search_freehire",
+              "allow_adult", "search_freehire", "search_publi24",
               "auto_fresh", "auto_work_mode", "auto_seniority", "auto_ats",
               "auto_min_fit", "auto_apply", "auto_apply_min_fit",
               "auto_apply_cap"):
@@ -2603,6 +2614,8 @@ async def _search(body, p):
     # for the dashboard search and the scheduled run alike - the run passes no board list at all.
     if not settings().get("search_freehire", True):
         boards = [b for b in boards if b != "freehire"]
+    if not settings().get("search_publi24", True):
+        boards = [b for b in boards if b != "publi24"]
     limit = int(body.get("limit", 20))
 
     # Phase 1: discover cheaply - one request per board per query, no detail pages yet.

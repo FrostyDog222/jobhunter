@@ -1669,14 +1669,32 @@ for _line in (app.HERE / ".gitignore").read_text(encoding="utf-8").splitlines():
 # 4n. in_county rebuilt the whole county table on every call - 240 re.escape calls and 240
 # f-strings per row - and the dashboard calls it once per row. 265 ms for a 600-row list, on
 # the request that has to feel instant.
+#
+# Asserted as a PROPERTY first, and only then as a clock. A bare wall-clock budget is a promise
+# about the machine, not about the code: on a busy laptop the healthy version measured 59 ms one
+# run and 101 ms the next against a 60 ms limit, so it failed for reasons that had nothing to do
+# with this function. The property is that the table is built once, at import, and that nothing
+# inside in_county compiles or escapes anything.
+assert isinstance(scrape._NAMES, (list, tuple)) and len(scrape._NAMES) > 100, \
+    "the county table is no longer built once at import"
+_src4n = _iK.getsource(scrape.in_county)
+for _bad4n in ("re.escape", "re.compile"):
+    assert _bad4n not in _src4n, \
+        f"in_county calls {_bad4n} again - that is the per-row rebuild coming back"
+
 import time as _tm
 _locs = ["Bucuresti", "Cluj-Napoca", "Timi\u0219oara", "Iasi", "Remote", "Brasov, Romania",
          "Bucuresti / Remote", "", "Otopeni", "Ploiesti"] * 60
-_t0 = _tm.perf_counter()
-for _x in _locs:
-    scrape.in_county(_x, "bucuresti")
-_ms = (_tm.perf_counter() - _t0) * 1000
-assert _ms < 60, f"in_county is back to rebuilding its table: {_ms:.0f} ms for {len(_locs)} rows"
+# best of five: the interest is the floor, which is the code, not the worst, which is the laptop
+_runs4n = []
+for _ in range(5):
+    _t0 = _tm.perf_counter()
+    for _x in _locs:
+        scrape.in_county(_x, "bucuresti")
+    _runs4n.append((_tm.perf_counter() - _t0) * 1000)
+_ms = min(_runs4n)
+# 265 ms was the rebuild, 60-100 ms is healthy on this machine: 180 still catches the regression
+assert _ms < 180, f"in_county is back to rebuilding its table: {_ms:.0f} ms for {len(_locs)} rows"
 # ...and it still answers the cases that were wrong before: a short town inside a longer one
 for _text, _county, _want in (("Campulung Moldovenesc", "suceava", True),
                               ("Campulung Moldovenesc", "arges", False),

@@ -3,7 +3,7 @@ so one generic extractor covers them all - a new board is one entry in BOARDS.""
 import datetime, functools, html, json, random, re, time, unicodedata
 from concurrent.futures import ThreadPoolExecutor
 import httpx
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote_plus, unquote, urlsplit
 
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                     "(KHTML, like Gecko) Chrome/131.0 Safari/537.36",
@@ -18,11 +18,23 @@ BOARDS = {
     # you type, which is why every Hipo row in this app used to be unrelated to the query.
     "hipo": ("https://www.hipo.ro/locuri-de-munca/cautajob/Toate-Domeniile/{loc}/{q}/",
              r'href="(/locuri-de-munca/locuri_de_munca/[^"]+)"'),
+    # publi24 is classifieds rather than a job board, and reads like it: measured over six of
+    # this install's own search terms, 144 ads came back and not one was customer support or
+    # mentioned remote. Its 23 job categories are drivers, construction, sewing, cleaning,
+    # warehouse, hairdressing, security - there is no support or call-centre category at all.
+    # It is here for the trades, which the other four barely carry.
+    #
+    # The search DOES filter, which is worth saying because the first look suggested otherwise:
+    # ?s=sofer+tir returns driver ads and ?s=suport+clienti returns something else entirely.
+    # A county goes in the path ahead of the query, the same shape as eJobs.
+    "publi24": ("https://www.publi24.ro/anunturi/locuri-de-munca/{loc}?s={q}",
+                r'href="(https://www\.publi24\.ro/anunturi/locuri-de-munca/[^"]*?/anunt/[^"]+\.html)"'),
     # neither board paginates server-side: page 2 returns page 1, so ~40 per query is the ceiling.
     # BestJobs is not here because it has no server-side JSON-LD to read; it is a JSON API
     # instead, handled on its own below.
 }
-BASE = {"ejobs": "https://www.ejobs.ro", "hipo": "https://www.hipo.ro"}
+BASE = {"ejobs": "https://www.ejobs.ro", "hipo": "https://www.hipo.ro",
+        "publi24": "https://www.publi24.ro"}
 # BOARDS are HTML boards scraped via JSON-LD; freehire and bestjobs are JSON APIs, each handled
 # separately below.
 SOURCES = ["freehire", "bestjobs"] + list(BOARDS)
@@ -35,7 +47,9 @@ BESTJOBS_AD = "https://www.bestjobs.eu/loc-de-munca/{slug}"
 DESC = {"bestjobs": re.compile(r'<div class="[^"]*job-description[^"]*"[^>]*>(.*?)</div>', re.S),
         # eJobs splits an ad into sections and puts only the first in its JSON-LD. The rest -
         # "Candidatul ideal", where the requirements and language demands are - is markup only.
-        "ejobs": re.compile(r'<div class="jobs-show-main-description__section">(.*?)</div>', re.S)}
+        "ejobs": re.compile(r'<div class="jobs-show-main-description__section">(.*?)</div>', re.S),
+        # publi24 publishes no JSON-LD at all, so its markup is the only body there is
+        "publi24": re.compile(r'<div class="article-description"[^>]*>(.*?)</div>', re.S)}
 
 
 # A posting that hands the application to the employer's own website. Hipo writes it straight
@@ -157,6 +171,12 @@ def _url(board, query, location):
     if board == "hipo":
         # hipo wants a city segment either way, and has its own word for "everywhere"
         return tpl.format(q=q or "-", loc=loc.title() if loc else "Toate-Orasele")
+    if board == "publi24":
+        # publi24 wants the words joined by +, and the separator is not cosmetic. Measured on one
+        # query, three ways: "sofer+tir" returns drivers, "sofer-tir" returns a dialysis
+        # technician, and "sofer%20tir" a farmhand in Germany. Same 24 results each time, so
+        # nothing looks wrong - it just quietly answers a different question.
+        return tpl.format(q=quote_plus(query.strip()), loc=f"{loc}/" if loc else "")
     return tpl.format(q=q, loc=f"{loc}/" if loc else "")
 
 
@@ -346,7 +366,13 @@ def _jobposting(page_html):
             # company and its closing date. Unescaping is the fallback for the boards that
             # really do double-encode, not the first move.
             try:
-                data = json.loads(attempt)
+                # strict=False allows raw control characters inside strings. publi24 writes the
+                # ad body into its JSON-LD with the newlines still in it, which json.loads
+                # rejects outright - "Invalid control character at line 6" - so every publi24 ad
+                # arrived with no title, no location, no company and no date, and the whole board
+                # looked like it published no structured data at all. It is a tolerant read of
+                # something slightly malformed, not a different document.
+                data = json.JSONDecoder(strict=False).decode(attempt)
                 break
             except json.JSONDecodeError:
                 continue      # a malformed block must not stop us checking the later ones
@@ -533,10 +559,23 @@ NOISE = re.compile(r"@\s*top\s+talents"
                    rf"(?!\s+({ROLE}))", re.I)
 
 
+#  a trailing url segment that is an id rather than words: no separator, long, and alphanumeric.
+# publi24 ends every ad with one - /anunt/sofer-tir-international/8fef...h37.html - so taking the
+# last segment gave "8Fef...H37.Html" as the job title, which then went into the skip list, the
+# dedupe and the score prompt as though it were what the job was called.
+_ID_SEG = re.compile(r"^[a-z0-9]{16,}$", re.I)
+
+
 def _slug_title(path):
     """A board's own URL carries the job title, which is enough to dedupe and pre-filter on
     before deciding whether the detail page is worth a request."""
-    seg = [s for s in path.split("/") if s and not s.isdigit()]
+    # the extension comes off the last SEGMENT, never the whole path: rsplit on the path cuts a
+    # full url at its domain dot, and "https://www.bestjobs.eu/loc-de-munca/operator-call-center"
+    # became "Www.Bestjobs"
+    seg = [s for s in path.split("/") if s]
+    if seg:
+        seg[-1] = re.sub(r"\.(html?|php|aspx?)$", "", seg[-1], flags=re.I)
+    seg = [s for s in seg if s and not s.isdigit() and not _ID_SEG.match(s)]
     # the path is url-encoded html, so it carries &amp; and %C4%83 through to the title
     return _clean(unquote(re.sub(r"[-_]+", " ", seg[-1]))).strip().title() if seg else ""
 

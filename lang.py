@@ -693,6 +693,15 @@ RO = {
     "Include adult-industry jobs (videochat and similar)":
         "Include joburi din industria pentru adulți (videochat și similare)",
     "Search freehire too": "Caută și pe freehire",
+    "Search publi24 too": "Caută și pe publi24",
+    "publi24 is classifieds, and it carries the work the other four barely do \u2014":
+        "publi24 e site de anunțuri și are munca pe care celelalte patru aproape că nu o au \u2014",
+    "drivers, construction, warehouse, cleaning, kitchens, trades.":
+        "șoferi, construcții, depozit, curățenie, bucătărie, meserii.",
+    "For office or remote work it finds almost nothing, so leave it off unless the search is for "
+    "one of those.":
+        "Pentru muncă de birou sau remote nu găsește aproape nimic, așa că lasă-l oprit dacă nu "
+        "cauți una dintre acestea.",
     # three entries, not one, for the same reason as the paragraph below: the <b> splits the
     # paragraph into separate text nodes and localise() swaps whole nodes
     "freehire lists jobs that live on the employer's own site, so":
