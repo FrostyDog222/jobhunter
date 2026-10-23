@@ -2308,7 +2308,15 @@ def refresh_board_states(boards=None):
                     out["adopted"] += c.execute(
                         "UPDATE jobs SET status='applied', "
                         "applied_at = COALESCE(applied_at, NULLIF(?, ''), datetime('now','localtime')), "
-                        "note = CASE WHEN note LIKE '%no confirmation%' THEN '' ELSE note END "
+                        # Both notes that a landed application makes false. "Screening questions
+                        # - finish it in the browser window" is the worse of the two: it survived
+                        # an adopt on a Hipo job the board had already marked Vizualizat, so the
+                        # card told someone to go and finish an application the employer had
+                        # read. A note is advice about what to do next, and there is nothing to
+                        # do next here.
+                        "note = CASE WHEN note LIKE '%no confirmation%' "
+                        "               OR note LIKE '%screening questions%' "
+                        "          THEN '' ELSE note END "
                         "WHERE url = ? AND status <> 'applied'", (filed, url)).rowcount
     return out
 
@@ -3442,6 +3450,17 @@ async def apply_batch(body: dict = Body(...)):
                 if body.get("hand_off", True):
                     prefill.spawn_board(url, j["title"])
                 _handed_over(url)
+                # ...and ask the board about it too. "Needs you" means this app did not send it,
+                # which is not the same as nobody sent it: a Hipo mini-interview can be accepted
+                # while one answer comes back blank, and board_apply reports needs_you on the
+                # blank rather than on the outcome. Measured on a live row - the app held it at
+                # 'opened' with "finish it in the browser window" while Hipo said "Ati aplicat
+                # deja la acest job" and the employer had already read it.
+                #
+                # Only `clicked` was verified here before, so this whole branch could sit wrong
+                # until somebody noticed by hand. The check below costs one page per board and
+                # can only ever promote a row the board itself lists.
+                unconfirmed.append((url, j["title"], board))
             elif res.get("clicked"):
                 # Pressed, not confirmed. Recorded as done-for-now rather than left untouched:
                 # leaving it 'new' put it straight back into next week's list and applied twice.

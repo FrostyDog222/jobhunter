@@ -25,7 +25,7 @@ HERE = pathlib.Path(__file__).parent
 # also means no profile lock and no "browser already open" failures.
 STATE = HERE / ".session.json"
 # whose localStorage is worth carrying between runs: the boards we hold a session for
-KEEP_ORIGINS = ("ejobs.ro", "hipo.ro", "bestjobs.eu")
+KEEP_ORIGINS = ("ejobs.ro", "hipo.ro", "bestjobs.eu", "publi24.ro")
 BROWSER_DIR = HERE / ".browser"          # legacy profile dir; only read to migrate old installs
 
 
@@ -317,7 +317,12 @@ def _editable_inputs(page):
 # with nothing extra enabled. "Accept all" is never clicked - a consent wall in the way is not a
 # reason to opt someone into tracking on their behalf.
 REJECT = r"reject all|reject|refuse|decline|necessary only|only necessary|essential only|"          r"respinge|refuz|doar necesare|doar cele necesare|continu[ăa] f[ăa]r[ăa]"
-SETTINGS = r"manage|settings|preferences|customi[sz]e|modific[ăa] set[ăa]rile|set[ăa]ri|personalizeaz"
+#  "mai multe optiuni" is Quantcast's Romanian wording, and it is the ONLY way past publi24's
+# wall: that dialog offers "SUNT DE ACORD" and "MAI MULTE OPȚIUNI" and nothing else, so with no
+# reject at the top level and no match here, the wall stayed up and intercepted every click on
+# the page behind it - the sign-in form included, which read as "could not find the form".
+SETTINGS = (r"manage|settings|preferences|customi[sz]e|more options|modific[ăa] set[ăa]rile|"
+            r"set[ăa]ri|personalizeaz|mai multe op[țt]iuni|op[țt]iuni")
 SAVE = r"save settings|save preferences|save choices|confirm choices|save and close|"        r"salveaz[ăa] set[ăa]rile|salveaz[ăa]|confirm[ăa]"
 
 
@@ -328,7 +333,12 @@ def _click_matching(page, pattern, timeout=2500):
                 continue
             if re.fullmatch(r"\s*", el.inner_text() or ""):
                 continue
-            if re.search(pattern, el.inner_text(), re.I):
+            # Folded, because Romanian writes the same letter two ways and a consent wall is the
+            # worst place to discover it. publi24's button is "MAI MULTE OPȚIUNI" with U+021A
+            # (T comma-below); a pattern written with U+0162 (T cedilla) misses it entirely, and
+            # the wall then stays up and swallows every click on the page behind it - which
+            # surfaced as "could not find the sign-in form on that page".
+            if re.search(pattern, _fold_ro(el.inner_text()), re.I):
                 el.click(timeout=timeout)
                 page.wait_for_timeout(1200)
                 return True
@@ -822,7 +832,8 @@ def apply_mode(source):
     return ""
 
 
-BOARD_HOSTS = {"ejobs": "ejobs.ro", "hipo": "hipo.ro", "bestjobs": "bestjobs.eu"}
+BOARD_HOSTS = {"ejobs": "ejobs.ro", "hipo": "hipo.ro", "bestjobs": "bestjobs.eu",
+               "publi24": "publi24.ro"}
 
 
 def _profile():
@@ -1034,7 +1045,8 @@ def board_applications(board, headless=True):
     return out
 
 
-BOARD_APEX = {"ejobs": "ejobs.ro", "hipo": "hipo.ro", "bestjobs": "bestjobs.eu"}
+BOARD_APEX = {"ejobs": "ejobs.ro", "hipo": "hipo.ro", "bestjobs": "bestjobs.eu",
+              "publi24": "publi24.ro"}
 
 
 def board_of(url):

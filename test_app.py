@@ -6099,4 +6099,48 @@ _rs10nn = _iK.getsource(_pfid.run_signin)
 assert "only_host=host0 if confirmed else None" in _rs10nn, \
     "the sign-in window can still purge a session the board would not confirm"
 
+# 10oo. "Needs you" is not the same as "nobody sent it".
+#
+# A Hipo mini-interview can be ACCEPTED while one answer comes back blank, and board_apply reports
+# needs_you on the blank rather than on the outcome. Measured on a live row: the app held
+# "Tech Support with English - Remote" at 'opened' with the note "screening questions - finish it
+# in the browser window", while Hipo's own page said "Ati aplicat deja la acest job" and the board
+# had it as Vizualizat - the employer had already read the application the card was asking
+# somebody to go and finish.
+#
+# Only the `clicked` branch was ever verified against the board, so this one could sit wrong
+# indefinitely. Both now go through the same check, which can only promote a row the board lists.
+_ab10oo = _iK.getsource(app.apply_batch)
+_needs10oo = _ab10oo.split('res.get("needs_you")')[1].split('elif ')[0]
+assert "unconfirmed.append" in _needs10oo, \
+    "a screening-question application the board accepted is never checked against the board"
+assert "_handed_over(url)" in _needs10oo, "the row is no longer taken out of the next batch"
+
+# and an adopt must clear BOTH notes a landed application makes false
+_rb10oo = _iK.getsource(app.refresh_board_states)
+assert "no confirmation" in _rb10oo and "screening questions" in _rb10oo, \
+    "an adopted row keeps a note telling someone to finish what the employer has already read"
+
+# behaviour: the note goes, on a throwaway database
+_keep10oo, _done10oo = app.DB, app._SCHEMA_DONE
+_real10oo = app.prefill.board_applications
+try:
+    app.DB, app._SCHEMA_DONE = pathlib.Path(_tmp.mkdtemp()) / "n.sqlite", False
+    with app.db() as _c:
+        _c.execute("INSERT INTO jobs(url,source,title,status,note) VALUES(?,?,?,?,?)",
+                   ("https://www.hipo.ro/locuri-de-munca/locuri_de_munca/273339/Co/Tech", "hipo",
+                    "Tech", "opened", "screening questions - finish it in the browser window"))
+    app.prefill.board_applications = lambda b, **k: [
+        {"url": "https://www.hipo.ro/locuri-de-munca/locuri_de_munca/273339/Co/Tech",
+         "title": "Tech", "when": "2026-10-23", "state": "seen", "state_word": "Vizualizat"}]
+    app.refresh_board_states(["hipo"])
+    with app.db() as _c:
+        _r10oo = dict(_c.execute("SELECT status, note FROM jobs").fetchone())
+    assert _r10oo["status"] == "applied", _r10oo
+    assert not _r10oo["note"], f"the stale note survived the adopt: {_r10oo['note']!r}"
+finally:
+    app.prefill.board_applications = _real10oo
+    app.DB, app._SCHEMA_DONE = _keep10oo, _done10oo
+assert app.DB == _keep10oo
+
 print("ok")
