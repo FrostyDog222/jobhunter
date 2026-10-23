@@ -242,8 +242,18 @@ def run(app, prefill, settings, log):
     # One board being out is not a reason to skip the others. This used to return on the first
     # one it found signed out, so a lapsed eJobs session cost the week's BestJobs applications
     # too - on a session that runs six months and had nothing wrong with it.
-    usable = [b for b in prefill.AUTO_APPLY if live.get(b, prefill.session_for(b))]
-    out = [b for b in prefill.AUTO_APPLY if b not in usable]
+    # A site switched off is left alone entirely, applying included.
+    #
+    # The switch filtered the SEARCH only, so turning a board off stopped new adverts arriving
+    # and did nothing about the ones already stored: the next run would still send applications
+    # to a site somebody had just said to stop using. Nothing warned about it either, because
+    # from the run's side those rows look like any other.
+    #
+    # Read per run rather than captured once, so a switch thrown between runs is honoured by the
+    # next one without a restart.
+    on = [b for b in prefill.AUTO_APPLY if settings.get(f"search_{b}", True)]
+    usable = [b for b in on if live.get(b, prefill.session_for(b))]
+    out = [b for b in on if b not in usable]
 
     # A board that is out, and whose sign-in you chose to save, gets one attempt. The keep-alive
     # does this too, every two hours, which is where it matters most - see sign_back_in.
