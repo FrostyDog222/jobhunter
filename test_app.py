@@ -6254,4 +6254,34 @@ _rest = _card10rr[1:]
 _at = next(i for i, x in enumerate(_rest) if x.lower() == "nedeterminat")
 assert _rest[_at - 1] == "Bucuresti, Sectorul 5", "the place is no longer before the contract type"
 
+# 10ss. Three ways a correct password was reported as wrong, found stacked on one board.
+#
+# OLX has two buttons reading "Intră în cont": a tab that switches between signing in and
+# registering, and the real submit under the fields. auto_signin took the FIRST match, so it
+# pressed the tab, nothing was sent, and the probe afterwards said signed out - reported as
+# "wrong password, or the board asked something extra". The network settled it: during a whole
+# attempt there was not one request to the login API, because nothing had been submitted.
+_as10ss = _iK.getsource(_pfid.auto_signin)
+assert "found[-1] if found else None" in _as10ss, \
+    "the first matching button is pressed again, which on OLX is a tab and not the submit"
+assert '(e.get_attribute("type") or "").lower() == "submit"' in _as10ss, \
+    "a real submit button is no longer preferred over anything else that matches"
+
+# Under that: a sticky header covering its own submit, so the click never landed.
+assert 'btn.evaluate("e => e.click()")' in _as10ss, \
+    "an overlay can eat the sign-in click again"
+
+# And under THAT: a 403 from the board's own auth endpoint read as a rejected password. OLX
+# answers one to every automated attempt, with a password confirmed working in an ordinary
+# browser. Counted as a rejection, two honest tries would disable a sign-in that was never wrong.
+assert "refused" in _as10ss and "ctx.on(" in _as10ss, \
+    "nothing watches for the board refusing the request itself"
+assert "page.on(\"response\"" not in _as10ss, \
+    "the listener is back on the page, where the login host's answer never appears"
+assert _as10ss.index("if refused:") < _as10ss.index('return False, "the sign-in did not take'), \
+    "a refusal is judged after it has already been called a wrong password"
+# ...and it returns None, which spends the "could not tell" budget rather than the password's
+_ref10ss = _as10ss.split("if refused:")[1].split("return")[1][:120]
+assert _ref10ss.lstrip().startswith("None"), "a refusal still counts against the two strikes"
+
 print("ok")

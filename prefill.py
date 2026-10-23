@@ -1632,6 +1632,20 @@ def auto_signin(board, username, password, headless=True):
         # fresh_host: a board ties its login form's nonce to a short-lived cookie, and replaying
         # a stale one makes the POST fail - the same reason the manual sign-in does this.
         browser, ctx, page = _open(pw, headless, fresh_host=BOARD_HOSTS.get(board))
+        # What the board's own sign-in endpoint answered. A 403 there is the server refusing the
+        # REQUEST - it is not a verdict on the password, and must not spend the two-strike budget
+        # that exists for passwords a board has rejected.
+        #
+        # Measured on OLX: a password confirmed working in an ordinary browser gets 403 from
+        # login.olx.ro/api/initiate-auth every time through this one, with no challenge shown and
+        # nothing on the page but "Ceva nu a mers bine". Counted as a rejection, two honest
+        # attempts would disable a sign-in that was never wrong.
+        # On the CONTEXT, not the page: the login host answers in its own page object and a
+        # page-level listener never saw it. Measured - the 403 shows on ctx and not on page.
+        refused = []
+        ctx.on("response", lambda r: refused.append(r.status) if (
+            r.status in (401, 403, 429)
+            and re.search(r"/(initiate-auth|login|signin|auth|token)\b", r.url)) else None)
         try:
             page.goto(form["url"], wait_until="domcontentloaded", timeout=60000)
             page.wait_for_timeout(3000)
@@ -1655,11 +1669,24 @@ def auto_signin(board, username, password, headless=True):
                 return None, "could not find the sign-in form on that page"
             u.fill(username)
             p.fill(password)
-            btn = next((e for e in page.query_selector_all("button, input[type=submit]")
-                        if e.is_visible() and re.search(
-                            form["submit"], ((e.inner_text() or "")
-                                             + (e.get_attribute("value") or "")).strip(), re.I)),
-                       None)
+            # Every match, then the one that actually submits - not simply the first.
+            #
+            # OLX puts two "Intră în cont" buttons on its login page: a tab that switches between
+            # signing in and registering, and the real submit below the fields. Taking the first
+            # pressed the tab, nothing was sent, and the probe afterwards said signed out - which
+            # auto_signin reported as "wrong password, or the board asked something extra" about
+            # a password that was perfectly correct. The network told the story: during a whole
+            # sign-in attempt there was not one request to the login API, because nothing had
+            # been submitted.
+            #
+            # type=submit first, then the last match: a tab sits above the form it switches to,
+            # so the real button is the later one on every page shaped like this.
+            found = [e for e in page.query_selector_all("button, input[type=submit]")
+                     if e.is_visible() and re.search(
+                         form["submit"], ((e.inner_text() or "")
+                                          + (e.get_attribute("value") or "")).strip(), re.I)]
+            btn = next((e for e in found if (e.get_attribute("type") or "").lower() == "submit"),
+                       found[-1] if found else None)
             if not btn:
                 return None, "could not find the sign-in button"
             try:
@@ -1718,6 +1745,13 @@ def auto_signin(board, username, password, headless=True):
                 return None, ("the board asked for a human check (a captcha) before it would "
                               "look at the password - use the sign-in button and tick it "
                               "yourself; the session is saved from there")
+            if refused:
+                # None, like the captcha above: the board turned the request away rather than
+                # judging the password, so this counts against the "could not tell" budget and
+                # not against the password's two strikes.
+                return None, (f"{board} refused the sign-in request itself (HTTP {refused[0]}) "
+                              f"- the password was never checked. Boards do this to browsers "
+                              f"they can tell are automated; signing in by hand still works.")
             return False, "the sign-in did not take - wrong password, or the board asked "\
                           "something extra (a code, a captcha) that needs you at the keyboard"
         except Exception as e:
