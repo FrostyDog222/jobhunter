@@ -24,6 +24,7 @@ sys.path.insert(0, str(HERE))          # Task Scheduler starts us with its own w
 
 import app                             # noqa: E402  (has to follow the sys.path line)
 import auto_apply                      # noqa: E402
+import creds
 import prefill                         # noqa: E402
 
 LOG = HERE / "auto.log"
@@ -278,7 +279,21 @@ def touch():
     the checking IS the refreshing, because a board renews its cookie when you visit.
     """
     before = _cookie_hours()
-    out = prefill.verify_boards()
+    # Only the boards there is a session to keep. A board with no saved password and no live
+    # session cannot be kept signed in by anybody - probing it every two hours loads a page,
+    # learns "signed out", and does nothing with the answer.
+    #
+    # It also means not touching a site twelve times a night for no reason, which matters when
+    # one of them has just said it saw suspicious activity. A board rejoins the moment a
+    # password is saved for it, with nothing to switch on.
+    known = prefill.board_status()
+    saved = creds.status()
+    keep = tuple(b for b in prefill.BOARD_UI
+                 if saved.get(b, {}).get("saved") or known.get(b))
+    if not keep:
+        log("keep-alive: no board has a session or a saved sign-in - nothing to keep")
+        return {}
+    out = prefill.verify_boards(keep)
     # A session that lapsed while the PC was off is the exact thing this task exists to prevent,
     # and it could do nothing about it: the saved sign-in was only ever used by the applying step,
     # so with applying off - the ordinary case - nothing used it at all. Hipo's session is a
