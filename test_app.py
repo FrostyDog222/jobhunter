@@ -6203,13 +6203,10 @@ _seen10qq = []
 _keep10qq = (_scr._get, _scr.browser_get)
 
 
-class _Pg10qq:
-    def inner_text(self, _sel):
-        return json.dumps({"items": []})
-
-
+# browser_get returns the TEXT now, not a page - a page handed to a calling thread was the
+# greenlet bug, so the stub changed with the contract
 try:
-    _scr.browser_get = lambda u, **k: (_seen10qq.append(u), _Pg10qq())[1]
+    _scr.browser_get = lambda u, **k: (_seen10qq.append(u), json.dumps({"items": []}))[1]
     _scr._get = lambda c, u, **k: _FakeResp({"items": []}, status_code=403)
     _scr.bestjobs("x", limit=3)
     assert _seen10qq, "a 403 did not reach the browser"
@@ -6407,5 +6404,32 @@ assert not scrape.remote_job({"title": "Agent", "description": "the possibility 
 assert not scrape.remote_job(
     {"title": "Agent", "description": "activitatea nu poate fi desfasurata remote"})
 assert scrape.remote_job({"title": "Agent", "description": "This is a fully remote position."})
+
+# 10yy. One thread owns the browser, and nothing hands a page out of it.
+#
+# Playwright's sync api binds its objects to the thread that created them, and the search calls
+# discover() from a thread pool. So the second board to ask for a page got "greenlet.error:
+# Cannot switch to a different thread" and simply vanished from the run - thirteen BestJobs
+# queries died that way in one run, looking exactly like the 403 it had been fixed for the hour
+# before.
+_sc10yy = (app.HERE / "scrape.py").read_text(encoding="utf-8")
+assert "_browser_pool()" in _sc10yy and "max_workers=1" in _sc10yy, \
+    "the browser is used from whatever thread calls it, which is where greenlet gives up"
+_bg10yy = _iK.getsource(_scr.browser_get)
+assert "submit(work).result()" in _bg10yy, "the work is not handed to the browser's thread"
+
+# it returns DATA, never the page: a page given back to a calling thread is the same bug one
+# step later, and the next person to write a caller would walk into it
+assert not _re.search(r"return page\s*$", _bg10yy, _re.M),     "a page is returned whole and escapes the browser thread"
+for _c10yy in ("page.evaluate(", "page.content()", "page.inner_text("):
+    assert _c10yy not in _iK.getsource(_scr.bestjobs), f"bestjobs touches the page itself"
+    assert _c10yy not in _iK.getsource(_scr.olx), f"olx touches the page itself"
+assert "browser_get" in _iK.getsource(_scr.hydrate)
+assert ".content()" not in _iK.getsource(_scr.hydrate).split("browser_get")[1][:80], \
+    "hydrate calls back into the page after it is handed over"
+
+# and closing it happens there too - closing from elsewhere raises the same error
+assert "_browser_pool().submit(work)" in _iK.getsource(_scr.close_browser), \
+    "the browser is closed from whatever thread noticed, which raises the same greenlet error"
 
 print("ok")

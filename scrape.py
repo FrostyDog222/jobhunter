@@ -39,17 +39,31 @@ def _page():
 
 
 def close_browser():
-    """Shut the shared browser. Safe to call when it was never opened."""
+    """Shut the shared browser. Safe to call when it was never opened.
+
+    On the browser's own thread, like everything else that touches it - closing it from
+    somewhere else raises the same greenlet error as using it would.
+    """
     if not _BROWSER:
+        _CONSENTED.clear()
         return
-    pw, browser, _ctx, _page = _BROWSER
-    for shut in (browser.close, pw.stop):
-        try:
-            shut()
-        except Exception:
-            pass
-    _BROWSER.clear()
+
+    def work():
+        pw, browser, _ctx, _page = _BROWSER
+        for shut in (browser.close, pw.stop):
+            try:
+                shut()
+            except Exception:
+                pass
+        _BROWSER.clear()
+
+    try:
+        _browser_pool().submit(work).result(timeout=30)
+    except Exception:
+        pass
     _CONSENTED.clear()
+    if _POOL:
+        _POOL.pop().shutdown(wait=False)
 
 
 # The run that opens it is usually a process that exits - a scheduled run, or a test - and atexit
@@ -62,22 +76,48 @@ _atexit.register(close_browser)
 _CONSENTED = set()      # hosts whose cookie wall this browser has already answered
 
 
-def browser_get(url, timeout=45000):
-    """-> the page a plain client is refused, loaded in the shared browser."""
-    import prefill
-    page = _page()
-    page.goto(url, wait_until="domcontentloaded", timeout=timeout)
-    page.wait_for_timeout(1200)
-    # Once per host, not once per page. The wall is answered with a cookie, so it does not come
-    # back - but dismiss_consent cannot know that and walks every link and button on the page
-    # looking for it, three patterns deep. On OLX that was most of the cost: four adverts took
-    # 48 seconds, nearly all of it searching pages whose wall had been down since the first one.
-    host = urlsplit(url).netloc
-    if host not in _CONSENTED:
-        prefill.dismiss_consent(page)
-        page.wait_for_timeout(600)
-        _CONSENTED.add(host)
-    return page
+# One thread owns the browser, and every use of it happens there.
+#
+# Playwright's sync api binds its objects to the thread that made them, and the search calls
+# discover() from a thread pool - so the second board to ask for a page got "greenlet.error:
+# Cannot switch to a different thread" and the board vanished from the run. Thirteen BestJobs
+# queries died that way before it was noticed, which looked exactly like the 403 it had just been
+# fixed for.
+#
+# So browser_get returns DATA, never the page: a page handed back to a calling thread is the same
+# bug one step later, and it would come back the next time somebody wrote a caller.
+_POOL = []
+
+
+def _browser_pool():
+    if not _POOL:
+        _POOL.append(ThreadPoolExecutor(max_workers=1, thread_name_prefix="browser"))
+    return _POOL[0]
+
+
+def browser_get(url, timeout=45000, want="content", script=None):
+    """-> the page's html, its text, or what `script` evaluates to, for a url a plain client is
+    refused. Always fetched on the browser's own thread."""
+    def work():
+        import prefill
+        page = _page()
+        page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+        page.wait_for_timeout(1200)
+        # Once per host, not once per page. The wall is answered with a cookie, so it does not
+        # come back - but dismiss_consent cannot know that and walks every link and button on the
+        # page looking for it, three patterns deep. On OLX that was most of the cost: four
+        # adverts took 48 seconds, nearly all of it searching pages whose wall had been down
+        # since the first one.
+        host = urlsplit(url).netloc
+        if host not in _CONSENTED:
+            prefill.dismiss_consent(page)
+            page.wait_for_timeout(600)
+            _CONSENTED.add(host)
+        if script:
+            return page.evaluate(script)
+        return page.inner_text("body") if want == "text" else page.content()
+
+    return _browser_pool().submit(work).result()
 
 
 BOARDS = {
@@ -178,9 +218,9 @@ def olx(query, limit=25, timeout=30, location=""):
     """
     loc = f"{_slug(location)}/" if location else ""
     url = OLX.format(loc=loc, q=_slug(query) or "")
-    page = browser_get(url, timeout=timeout * 1000)
+    cards = browser_get(url, timeout=timeout * 1000, script=_OLX_CARDS)
     out, seen = [], set()
-    for card in page.evaluate(_OLX_CARDS):
+    for card in cards:
         href = card["href"].split("?")[0]
         link = href if href.startswith("http") else "https://www.olx.ro" + href
         if link in seen:
@@ -229,7 +269,7 @@ def bestjobs(query, limit=25, timeout=30):
             # 200 from both. Fifty queries returned nothing and the board was silently out of the
             # run for days. The API itself is unchanged - it answers the same JSON, it just wants
             # to be asked by a browser now.
-            items = json.loads(browser_get(str(url)).inner_text("body")).get("items") or []
+            items = json.loads(browser_get(str(url), want="text")).get("items") or []
         else:
             r.raise_for_status()
             items = r.json().get("items") or []
@@ -1325,7 +1365,7 @@ def hydrate(jobs, timeout=30, on_progress=None, report=None):
 
     def by_browser(j):
         try:
-            return j, browser_get(j["url"], timeout=timeout * 1000).content()
+            return j, browser_get(j["url"], timeout=timeout * 1000)
         except Exception:
             return j, None
 
