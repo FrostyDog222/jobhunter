@@ -330,10 +330,11 @@ REJECT = (r"reject all|reject|refuse|decline|necessary only|only necessary|essen
 SETTINGS = (r"manage|settings|preferences|customi[sz]e|more options|modific[ăa] set[ăa]rile|"
             r"set[ăa]ri|personalizeaz|mai multe op[țt]iuni|op[țt]iuni")
 SAVE = r"save settings|save preferences|save choices|confirm choices|save and close|"        r"salveaz[ăa] set[ăa]rile|salveaz[ăa]|confirm[ăa]"
-# Accepting, which this does only when nothing else would clear the wall. Deliberately narrow:
-# whole phrases that can only mean consent, never a bare "ok" or "da" that a page might use
-# for anything.
-ACCEPT = (r"^\s*(sunt de acord|accept(a|ă|are)? ?(toate|total[ăa])|accept all|accept cookies|de acord|i agree|agree and close)\s*$")
+# Accepting tracking is NOT one of the things this does, and there is no pattern for it. The
+# docstring says "without accepting tracking" and a test holds it to that: on a wall where every
+# other route fails, the answer is to leave it standing and report, not to agree on someone's
+# behalf. Tried the other way round while getting publi24 and OLX working, and neither needed it
+# - both have a full reject, one level in.
 
 # A "prove you are human" wall, which is an answer about the CLIENT and says nothing about
 # the password. Matched on the wording these services actually show rather than on a vendor
@@ -401,12 +402,6 @@ def dismiss_consent(page):
             _turn_off_optional(page)
             if guarded(SAVE):
                 return "saved necessary-only"
-        # Last resort, and only because a wall left standing is not neutral: it covers the page
-        # and swallows every click behind it, so a sign-in reads as "could not find the form" and
-        # an apply as a timeout. Accepting is the worse answer about tracking and the only one
-        # that leaves the site usable, so it happens after every other route has failed.
-        if guarded(ACCEPT):
-            return "accepted"
         return ""
     except Exception:
         return ""
