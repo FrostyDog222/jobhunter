@@ -694,6 +694,17 @@ RO = {
         "Include joburi din industria pentru adulți (videochat și similare)",
     "Search freehire too": "Caută și pe freehire",
     "Search publi24 too": "Caută și pe publi24",
+    # two entries, not one: the <b> splits the paragraph into separate text nodes
+    "publi24 is signed in the same way, but":
+        "publi24 se conectează la fel, dar",
+    "it is not applied to for you yet.":
+        "deocamdată nu se aplică în locul tău acolo.",
+    "Its ads do take an application — a message and the CV from your publi24 account — "
+    "and that will be wired up once it has been tested against a real account. Until then signing "
+    "in is what lets you apply there yourself in one click.":
+        "Anunțurile lui chiar primesc candidaturi — un mesaj și CV-ul din contul tău publi24 "
+        "— iar asta va fi pusă la punct după ce e testată pe un cont real. Până atunci, "
+        "conectarea e ceea ce îți permite să aplici acolo singur, dintr-un clic.",
     "publi24 is classifieds, and it carries the work the other four barely do \u2014":
         "publi24 e site de anunțuri și are munca pe care celelalte patru aproape că nu o au \u2014",
     "drivers, construction, warehouse, cleaning, kitchens, trades.":
