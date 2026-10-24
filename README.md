@@ -306,6 +306,13 @@ When you press **Save**, it uses the sign-in straight away if that board has sig
 checks the board first, and does nothing if you were already in. The dots update there and then; no
 page reload.
 
+After that, a board that has signed you out shows **Sign in for me** on its card, which does the
+same thing from the password already saved — no window, nothing to type. It is only offered where
+it can work: the board has a saved password and is actually signed out, and it disappears once you
+are in. **Sign in** next to it still opens the board's own page if you would rather type it
+yourself. Either way it is one attempt and never a retry loop, because repeatedly posting a wrong
+password is how an account gets locked.
+
 Worth knowing before you do: a password is worth more than a cookie — it does not expire, it often
 opens other sites too, and it can change the account's email. Encryption protects a copied file, not
 something already running on your PC as you. **Not trusting a tool from the internet with your
@@ -485,7 +492,7 @@ and rebuilds it.
 | "This copy has not been set up on this PC yet" | Answer Y — run.bat hands over to FirstTimeSetup and then starts the app. |
 | "The AI model has used up its free quota" | Wait a few minutes, or add a second provider key. |
 | "The API key was refused" | Paste the key again under *Settings*. |
-| A board shows *not signed in* | Sign in again under *Settings*. Board sessions expire. |
+| A board shows *not signed in* | Sign in again under *Settings*. Board sessions expire. With a password saved, **Sign in for me** on that board's card does it without a window. |
 | A search finds nothing on one board | Boards change their pages. The search reports which one failed; the others still work. Run Update.bat — a fix may already be out. |
 | An update broke something | The files it replaced are in `backup\<date>-<time>`. Copy them back over the top. |
 
