@@ -1123,6 +1123,18 @@ RO = {
         "Programată — următoarea rulare <b>{when}</b>.",
     "Signed in to {board}.":
         "Autentificat pe {board}.",
+    "Sign in for me":
+        "Autentifică-mă",
+    "Sign in to {board} using the password already saved, without typing it again":
+        "Te autentifică pe {board} cu parola deja salvată, fără să o scrii din nou",
+    "Already signed in to {board}.":
+        "Ești deja autentificat pe {board}.",
+    "Could not sign in to {board} from the saved password. Use Sign in to do it in a window.":
+        "Autentificarea pe {board} cu parola salvată nu a reușit. Folosește Autentificare ca să o "
+        "faci într-o fereastră.",
+    "{board} did not accept that sign-in. {why} Use Sign in to do it in a window.":
+        "{board} nu a acceptat autentificarea. {why} Folosește Autentificare ca să o faci "
+        "într-o fereastră.",
     "Still not signed in to {board}. Sign in inside the window this app opened — a session in your normal Chrome is not shared with it.":
         "Încă nu ești autentificat pe {board}. Autentifică-te în fereastra deschisă de aplicație — o sesiune din Chrome-ul tău obișnuit nu este partajată cu ea.",
     "This one has a mini interviu ({n} question(s)). Opening it with your answers filled in — read it and press Trimite.":

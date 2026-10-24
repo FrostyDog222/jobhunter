@@ -2359,9 +2359,16 @@ const NAMES = {...SBOARDS};
 let recheckedOnce = false;
 // Which boards have a saved sign-in. The endpoint never returns the username or the password -
 // there is no way to read either back out of the app, which is deliberate.
+// Kept at module level so the board cards can offer "Sign in for me" on exactly the boards that
+// have something to sign in WITH. loadCreds and loadSignins are two independent loads with no
+// order between them, so each redraws the cards once it knows - whichever lands second wins.
+let CREDS_SAVED = {};
 async function loadCreds(){
   let d;
   try { d = await api('/api/signin/saved', undefined, 'GET'); } catch(e){ return; }
+  CREDS_SAVED = Object.fromEntries(Object.entries(d.boards || {})
+                                   .map(([b, st]) => [b, !!st.saved && !st.stopped]));
+  loadSignins();                     // the cards may have drawn before this landed
   $('#credsrow').innerHTML = d.supported.map(b => {
     const st = (d.boards || {})[b] || {};
     return `<div style="min-width:0">
@@ -2485,7 +2492,11 @@ async function loadSignins(){
         : guessing ? esc(t('checking…')) : (on ? '✓ signed in' : '✕ signed out')}</span></span>
       <label class="srcsw" title="${esc(t('Search this site'))}"><input type="checkbox"
         data-searchsrc="${k}" ${searched ? 'checked' : ''}><span>${esc(t('search'))}</span></label>
-      ${can ? `<button class="${on ? 'quiet' : ''}" data-signin="${k}"
+      ${can && !on && CREDS_SAVED[k] ? `<button data-signinnow="${k}"
+        title="${esc(fill('Sign in to {board} using the password already saved, without typing it again',
+                          {board: name}))}"
+        >${esc(t('Sign in for me'))}</button>` : ''}
+      ${can ? `<button class="${on || CREDS_SAVED[k] ? 'quiet' : ''}" data-signin="${k}"
         title="${on ? 'Opens ' + esc(name) + ' so you can sign in again' : 'Sign in so the app can apply for you'}"
         >${on ? 'Re-sign in' : 'Sign in'}</button>` : ''}</div>`;
   }).join('');
@@ -2515,6 +2526,29 @@ document.addEventListener('click', async e => {
     // the toast said "{s} will not be searched." at somebody, braces and all.
     toast(fill(e.target.checked ? '{s} will be searched.' : '{s} will not be searched.',
                {s: SOURCES[src] || src}), 4000);
+    return;
+  }
+  // Sign in from the password already saved, rather than opening a window to type it again.
+  // /api/signin/now already did exactly this, but only in the seconds after somebody pressed
+  // Save - so a session that lapsed a week later sent them back for a password the app had all
+  // along. One attempt and no retry, same as everywhere else: an unattended loop posting a wrong
+  // password is how an account gets locked.
+  const now = e.target.dataset.signinnow;
+  if(now){
+    await busy(e.target, async () => {
+      let r;
+      try { r = await api('/api/signin/now', {board: now}); }
+      catch(err){
+        toast(fill('Could not sign in to {board} from the saved password. Use Sign in to do it '
+                 + 'in a window.', {board: SBOARDS[now] || now}), 9000);
+        return;
+      }
+      await loadSignins(); await loadCreds();
+      toast(r.already ? fill('Already signed in to {board}.', {board: SBOARDS[now] || now})
+          : r.signed_in ? fill('Signed in to {board}.', {board: SBOARDS[now] || now})
+          : fill('{board} did not accept that sign-in. {why} Use Sign in to do it in a window.',
+                 {board: SBOARDS[now] || now, why: r.note || ''}), 11000);
+    });
     return;
   }
   const board = e.target.dataset.signin; if(!board) return;

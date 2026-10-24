@@ -6432,4 +6432,32 @@ assert ".content()" not in _iK.getsource(_scr.hydrate).split("browser_get")[1][:
 assert "_browser_pool().submit(work)" in _iK.getsource(_scr.close_browser), \
     "the browser is closed from whatever thread noticed, which raises the same greenlet error"
 
+# 10zz. A saved password is offered on the cards, not only in the seconds after it is typed.
+#
+# /api/signin/now existed from the start but was reachable from one place: the moment somebody
+# pressed Save. A session that lapsed a week later sent them back for a password the app had had
+# all along - which, when the app is run for somebody else, means asking THEM for it again.
+_dash10zz = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+assert 'data-signinnow="${k}"' in _dash10zz, "no button offers the saved sign-in"
+assert "/api/signin/now" in _dash10zz
+
+# offered only where there is something to sign in WITH, and only where it would do something:
+# a board already signed in has nothing to do, and one locked out would fail by construction
+_card10zz = _dash10zz.split("data-signinnow")[0].rsplit("${", 1)[-1]
+for _cond in ("can", "!on", "CREDS_SAVED[k]"):
+    assert _cond in _card10zz, f"the button does not test {_cond} before offering itself"
+assert "!!st.saved && !st.stopped" in _dash10zz, \
+    "a locked-out board is still offered a sign-in that cannot work"
+
+# through sign_back_in like everything else - one attempt, never a loop. A second sign-in path
+# with its own retry is how an account gets locked.
+_now10zz = _iK.getsource(app.signin_now)
+assert "sign_back_in" in _now10zz and "for " not in _now10zz.split("sign_back_in")[1][:120], \
+    "the button signs in by a path of its own, or loops"
+
+# every string it can show has Romanian: the page is bilingual and an untranslated button is
+# the one thing the person this is run for would actually be reading
+for _s10zz in ("Sign in for me", "Already signed in to {board}."):
+    assert _s10zz in _lg.RO, f"{_s10zz!r} has no Romanian"
+
 print("ok")
