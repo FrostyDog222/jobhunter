@@ -3203,9 +3203,15 @@ function activeBands(){
 $('#selall').onclick = () => {
   const want = activeBands();
   if(!want.size) return toast('Tick at least one fit band first.');
+  // Only what the app can actually send. "Select all shown" is the one-press way to set up a
+  // batch, so sweeping manual rows into it hands you a selection where pressing Apply silently
+  // does nothing for some of them - and both the note above this list and this function's own
+  // "nothing matches" toast have always said manual boards are never picked up here. They were
+  // not: canPick lets anything be ticked, which is right for ticking OLX rows ONE at a time to
+  // open them, and wrong for a control that means "everything at once".
   const boxes = [...document.querySelectorAll('.sel')].filter(c => {
     const j = JOBS.find(x => x.url === c.dataset.url);
-    return j && want.has(bandOf(j.fit));
+    return j && want.has(bandOf(j.fit)) && BOARD(j);
   });
   const cap = BATCH;
   if(!boxes.length) return toast(

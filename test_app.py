@@ -6460,4 +6460,30 @@ assert "sign_back_in" in _now10zz and "for " not in _now10zz.split("sign_back_in
 for _s10zz in ("Sign in for me", "Already signed in to {board}."):
     assert _s10zz in _lg.RO, f"{_s10zz!r} has no Romanian"
 
+# 11a. "Select all shown" selects only what the app can send.
+#
+# The page says so twice - the note over the manual list ("never picked up by Select all shown
+# or batch apply") and this control's own "nothing matches" toast - and neither was true: the
+# filter asked for the fit band and nothing else, so one press swept OLX and freehire rows into
+# a selection whose Apply button cannot send them.
+#
+# Ticking a manual row BY HAND stays: that is how Open to apply yourself collects a few of them.
+# The difference is that one is a deliberate choice about a known row and the other means
+# "everything", which is where a silent skip hides.
+_dash11a = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
+_selall11a = _dash11a.split("$('#selall').onclick")[1].split("};")[0]
+assert "BOARD(j)" in _selall11a, "select-all takes rows the app cannot send"
+
+# and the claim the page makes about it is now true rather than aspirational
+assert "ever picked up by <i>Select all shown</i>" in _dash11a
+
+# the per-card tick is deliberately NOT restricted - removing it would take away the only way to
+# collect manual rows for Open to apply yourself, which is a feature and not an oversight
+assert "const canPick = !applied;" in _dash11a, \
+    "manual rows can no longer be ticked one at a time, so Open to apply yourself has no input"
+
+# the bar still counts the two kinds apart, so a mixed selection never promises more than it sends
+assert "sendable = p.filter(u => BOARD(jobOf(u)))" in _dash11a
+assert "openable = p.filter(u => !BOARD(jobOf(u)))" in _dash11a
+
 print("ok")
