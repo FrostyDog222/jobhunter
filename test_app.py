@@ -6287,20 +6287,23 @@ assert _as10ss.index("if refused:") < _as10ss.index('return False, "the sign-in 
 _ref10ss = _as10ss.split("if refused:")[1].split("return")[1][:120]
 assert _ref10ss.lstrip().startswith("None"), "a refusal still counts against the two strikes"
 
-# 10tt. A tick on a job the app cannot send must still be worth something.
+# 10tt. A tick means one thing: this is going out with the batch.
 #
-# Selection was board-jobs-only, so a source the app cannot apply to - OLX, freehire - could not
-# be collected at all and there was no way through fifteen of them except one card at a time.
-# Anything unapplied can be ticked now, and the two buttons decide what a tick means.
+# It used to mean two. Anything unapplied could be ticked, and which of the bar's two buttons a
+# tick answered to depended on its source - Apply for board rows, Open for OLX and freehire. The
+# count then had to be split, and "12 selected" beside "Apply to 3" is a selection explaining
+# itself. On a board the app cannot submit to, a tick reading "selected to apply" is a promise
+# with no way to keep it, so those rows have no tick at all; Open to apply sits on each card.
 _d10tt = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8")
-assert "const canPick = !applied;" in _d10tt, "a job the app cannot send cannot be collected"
-assert 'id="openpicked"' in _d10tt, "there is no way to open a selection you send yourself"
+assert "const canPick = !applied && BOARD(j);" in _d10tt, \
+    "a job the app cannot send can be selected for sending"
+assert 'id="openpicked"' not in _d10tt, \
+    "a button for a selection that can no longer be made"
 
-# the counts are split by what a tick can DO. "12 selected" beside "Apply to selected" promises
-# twelve applications; if nine are OLX, three go and nine quietly do not.
-assert "const sendable = p.filter(u => BOARD(jobOf(u)));" in _d10tt, \
-    "the bar counts jobs it cannot send among the ones it will"
-assert "const openable = p.filter(u => !BOARD(jobOf(u)));" in _d10tt
+# one count, because there is only one kind of tick left
+assert "sendBtn.textContent = fill('Apply to {n}', {n: p.length});" in _d10tt
+for _gone10tt in ("const sendable =", "const openable ="):
+    assert _gone10tt not in _d10tt, f"{_gone10tt} splits a selection that cannot be mixed"
 
 # and the send path still takes only board jobs, on both sides
 _send10tt = _d10tt.split("$('#sendpicked').onclick")[1][:900]
@@ -6353,7 +6356,7 @@ assert not _bad10vv, \
 # and every placeholder the page prints has to come from a fill() that supplies it
 for _s10vv, _vars10vv in (("'{s} will be searched.'", "s"),
                           ("'Apply to {n}'", "n"),
-                          ("'Open {n} to apply yourself'", "n")):
+                          ("'{n} match, selected the first {cap}", "n")):
     _i10vv = _d10vv.find(_s10vv)
     assert _i10vv > 0, f"{_s10vv} is gone from the page"
     _near10vv = _d10vv[max(0, _i10vv - 90):_i10vv + 200]
@@ -6474,16 +6477,11 @@ _dash11a = (app.HERE / "templates" / "dashboard.html").read_text(encoding="utf-8
 _selall11a = _dash11a.split("$('#selall').onclick")[1].split("};")[0]
 assert "BOARD(j)" in _selall11a, "select-all takes rows the app cannot send"
 
-# and the claim the page makes about it is now true rather than aspirational
-assert "ever picked up by <i>Select all shown</i>" in _dash11a
+# belt and braces: the tick itself is gone from those rows too (10tt), so select-all could not
+# reach one even if this filter were dropped again
+assert "const canPick = !applied && BOARD(j);" in _dash11a
 
-# the per-card tick is deliberately NOT restricted - removing it would take away the only way to
-# collect manual rows for Open to apply yourself, which is a feature and not an oversight
-assert "const canPick = !applied;" in _dash11a, \
-    "manual rows can no longer be ticked one at a time, so Open to apply yourself has no input"
-
-# the bar still counts the two kinds apart, so a mixed selection never promises more than it sends
-assert "sendable = p.filter(u => BOARD(jobOf(u)))" in _dash11a
-assert "openable = p.filter(u => !BOARD(jobOf(u)))" in _dash11a
+# and the note over the manual list says why there is no tick, rather than describing a batch
+assert "None of these can" in _dash11a and "be ticked at all" in _dash11a
 
 print("ok")

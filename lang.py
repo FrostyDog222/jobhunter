@@ -691,14 +691,6 @@ RO = {
         "{n} erau deja în lista ta, de pe alt site.",
     "{n} were adult-industry work.": "{n} erau din industria pentru adulți.",
     "Apply to {n}": "Aplică la {n}",
-    "Open {n} to apply yourself": "Deschide {n} ca să aplici tu",
-    "Opened {n}. Apply on each, then use Mark applied so they stop coming back.":
-        "Am deschis {n}. Aplică la fiecare, apoi folosește Marchează ca aplicat "
-        "ca să nu mai revină.",
-    "Opened {n}. {r} still ticked — open them in another go; browsers stop a tab storm "
-    "from one click.":
-        "Am deschis {n}. {r} rămân bifate — deschide-le într-o altă "
-        "rundă; browserele opresc un val de taburi dintr-un singur clic.",
     "search": "caută",
     "Search this site": "Caută pe acest site",
     "not searched": "nu se caută",
@@ -937,16 +929,18 @@ RO = {
         "Tot ce aplicația nu poate trimite în locul tău: freehire, formularele angajatorilor și orice anunț de pe un site al cărui buton de aplicare te trimite la pagina angajatorului în loc să primească o candidatură.",
     "then":
         "apoi",
-    "is the flow — the app writes the PDF and opens the form with what it can fill already filled, and you press send. None of these is ever picked up by":
-        "este fluxul — aplicația scrie PDF-ul și deschide formularul cu ce poate completa deja completat, iar tu apeși trimite. Niciunul dintre acestea nu este preluat vreodată de",
+    "is the flow — the app writes the PDF and opens the form with what it can fill already filled, and you press send. None of these can be ticked at all: a tick means \"send this for me\", and on these boards the app cannot, so nothing here goes out by accident and nothing here waits for a batch that will never carry it.":
+        "este fluxul — aplicația scrie PDF-ul și deschide formularul cu ce poate completa deja "
+        "completat, iar tu apeși trimite. Niciunul dintre acestea nu poate fi bifat: o bifă "
+        "înseamnă „trimite asta pentru mine”, iar pe aceste site-uri aplicația nu poate, așa că "
+        "nimic de aici nu pleacă din greșeală și nimic de aici nu așteaptă un lot care nu îl va "
+        "duce niciodată.",
     "You apply yourself":
         "Aplici tu",
     "you apply":
         "aplici tu",
     "The app cannot send this one - tailor a CV and apply on their site":
         "Aplicația nu poate trimite această candidatură - adaptează un CV și aplică pe site-ul lor",
-    "or batch apply, so nothing here goes out by accident.":
-        "sau de aplicarea în lot, așa că nimic de aici nu pleacă din greșeală.",
     "— after that search, it applies to the highest-scoring jobs on the boards that take an application directly: eJobs, BestJobs and Hipo. Employer forms, and ads that hand you to the employer's own site, are never sent for you. A board apply attaches the CV stored on that board's profile, not the tailored PDF this app writes, so an out-of-date board profile is what the employer sees. Read the warning below before turning it on.":
         "— după acea căutare, aplică la joburile cu cel mai mare punctaj de pe site-urile care primesc o candidatură direct: eJobs, BestJobs și Hipo. Formularele angajatorilor și anunțurile care te trimit pe site-ul angajatorului nu sunt trimise niciodată în locul tău. O aplicare pe un site atașează CV-ul salvat în profilul de pe acel site, nu PDF-ul adaptat pe care îl scrie aplicația, așa că un profil neactualizat este ceea ce vede angajatorul. Citește avertismentul de mai jos înainte să o pornești.",
     "Why the cap stops at 50.":
