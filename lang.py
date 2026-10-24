@@ -935,6 +935,16 @@ RO = {
         "înseamnă „trimite asta pentru mine”, iar pe aceste site-uri aplicația nu poate, așa că "
         "nimic de aici nu pleacă din greșeală și nimic de aici nu așteaptă un lot care nu îl va "
         "duce niciodată.",
+    "Press Mark applied as soon as you have sent one.":
+        "Apasă Marchează ca aplicat imediat ce ai trimis una.",
+    "Nothing else can tell. On eJobs, BestJobs and Hipo the app reads the board's own list of what you applied to and takes your word from it, but it has no session on OLX or freehire and never sees the form you filled in — so an ad you applied to and did not mark comes back on the next search looking new, and the way that goes wrong is applying to the same job twice. Skip does the same job for an ad you have read and do not want: both are remembered, so neither returns.":
+        "Nimic altceva nu poate ști. Pe eJobs, BestJobs și Hipo aplicația citește lista proprie "
+        "a site-ului cu ce ai aplicat și se ia după ea, dar pe OLX și freehire nu are nicio "
+        "sesiune și nu vede niciodată formularul completat de tine — așa că un anunț la care ai "
+        "aplicat și pe care nu l-ai marcat revine la următoarea căutare ca și cum ar fi nou, iar "
+        "așa se ajunge să aplici de două ori la același job. Renunț la el face același lucru "
+        "pentru un "
+        "anunț pe care l-ai citit și nu îl vrei: ambele sunt reținute, așa că niciunul nu revine.",
     "You apply yourself":
         "Aplici tu",
     "you apply":

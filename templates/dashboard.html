@@ -751,6 +751,12 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   and opens the form with what it can fill already filled, and you press send. None of these can
   be ticked at all: a tick means "send this for me", and on these boards the app cannot, so
   nothing here goes out by accident and nothing here waits for a batch that will never carry it.
+  <b style="color:var(--fg)">Press Mark applied as soon as you have sent one.</b>
+  Nothing else can tell. On eJobs, BestJobs and Hipo the app reads the board's own list of what
+  you applied to and takes your word from it, but it has no session on OLX or freehire and never
+  sees the form you filled in — so an ad you applied to and did not mark comes back on the next
+  search looking new, and the way that goes wrong is applying to the same job twice. Skip does
+  the same job for an ad you have read and do not want: both are remembered, so neither returns.
 </div>
   <details id="gapsbox" class="card" style="display:none;margin:0 0 12px">
     <summary style="cursor:pointer"><b>What employers keep asking for</b>
@@ -2862,7 +2868,12 @@ function draw(){
 
   $('#count').textContent = pages > 1
     ? `${total} found · page ${PAGE} of ${pages}` : `${total} shown`;
-  $('#manualnote').style.display = f === '@manual' ? '' : 'none';
+  // Wherever a manual row is actually on screen, not only in the "You apply yourself" view.
+  // It used to be that view alone - so the one place the note never appeared was the ordinary
+  // list, which is where somebody meets an OLX ad: mixed in among board jobs that DO get marked
+  // applied by themselves. That is the whole reason the note has something to say.
+  $('#manualnote').style.display =
+    f === '@manual' || rows.some(j => HAND(j) && j.status !== 'applied') ? '' : 'none';
   $('#quietnote').style.display = f === '@quiet' ? '' : 'none';
   $('#rescore').style.display = $('#filter').value === 'vetoed' && rows.length ? '' : 'none';
   // only where the question is asked: Applied is the one view about what happened afterwards

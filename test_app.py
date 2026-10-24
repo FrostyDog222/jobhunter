@@ -6484,4 +6484,27 @@ assert "const canPick = !applied && BOARD(j);" in _dash11a
 # and the note over the manual list says why there is no tick, rather than describing a batch
 assert "None of these can" in _dash11a and "be ticked at all" in _dash11a
 
+# 11b. The note shows where a manual row actually is, and says the thing that costs you.
+#
+# It appeared in the "You apply yourself" filter alone - so the one view it never reached was
+# the ordinary list, which is where somebody meets an OLX ad, mixed in among board jobs that DO
+# get marked applied by themselves.
+#
+# What it has to say: nothing marks an OLX application except the person. The app adopts
+# applications from eJobs, BestJobs and Hipo by reading the board's own list, and has no session
+# on OLX or freehire to read anything from - so an unmarked one returns on the next search
+# looking new, and the person applies to it twice.
+assert "rows.some(j => HAND(j) && j.status !== 'applied')" in _dash11a, \
+    "the note is tied to one filter, so it is absent from the list it is about"
+assert "Press Mark applied as soon as you have sent one." in _dash11a
+assert "applying to the same job twice" in _dash11a, \
+    "the note says to press it without saying what it costs not to"
+
+# both halves in Romanian, and naming the BUTTONS as the page labels them - a note telling her
+# to press something that is not on screen under that name is worse than no note
+assert _lg.RO["Mark applied"] == "Marchează ca aplicat"
+assert _lg.RO["Mark applied"] in _lg.RO["Press Mark applied as soon as you have sent one."]
+_body11b = next(v for k, v in _lg.RO.items() if k.startswith("Nothing else can tell."))
+assert _lg.RO["Skip"] in _body11b, "the Romanian note names a Skip button that is labelled otherwise"
+
 print("ok")
