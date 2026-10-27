@@ -226,6 +226,13 @@ applied to the rest once each ad has been read, in the search and before the sch
 *Hybrid* is left to freehire alone, because "hybrid" reads as remote to that test and the two are
 different answers.
 
+An ad turned away that way is remembered for two weeks and **not read again**. Without that, a
+*Remote* search paid to read the same two hundred on-site ads on every run and kept none of them —
+the Health tab measured it at about two and a half minutes, and one scheduled run had read nearly
+two thousand. The memory belongs to the question that was asked: switch to *On-site*, or to any work
+mode, and those ads are read as normal, and after two weeks they are read again in case the employer
+has changed the advert. The Health tab says how many were skipped.
+
 Worth expecting, if you ask for *Remote* with freehire off: the Romanian boards carry few genuinely
 remote adverts. Measured on two live eJobs searches, 1 of 25 and 4 of 25 results were remote. The
 filter is doing its job — there simply is not much there — so a run that finds a handful is normal,
@@ -483,6 +490,15 @@ and rebuilds it.
 
 ## When something goes wrong
 
+**The Health tab** (top right, next to Dashboard) is the first place to look. It answers four
+questions from a short record the app keeps of every search, scheduled or by hand: *how did each
+job site read this time compared with how it usually reads*, *what broke, since when, and is it
+still going on*, *where did the time go*, and *which AI models are resting*. A site that has
+changed its page shows up there as "Returning far fewer ads than usual" or "Turning the app away
+on nearly every search", with a line saying what to do — usually Update.bat — and a rate limit
+that mends itself is labelled as that, so the two are not confused. Opening it reads files only:
+no browser, no search, no AI call, so it costs nothing and cannot make a bad day worse.
+
 | what you see | what to do |
 |---|---|
 | The dashboard does not open | Wait for the black window to finish, then open http://127.0.0.1:8777 yourself. |
@@ -494,6 +510,8 @@ and rebuilds it.
 | "The API key was refused" | Paste the key again under *Settings*. |
 | A board shows *not signed in* | Sign in again under *Settings*. Board sessions expire. With a password saved, **Sign in for me** on that board's card does it without a window. |
 | A search finds nothing on one board | Boards change their pages. The search reports which one failed; the others still work. Run Update.bat — a fix may already be out. |
+| A warning says a board *"may have changed its layout"*, or that pages *"had nothing readable on them"* | The board is still answering but the app is reading less of it than usual — it compares each board with its own last few runs. Run Update.bat. The warning keeps appearing until the board is back to normal on purpose, so a board that quietly broke cannot go unnoticed; if the board really has shrunk for good, delete `.board_counts.json` and it starts a new baseline. |
+| The run takes a long time | `auto.log` ends each search with a `timing:` line: how long finding, reading and scoring took, how long each board took, and how much time was lost to AI providers that did not answer (a timeout can cost up to three minutes and the app recovers from it without saying so). That line says which of the three to look at. |
 | An update broke something | The files it replaced are in `backup\<date>-<time>`. Copy them back over the top. |
 
 ## For whoever maintains it
@@ -523,6 +541,8 @@ and rebuilds it.
     auto.log      what the scheduled run did         auto_last.json  its last summary
     .boards.json  which board states were last read  .shortlist.json the cached "today" answer
     .llm_down.json which providers are resting, and why - read by every run, not just this one
+    .board_counts.json  how many ads each board usually returns, for the "looks thin" warning
+    .search_log.json  the last 40 searches - what each found, how long it took, what went wrong
 
 None of those leave the machine: `share.py` excludes every one, and `.gitignore` keeps them out of
 the repository.

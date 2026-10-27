@@ -1127,6 +1127,173 @@ RO = {
         "Programată — următoarea rulare <b>{when}</b>.",
     "Signed in to {board}.":
         "Autentificat pe {board}.",
+    # --- the Health tab
+    "{n} ads were not read this time: an earlier search had already read them and they did not match your work-mode filter.":
+        "{n} anunțuri nu au fost citite de data aceasta: o căutare anterioară le citise deja și nu se potriveau cu filtrul tău de mod de lucru.",
+    "scoring them":
+        "punctarea lor",
+    "Health":
+        "Stare",
+    "Health · jobhunter":
+        "Stare · jobhunter",
+    "Checking…":
+        "Se verifică…",
+    "Sources":
+        "Surse",
+    "How each job site read on its most recent search, against how it usually reads.":
+        "Cum s-a citit fiecare site de joburi la cea mai recentă căutare, față de cum se citește de obicei.",
+    "What broke":
+        "Ce s-a stricat",
+    "Everything the recent searches complained about, grouped, with whether it is still going on.":
+        "Tot ce au semnalat căutările recente, grupat, cu mențiunea dacă încă se întâmplă.",
+    "Where the time went":
+        "Unde a mers timpul",
+    "AI models":
+        "Modele AI",
+    "In the order they are asked. A model that is resting is skipped until it recovers.":
+        "În ordinea în care sunt întrebate. Un model care se odihnește este sărit până își revine.",
+    "Check again":
+        "Verifică din nou",
+    "search by hand":
+        "căutare manuală",
+    "No searches recorded yet":
+        "Nicio căutare înregistrată încă",
+    "Everything is reading normally":
+        "Totul se citește normal",
+    "Working, with a few things to keep an eye on":
+        "Funcționează, cu câteva lucruri de urmărit",
+    "{n} thing(s) have stopped reading properly":
+        "{n} lucru(ri) nu se mai citesc corect",
+    "Every AI model is resting right now":
+        "Toate modelele AI se odihnesc acum",
+    "This fills in after the next search, whether the scheduled run or one you start.":
+        "Se completează după următoarea căutare, fie cea programată, fie una pornită de tine.",
+    "Last search {when} · {how}":
+        "Ultima căutare {when} · {how}",
+    "Signed out of {who}":
+        "Deconectat de la {who}",
+    "Reading normally":
+        "Se citește normal",
+    "Unsteady":
+        "Instabil",
+    "Broken":
+        "Defect",
+    "Returned nothing":
+        "N-a returnat nimic",
+    "Not seen yet":
+        "Încă nevăzut",
+    "Not searched":
+        "Nu e căutat",
+    "{n} ads per search term (usually {u})":
+        "{n} anunțuri per termen de căutare (de obicei {u})",
+    "{n} ads per search term":
+        "{n} anunțuri per termen de căutare",
+    "No reading recorded yet":
+        "Nicio citire înregistrată încă",
+    "{s}s per search term":
+        "{s}s per termen de căutare",
+    "Sign-in stopped after failing":
+        "Autentificarea a fost oprită după eșecuri",
+    "Signed in":
+        "Autentificat",
+    "Signed out":
+        "Deconectat",
+    "The search":
+        "Căutarea",
+    "Nothing to show until a search has run.":
+        "Nu e nimic de arătat până nu rulează o căutare.",
+    "Nothing has gone wrong in the searches recorded.":
+        "Nimic nu a mers prost în căutările înregistrate.",
+    "{n}× in {r} searches · first {a} · last {b}":
+        "{n}× în {r} căutări · prima {a} · ultima {b}",
+    "{n}× · {b}":
+        "{n}× · {b}",
+    "still happening":
+        "încă se întâmplă",
+    "not on the latest search":
+        "nu și la ultima căutare",
+    "No timing was recorded for the latest search. The next one will have it.":
+        "Pentru ultima căutare nu s-a înregistrat timpul. Următoarea îl va avea.",
+    "finding ads":
+        "căutarea anunțurilor",
+    "reading them":
+        "citirea lor",
+    "The latest search took {total}.":
+        "Ultima căutare a durat {total}.",
+    "Time finding ads, per site":
+        "Timp pentru găsirea anunțurilor, pe site",
+    "AI models that did not answer, across the searches recorded":
+        "Modele AI care nu au răspuns, în căutările înregistrate",
+    "{p}: {n}× {why}":
+        "{p}: {n}× {why}",
+    "out of quota":
+        "cotă epuizată",
+    "about {t} lost":
+        "aproximativ {t} pierdute",
+    "Added up across calls that ran side by side, so it can exceed the time the search took.":
+        "Adunat peste apeluri care au rulat în paralel, deci poate depăși durata căutării.",
+    "When":
+        "Când",
+    "How":
+        "Cum",
+    "Finding":
+        "Căutare",
+    "Reading":
+        "Citire",
+    "Scoring":
+        "Punctare",
+    "Warnings":
+        "Avertismente",
+    "stopped":
+        "oprită",
+    "resting":
+        "se odihnește",
+    "available":
+        "disponibil",
+    "No AI model is set up yet.":
+        "Încă nu e configurat niciun model AI.",
+    "Could not read the health record just now":
+        "Nu s-a putut citi evidența stării chiar acum",
+    "Turning the app away on nearly every search":
+        "Respinge aplicația la aproape fiecare căutare",
+    "Returning far fewer ads than usual":
+        "Returnează mult mai puține anunțuri ca de obicei",
+    "Ad pages load but nothing can be read":
+        "Paginile anunțurilor se încarcă, dar nu se poate citi nimic",
+    "The page layout has changed":
+        "Aspectul paginii s-a schimbat",
+    "Did not answer some searches":
+        "N-a răspuns la unele căutări",
+    "Some ad pages did not answer":
+        "Unele pagini de anunț nu au răspuns",
+    "Some ads were not scored":
+        "Unele anunțuri nu au fost punctate",
+    "AI models out of quota":
+        "Modelele AI au epuizat cota",
+    "The search stopped with an error":
+        "Căutarea s-a oprit cu o eroare",
+    "Warning":
+        "Avertisment",
+    "Nearly every search was refused - that is a block, not ordinary rate limiting, which loses a handful of terms a run. The app falls back to a real browser where it can. If this carries on, run Update.bat: a fix may already be out.":
+        "Aproape fiecare căutare a fost refuzată - este un blocaj, nu simpla limitare de cereri, care pierde doar câțiva termeni pe rulare. Aplicația trece la un browser real acolo unde poate. Dacă durează, rulează Update.bat: este posibil să existe deja o remediere.",
+    "It answered with nothing where it normally answers with plenty, so its page has probably changed. Run Update.bat - a fix may already be out. The other boards are not affected.":
+        "A răspuns cu nimic acolo unde de obicei răspunde cu multe, deci pagina lui s-a schimbat probabil. Rulează Update.bat - este posibil să existe deja o remediere. Celelalte site-uri nu sunt afectate.",
+    "It is answering, but with far fewer ads than usual - the app is most likely reading only part of its page. Run Update.bat. This stays flagged until the board is back to normal, so it cannot quietly become the new normal.":
+        "Răspunde, dar cu mult mai puține anunțuri ca de obicei - aplicația citește cel mai probabil doar o parte din pagină. Rulează Update.bat. Rămâne semnalat până când site-ul revine la normal, ca să nu devină pe tăcute noul normal.",
+    "The ad pages load but nothing could be read from them, so none of those ads can be scored. The board has probably changed how it publishes an ad. Run Update.bat.":
+        "Paginile anunțurilor se încarcă, dar nu s-a putut citi nimic din ele, deci niciun anunț de acolo nu poate fi punctat. Site-ul și-a schimbat probabil modul de publicare a unui anunț. Rulează Update.bat.",
+    "The page no longer looks the way the app expects. It still worked, but the results may be incomplete or may include suggestions. Run Update.bat.":
+        "Pagina nu mai arată așa cum se așteaptă aplicația. A funcționat în continuare, dar rezultatele pot fi incomplete sau pot include sugestii. Rulează Update.bat.",
+    "The board refused or timed out on some searches - usually rate limiting or a short outage. It mends itself; the only loss is those search terms for this run.":
+        "Site-ul a refuzat sau a expirat la unele căutări - de obicei limitare de cereri sau o scurtă pană. Se repară singur; pierderea e doar acei termeni, pentru această rulare.",
+    "Ads were found but their pages did not answer. They are fetched again on the next search, so nothing is lost.":
+        "S-au găsit anunțuri, dar paginile lor nu au răspuns. Sunt luate din nou la următoarea căutare, deci nu se pierde nimic.",
+    "Some ads could not be scored, usually because every AI model was busy. They are tried again on the next search.":
+        "Unele anunțuri nu au putut fi punctate, de obicei pentru că toate modelele AI erau ocupate. Se încearcă din nou la următoarea căutare.",
+    "Every AI model was out of quota for a while. They reset on their own; adding another key under Settings makes it less likely.":
+        "Toate modelele AI au rămas fără cotă o vreme. Se resetează singure; adăugarea unei alte chei în Setări face asta mai puțin probabil.",
+    "The whole search stopped. auto.log has the detail.":
+        "Întreaga căutare s-a oprit. auto.log are detaliile.",
     "Sign in for me":
         "Autentifică-mă",
     "Sign in to {board} using the password already saved, without typing it again":

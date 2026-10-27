@@ -2,6 +2,18 @@
 import json, pathlib, sys
 import app, scrape
 
+# The suite calls search() and _search() on stubs, and both now write down what they did - the
+# record of every search, and each board's usual yield. Pointed at the real files, three runs of
+# this suite left three fake "found 0" searches in somebody's actual history, which is exactly the
+# thing that history exists to be trusted for.
+import tempfile as _tf0
+app.SEARCH_LOG = pathlib.Path(_tf0.mkdtemp()) / ".search_log.json"
+app.BOARD_COUNTS = pathlib.Path(_tf0.mkdtemp()) / ".board_counts.json"
+# ...and the database, for the same reason. search() now also remembers the ads it turned away, so
+# any test that drives it on stubs would otherwise write those into the real passed_over table.
+# Blocks that want their own database still make one; this is only what they fall back to.
+app.DB, app._SCHEMA_DONE = pathlib.Path(_tf0.mkdtemp()) / "suite.sqlite", False
+
 # 1. JSON-LD extraction survives the shapes these boards actually emit
 page = '<script type="application/ld+json">' + json.dumps({"@graph": [
     {"@type": "WebSite"},
@@ -6483,6 +6495,417 @@ assert "const canPick = !applied && BOARD(j);" in _dash11a
 
 # and the note over the manual list says why there is no tick, rather than describing a batch
 assert "None of these can" in _dash11a and "be ticked at all" in _dash11a
+
+# 11c. A search says where its time went, and what the models that did not answer cost.
+#
+# The run log had a start and an end and nothing between, so "it took 33 minutes" could not be
+# told apart as slow boards, slow reading or a model that kept timing out. The timeout is the
+# one that hides: the chain recovers from it, so nobody ever sees the 45-180 seconds it cost.
+import httpx as _hx11c, tempfile as _tf11c, pathlib as _pl11c
+_L11c = app.llm
+_keep11c = (_L11c.DOWN, _L11c.chain, _L11c._call, _L11c.cfg)
+_tmp11c = _pl11c.Path(_tf11c.mkdtemp())
+try:
+    _L11c.DOWN = _tmp11c / ".llm_down.json"           # the real breaker file is somebody's state
+    _L11c._BLOWN.clear()
+    _L11c.chain = lambda: [("p1", "m1", "k"), ("p2", "m2", "k")]
+    _L11c.cfg = lambda name, default=None: default or ""
+
+    def _call11c(provider, model, key, system, user, max_tokens, tries):
+        if provider == "p1":
+            raise _hx11c.ReadTimeout("timed out")
+        return {"ok": True}
+
+    _L11c._call = _call11c
+    _n11c = len(_L11c.WAIT_EVENTS)
+    assert _L11c.ask("s", "u", max_tokens=100) == {"ok": True}, "the chain did not recover"
+    _ev11c = _L11c.WAIT_EVENTS[_n11c:]
+    assert [e[:2] for e in _ev11c] == [("p1", "ReadTimeout")], f"the timeout was not recorded: {_ev11c}"
+    assert _ev11c[0][2] >= 0, "a wait with no duration"
+finally:
+    (_L11c.DOWN, _L11c.chain, _L11c._call, _L11c.cfg) = _keep11c
+    _L11c._BLOWN.clear()
+
+# the report folds those into per-provider counts and seconds, only for events since `waits_from`
+_L11c.WAIT_EVENTS[:] = [("old", "spent", 9.0), ("gemini", "ReadTimeout", 60.0),
+                        ("gemini", "ReadTimeout", 70.0), ("groq", "spent", 1.5)]
+_t11c = app._timing_report({"start": 0.0, "found": 0.0, "read": 2.0}, {"ejobs": {"seconds": 1, "ads": 3}},
+                           0.0, 1)
+assert _t11c["llm_waits"]["gemini"]["ReadTimeout"]["count"] == 2
+assert round(_t11c["llm_waits"]["gemini"]["ReadTimeout"]["seconds"]) == 130
+assert "old" not in _t11c["llm_waits"], "a wait from before this search was counted against it"
+assert {"total", "find", "read", "score", "boards", "llm_waits"} <= set(_t11c)
+_L11c.WAIT_EVENTS[:] = []
+
+# ...and the run log gets it as readable lines, and the search actually returns it
+import auto as _au11c
+_line11c = _au11c.timing_line({"total": 1982, "find": 850, "read": 40, "score": 1090,
+    "boards": {"olx": {"seconds": 246, "ads": 9}},
+    "llm_waits": {"gemini": {"ReadTimeout": {"count": 2, "seconds": 370.0}}}})
+assert "total 33m02s" in _line11c and "olx 4m06s" in _line11c and "gemini 2x ReadTimeout (6m10s)" in _line11c
+assert '"timing": _timing_report(' in _iK.getsource(app._search) or "_timing_report(clock" in _iK.getsource(app._search)
+assert "timing_line(found[" in _iK.getsource(_au11c.run), "the run log never prints it"
+
+# 11d. A board changing under us is reported, not inferred from the numbers going quiet.
+#
+# The only check was "returned exactly zero", which is how a board breaks LOUDLY. The quiet way is
+# a parser that still finds a third of what it used to: the run is thinner, and thin looks like a
+# quiet day. So each board is held against its own recent yield, per search term.
+_bc11d = app.BOARD_COUNTS
+app.BOARD_COUNTS = _pl11c.Path(_tf11c.mkdtemp()) / ".board_counts.json"
+try:
+    _ok11d = lambda n: {"ejobs": {"seconds": 1, "ads": n}}
+    for _ in range(3):
+        assert app._check_board_counts(_ok11d(560), 56, False) == [], "warned with nothing to compare to"
+    assert app._check_board_counts(_ok11d(500), 56, False) == [], "a slightly quieter day is not a fault"
+    _w11d = app._check_board_counts(_ok11d(112), 56, False)
+    assert _w11d and "ejobs" in _w11d[0] and "layout" in _w11d[0], f"a board at 20% of usual passed: {_w11d}"
+    # one term is held against per-TERM history: 10 ads for one term is the usual 10, not 1/56 of it
+    assert app._check_board_counts(_ok11d(10), 1, False) == [], "a one-term search was held to a 56-term total"
+    # a thin run must not drag the baseline down to meet it, or a broken board goes quiet in 3 runs
+    for _ in range(4):
+        assert app._check_board_counts(_ok11d(112), 56, False), "the baseline slid down to the broken board"
+    # a city search is a smaller question and has its own history
+    assert app._check_board_counts(_ok11d(112), 56, True) == [], "a local search was compared with a national one"
+    # none at all is the older check's job, with its own wording
+    assert app._check_board_counts({"ejobs": {"seconds": 1, "ads": 0}}, 56, False) == []
+finally:
+    app.BOARD_COUNTS = _bc11d
+assert "_check_board_counts(per_board" in _iK.getsource(app._search)
+
+# pages that ANSWER and give nothing readable were dropped without a word
+_keep11d = (_scr._get, _scr.needs_browser)
+class _Resp11d:
+    text = "<html><body>nothing structured at all</body></html>"
+_scr._get = lambda c, url, **k: _Resp11d()
+_scr.needs_browser = lambda url: False
+try:
+    _jobs11d = [{"source": "hipo", "url": f"https://www.hipo.ro/x{i}", "title": f"T{i}",
+                 "company": "", "location": "", "posted": "", "description": "", "note": "",
+                 "salary": "", "lang": "", "_full": False} for i in range(6)]
+    _rep11d = {}
+    _scr.hydrate(_jobs11d, report=_rep11d)
+    assert _rep11d.get("unparsed") == {"hipo": 6} and _rep11d.get("answered") == {"hipo": 6}, _rep11d
+finally:
+    (_scr._get, _scr.needs_browser) = _keep11d
+_se11d = _iK.getsource(app._search)
+assert "nothing readable" in _se11d and "scrape.take_drift()" in _se11d
+
+# OLX: what the page says about itself decides what comes back
+_keep11e = _scr.browser_get
+_card11e = lambda n: {"href": f"/oferta/loc-de-munca/x-ID{n}.html",
+                      "lines": [f"Ad {n}", "Firm", "Bucuresti", "Nedeterminat"]}
+def _page11e(cards, grid=True, count="Am găsit 2 rezultate pentru tine"):
+    return lambda *a, **k: {"cards": cards, "grid": grid, "count": count}
+try:
+    _scr.take_drift()
+    # "0 results" with forty suggestion cards on the page: nothing, and no complaint
+    _scr.browser_get = _page11e([_card11e(i) for i in range(40)], grid=False,
+                                count="Am găsit 0 rezultate pentru tine")
+    assert _scr.olx("zendesk") == [] and _scr.take_drift() == [], "OLX's own suggestions came back as results"
+    # a normal page
+    _scr.browser_get = _page11e([_card11e(1), _card11e(2)])
+    assert len(_scr.olx("x")) == 2 and _scr.take_drift() == []
+    # thousands are written with a dot
+    _scr.browser_get = _page11e([_card11e(1)], count="Am găsit 1.234 rezultate pentru tine")
+    assert len(_scr.olx("x")) == 1
+    # the grid's marker vanished: still works, and says so
+    _scr.browser_get = _page11e([_card11e(1)], grid=False)
+    assert len(_scr.olx("x")) == 1 and "grid" in " ".join(_scr.take_drift())
+    # a page with neither a count nor any ads: not a quiet day
+    _scr.browser_get = _page11e([], grid=False, count="")
+    assert _scr.olx("x") == [] and "layout" in " ".join(_scr.take_drift())
+    # a count with no ads behind it
+    _scr.browser_get = _page11e([], count="Am găsit 7 rezultate pentru tine")
+    assert _scr.olx("x") == [] and "7" in " ".join(_scr.take_drift())
+    # the same complaint twice in a run is one line
+    _scr.browser_get = _page11e([], grid=False, count="")
+    _scr.olx("a"); _scr.olx("b")
+    assert len(_scr.take_drift()) == 1
+finally:
+    _scr.browser_get = _keep11e
+    _scr.take_drift()
+
+# the JavaScript itself, in a real browser, against a page shaped like OLX's
+_js11f = """<div data-testid=listing-count-msg>Am găsit 4 rezultate pentru tine</div>
+<div data-testid=listing-grid>
+  <div data-cy=l-card><a href="/oferte/user/AbC/">Firm</a><a href="/oferta/loc-de-munca/biz-IDbiz.html">Business ad</a><p>Firm</p></div>
+  <div data-cy=l-card><a href="/oferta/loc-de-munca/plain-IDplain.html">Plain ad</a></div>
+  <div data-cy=l-card><a href="/oferte/user/OnlyProfile/">Not an ad</a></div>
+</div>
+<div><h3>Suggested</h3><div data-cy=l-card><a href="/oferta/loc-de-munca/other-IDother.html">Suggestion</a></div></div>"""
+try:
+    from playwright.sync_api import sync_playwright as _sp11f
+    with _sp11f() as _pw11f:
+        _b11f = _pw11f.chromium.launch()
+        _pg11f = _b11f.new_page()
+        _pg11f.set_content(_js11f)
+        _got11f = _pg11f.evaluate(_scr._OLX_CARDS)
+        _hrefs11f = [c["href"] for c in _got11f["cards"]]
+        assert _hrefs11f == ["/oferta/loc-de-munca/biz-IDbiz.html", "/oferta/loc-de-munca/plain-IDplain.html"], \
+            f"wrong cards read: {_hrefs11f}"           # the business ad via ITS link; no suggestion
+        assert _got11f["grid"] is True and "4" in _got11f["count"]
+        assert _pg11f.evaluate(_scr._OLX_READY) is False, "ready with 3 of the 4 counted cards on the page"
+        _pg11f.evaluate("document.querySelector('[data-testid=listing-grid]').insertAdjacentHTML('beforeend', "
+                        "'<div data-cy=l-card><a href=\"/oferta/loc-de-munca/third-IDt.html\">Third</a></div>')")
+        assert _pg11f.evaluate(_scr._OLX_READY) is True, "not ready with every counted card present"
+        _pg11f.set_content('<div data-testid=listing-count-msg>Am găsit 0 rezultate pentru tine</div>')
+        assert _pg11f.evaluate(_scr._OLX_READY) is True, "waits the full timeout on a page that says 0"
+        # the count message is gone entirely: any card will do
+        _pg11f.set_content('<div data-cy=l-card><a href="/oferta/x-IDx.html">x</a></div>')
+        assert _pg11f.evaluate(_scr._OLX_READY) is True, "a renamed count message costs the whole wait"
+        _b11f.close()
+except ImportError:
+    print("SKIPPED the OLX page-script test: playwright is not installed here")
+
+# the heavy assets are not fetched, and the sign-in's own routes are not displaced by that
+assert _scr._SKIP_KINDS == {"image", "font", "media"}
+assert "route.fallback()" in _iK.getsource(_scr._skip_heavy), \
+    "continue_() would silently switch off the route registered underneath this one"
+assert "ctx.route(" in _iK.getsource(_scr._page)
+# without a signal the wait is the old fixed one, so nothing else changed
+assert "wait_for_timeout(1200)" in _iK.getsource(_scr.browser_get)
+
+# 11g. The Health tab: what broke, since when, and whether it is still going on.
+#
+# Every warning a search produced used to be a toast that vanished or a line in a log. A board
+# that quietly returned a third of its ads looked like a quiet day, and an eight-day block on
+# BestJobs read exactly like ordinary rate limiting. This keeps a record and reads it.
+import health as _h11g
+_S11g = tuple(_h11g.NAMES)
+
+# --- classification: the first rule that matches wins, and the order matters
+_cl11g = lambda s: _h11g.classify(s, _S11g)
+assert _cl11g("ejobs did not answer for 'x' (HTTP 429) - that search found nothing") == ("ejobs", "unanswered")
+assert _cl11g("olx: could not find the results grid, so every ad on the page was taken") == ("olx", "layout")
+assert _cl11g("bestjobs returned about 2 ads per search term where it usually returns 16 - it may "
+              "have changed its layout") == ("bestjobs", "thin"), \
+    "the thin-board line mentions layout too and must not be filed under it"
+assert _cl11g("hipo: 9 of 12 ad pages loaded but had nothing readable on them - it may have "
+              "changed how it publishes an ad") == ("hipo", "unreadable")
+assert _cl11g("ejobs: 0 results but 41 stored previously - parser may be broken") == ("ejobs", "silent")
+assert _cl11g("3 of 12 ads could not be read this time - the board did not answer. Nothing is "
+              "lost")[1] == "unread", "an unread ad page was filed as a search that failed"
+assert _cl11g("4 ad(s) could not be scored after 3 attempts")[1] == "scoring"
+assert _cl11g("something nobody has met before") == (None, "other")
+
+# --- grouping, and "still happening" means the NEWEST search that looked at that board has it
+_rec11g = lambda when, warns, boards=("ejobs", "olx"), terms=10, via="scheduled", **kw: {
+    "when": when, "via": via, "terms": terms, "warnings": warns,
+    "timing": {"boards": {b: {"seconds": 1, "ads": 5} for b in boards}}, **kw}
+_w11g = "olx: could not find the results grid, so every ad on the page was taken"
+_new11g = _rec11g("2026-10-27 17:00", [])
+_old11g = _rec11g("2026-10-26 17:00", [_w11g])
+_is11g = _h11g.issues([_new11g, _old11g], _S11g)
+assert len(_is11g) == 1 and _is11g[0]["ongoing"] is False, \
+    "a problem the latest search did not have is still reported as going on"
+assert _is11g[0]["first"] == "2026-10-26 17:00" == _is11g[0]["last"]
+_is11g = _h11g.issues([_rec11g("2026-10-27 17:00", [_w11g]), _old11g], _S11g)
+assert _is11g[0]["ongoing"] is True and _is11g[0]["runs"] == 2
+assert _is11g[0]["first"] == "2026-10-26 17:00" and _is11g[0]["last"] == "2026-10-27 17:00"
+
+# a one-term manual search of OLX must not make eJobs' standing problem look mended
+_ej11g = "ejobs did not answer for 'x' (HTTP 429) - that search found nothing on this run"
+_is11g = _h11g.issues([_rec11g("2026-10-27 18:00", [], boards=("olx",), via="manual"),
+                       _rec11g("2026-10-27 17:00", [_ej11g])], _S11g)
+assert _is11g[0]["board"] == "ejobs" and _is11g[0]["ongoing"] is True, \
+    "a search that never looked at eJobs was taken as evidence that it was fine"
+
+# an older record has no per-board timing: it counts as having looked at everything. The other
+# reading made every problem ever reported look permanent, since it was always the newest to say so
+_oldrec11g = {"when": "2026-10-25 17:00", "via": "scheduled", "warnings": [_ej11g]}
+_cleanold11g = {"when": "2026-10-26 17:00", "via": "scheduled", "warnings": []}
+assert _h11g.issues([_cleanold11g, _oldrec11g], _S11g)[0]["ongoing"] is False
+
+# --- a block is not the weather: the count is the only difference between them
+_many11g = [f"bestjobs did not answer for 'term {i}' (HTTP 403) - that search found nothing" for i in range(50)]
+assert [i["kind"] for i in _h11g.issues([_rec11g("2026-10-20 17:00", _many11g, terms=56)], _S11g)] == ["blocked"]
+assert [i["kind"] for i in _h11g.issues([_rec11g("2026-10-20 17:00", _many11g[:4], terms=56)], _S11g)] == ["unanswered"]
+assert _h11g.SEVERITY["blocked"] == "break" and _h11g.SEVERITY["unanswered"] == "transient"
+
+# a search that stopped is the loudest thing there is
+_is11g = _h11g.issues([_rec11g("2026-10-27 17:00", [], error="the search failed: ReadTimeout")], _S11g)
+assert _is11g[0]["kind"] == "error" and _is11g[0]["severity"] == "break" and _is11g[0]["ongoing"]
+
+# breaks sort before the weather, and what is going on before what is over
+_mix11g = _h11g.issues([_rec11g("2026-10-27 17:00", [_ej11g, _w11g]),
+                        _rec11g("2026-10-20 17:00", ["bestjobs did not answer for 'x' (HTTP 403)"])], _S11g)
+assert [(i["board"], i["ongoing"]) for i in _mix11g][:2] == [("olx", True), ("ejobs", True)]
+
+# --- the rows
+_hist11g = {"ejobs|any": [10, 10, 11], "olx|any": [6, 6, 7]}
+_rows11g = {r["id"]: r for r in _h11g.board_rows(
+    [_rec11g("2026-10-27 17:00", [_w11g])], _h11g.issues([_rec11g("2026-10-27 17:00", [_w11g])], _S11g),
+    ("ejobs", "olx", "hipo"), {"ejobs": True, "olx": True, "hipo": False}, _hist11g,
+    {"ejobs": True}, {"ejobs": {"saved": True}})}
+assert _rows11g["olx"]["status"] == "broken" and _rows11g["ejobs"]["status"] == "ok"
+assert _rows11g["hipo"]["status"] == "off", "a board that is switched off is not 'broken'"
+assert _rows11g["ejobs"]["usual"] == 10 and _rows11g["ejobs"]["per_term"] == 0.5
+assert _h11g.usual_per_term({"x|any": [5, 6]}, "x") is None, "called a number usual from two runs"
+
+# --- waits and the table of runs
+_wr11g = [dict(_rec11g("a", []), timing={"boards": {}, "llm_waits": {
+    "gemini": {"ReadTimeout": {"count": 2, "seconds": 130.0}}, "groq": {"spent": {"count": 1, "seconds": 1.0}}}}),
+          dict(_rec11g("b", []), timing={"boards": {}, "llm_waits": {
+    "gemini": {"ReadTimeout": {"count": 1, "seconds": 70.0}}}})]
+_wt11g = _h11g.waits(_wr11g)
+assert _wt11g[0]["provider"] == "gemini" and _wt11g[0]["count"] == 3 and _wt11g[0]["seconds"] == 200
+assert _h11g.runs([_rec11g("2026-10-27 17:00", [])])[0]["warnings"] == 0
+
+# --- the level said at the top
+_args11g = lambda recs, chain=(): _h11g.build(
+    recs, ("ejobs", "olx"), {"ejobs": True, "olx": True}, {}, {}, {}, list(chain))
+assert _args11g([])["level"] == "none"
+assert _args11g([_rec11g("2026-10-27 17:00", [])])["level"] == "good"
+assert _args11g([_rec11g("2026-10-27 17:00", [_ej11g])])["level"] == "warn"
+assert _args11g([_rec11g("2026-10-27 17:00", [_w11g])])["level"] == "bad"
+assert _args11g([_rec11g("2026-10-27 17:00", [])],
+                [{"provider": "groq", "model": "m", "blocked": "spent"}])["level"] == "bad", \
+    "every model resting still reads as fine"
+assert _args11g([_rec11g("2026-10-27 17:00", [])],
+                [{"provider": "groq", "model": "m", "blocked": "spent"},
+                 {"provider": "gemini", "model": "m", "blocked": ""}])["level"] == "warn"
+
+# --- the record: round trip, one per search, bounded, and it can never take a search down
+import pathlib as _pl11h, tempfile as _tf11h
+_p11h = _pl11h.Path(_tf11h.mkdtemp()) / ".search_log.json"
+_out11h = {"found": 14, "new": 1, "scored": 1, "vetoed": 0, "off_mode": 12, "warnings": ["w" * 400],
+           "timing": {"total": 35.04, "find": 13.0, "read": 19.0, "score": 3.0,
+                      "boards": {"olx": {"seconds": 13.0, "ads": 14}}, "llm_waits": {}}}
+_h11g.log_search(_p11h, {"query": "a, b; c"}, _out11h, now=__import__("datetime").datetime(2026, 10, 27, 11, 20))
+_got11h = _h11g.load(_p11h)
+assert len(_got11h) == 1 and _got11h[0]["terms"] == 3 and _got11h[0]["via"] == "manual"
+assert _got11h[0]["when"] == "2026-10-27 11:20" and len(_got11h[0]["warnings"][0]) == 300
+assert _got11h[0]["timing"]["total"] == 35.0, "microseconds were kept"
+_h11g.log_search(_p11h, {"query": "a", "via": "scheduled", "when": "2026-10-27 17:00"}, _out11h)
+_h11g.log_search(_p11h, {"query": "a", "via": "scheduled", "when": "2026-10-27 17:00"}, _out11h)
+assert [r["via"] for r in _h11g.load(_p11h)] == ["scheduled", "manual"], \
+    "two records of one run, or the newest is not first"
+for _i11h in range(60):
+    _h11g.log_search(_p11h, {"query": "a", "when": f"2026-11-{1 + _i11h // 24:02d} {_i11h % 24:02d}:00"}, _out11h)
+assert len(_h11g.load(_p11h)) == _h11g.KEEP, "the record grows without bound"
+_h11g.log_search(_p11h, {"query": "a"}, error="the search failed: boom")
+assert _h11g.load(_p11h)[0]["error"] == "the search failed: boom"
+# a path that cannot be written, and a damaged file, are both nothing worth stopping for
+_h11g.log_search(_pl11h.Path(_tf11h.mkdtemp()) / "no" / "such" / "dir.json", {"query": "a"}, _out11h)
+_p11h.write_text("{not json", encoding="utf-8")
+assert _h11g.load(_p11h) == []
+_h11g.log_search(_p11h, {"query": "a"}, _out11h)
+assert len(_h11g.load(_p11h)) == 1, "a damaged record was not started afresh"
+
+# the older scheduled history is merged in, and a run in both is counted once
+_mg11g = _h11g.merge([{"when": "2026-10-27 17:00", "via": "scheduled", "warnings": []}],
+                     [{"when": "2026-10-27 17:00", "warnings": ["dup"]},
+                      {"when": "2026-10-26 17:00", "warnings": ["older"]}])
+assert [r["when"] for r in _mg11g] == ["2026-10-27 17:00", "2026-10-26 17:00"]
+assert _mg11g[0]["warnings"] == [], "the older history overwrote the fuller record"
+
+# --- the page and the endpoint, and everything they say has Romanian
+_r11g = _cl9.get("/health")
+assert _r11g.status_code == 200 and "Health" in _r11g.text
+_j11g = _cl9.get("/api/health").json()
+assert {"level", "checked", "issues", "boards", "runs", "waits", "timing", "providers"} <= set(_j11g)
+assert [b["id"] for b in _j11g["boards"]] == list(app.scrape.SOURCES)
+assert 'href="/health"' in (app.HERE / "templates" / "base.html").read_text(encoding="utf-8")
+for _k11g, _v11g in {**{k: v for k, v in _h11g.LABEL.items()},
+                     **{k: v for k, v in _h11g.ADVICE.items() if v}}.items():
+    assert _v11g in _lg.RO, f"{_k11g!r} has no Romanian: {_v11g[:50]}"
+
+# the wiring: every search is recorded, but a refused request is not a search that went wrong
+_src11g = _iK.getsource(app.search)
+assert "health.log_search(SEARCH_LOG, body, out)" in _src11g
+assert _src11g.index("except HTTPException") < _src11g.index("except Exception"), \
+    "a 400 for an empty profile is recorded as a failed search"
+assert '"via": "scheduled"' in _iK.getsource(_au11c.run), "the run cannot be told from one done by hand"
+for _f11g in (".search_log.json", ".board_counts.json"):
+    assert _f11g in (app.HERE / ".gitignore").read_text(encoding="utf-8"), f"{_f11g} would be committed"
+    assert _f11g in (app.HERE / "share.py").read_text(encoding="utf-8"), f"{_f11g} would be shared"
+
+# 11h. An ad the work-mode filter has turned away is not read again.
+#
+# Measured on a real search, twice running: 247 ads found, 190-197 of them read and dropped as not
+# remote, nothing kept, and 2m25s then 2m42s spent on it. The rejects are not stored as jobs, so
+# `known` never saw them and every run read them afresh - one scheduled run read 1,924 ads to keep
+# a handful. Driven through the real search, on a throwaway database and stubbed network and models.
+import asyncio as _as11h, datetime as _dt11h, io as _io11h, contextlib as _cx11h, tempfile as _tf11i
+_keep11h = (app.DB, app._SCHEMA_DONE, scrape.discover, scrape.hydrate, app.llm.score,
+            app.llm.language_gate, app.llm.ad_language, app.settings)
+try:
+    _ad11h = lambda n, remote: {
+        "source": "ejobs", "url": f"https://www.ejobs.ro/user/locuri-de-munca/x/{n}",
+        "title": f"Customer Support {n}", "company": "ACME", "location": "Remote" if remote else "Bucuresti",
+        "posted": _dt11h.date.today().isoformat(), "salary": "", "pay_est": "", "expires": "",
+        "terms": "", "note": "", "lang": "en", "applicants": None, "responsive": None, "_full": True,
+        "description": ("Fully remote, work from home. " if remote else
+                        "On-site at our Bucharest office, five days a week. ") + "Answer customers. " * 30}
+    # two remote ads (1, 2) and three that are not (3, 4, 5)
+    _ads11h = [_ad11h(1, True), _ad11h(2, True)] + [_ad11h(n, False) for n in (3, 4, 5)]
+    _read11h = []
+    scrape.discover = lambda *a, **k: [dict(a_, _full=False, description="") for a_ in _ads11h]
+
+    def _hyd11h(jobs, **k):
+        _read11h.append(sorted(int(j["url"].rsplit("/", 1)[1]) for j in jobs))
+        full = {a_["url"]: a_ for a_ in _ads11h}
+        return [dict(full[j["url"]]) for j in jobs]
+
+    scrape.hydrate = _hyd11h
+    app.llm.language_gate = lambda p, j: (True, "")
+    app.llm.ad_language = lambda j: "en"
+    app.llm.score = lambda profile, job, send=None, reply_in="": {"fit": 70, "why": "ok", "gaps": [], "untapped": []}
+    app.settings = lambda: {**_keep11h[7](), "skip_families": []}
+
+    def _clean11h():
+        app.DB, app._SCHEMA_DONE = pathlib.Path(_tf11i.mkdtemp()) / "t.sqlite", False
+        _read11h.clear()
+
+    def _run11h(mode):
+        with _cx11h.redirect_stdout(_io11h.StringIO()):
+            return _as11h.run(app.search({"query": "customer support", "country": "ro",
+                                          "boards": ["ejobs"], "filters": {"work_mode": mode}}))
+
+    # -- the same question twice: the second search reads nothing
+    _clean11h()
+    _o1 = _run11h("remote")
+    assert _read11h[-1] == [1, 2, 3, 4, 5], f"a first look reads everything: {_read11h}"
+    assert _o1["new"] == 2 and _o1["off_mode"] == 3 and _o1["timing"]["skipped_unread"] == 0, _o1
+    with app.db() as _c:
+        assert _c.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 2, "a rejected ad was stored as a job"
+        assert _c.execute("SELECT COUNT(*) FROM passed_over WHERE why='mode:remote'").fetchone()[0] == 3
+    _o2 = _run11h("remote")
+    assert _read11h[-1] == [], f"the rejected ads were read again: {_read11h[-1]}"
+    assert _o2["timing"]["skipped_unread"] == 3 and _o2["new"] == 0 and _o2["found"] == 5, _o2
+
+    # -- a fortnight on an employer may have edited the ad into one that fits, so it is read again,
+    #    and the verdict is written down afresh so the day after is quiet again
+    with app.db() as _c:
+        _c.execute("UPDATE passed_over SET at = datetime('now','localtime','-15 days')")
+    _run11h("remote")
+    assert _read11h[-1] == [3, 4, 5], f"a fortnight-old verdict was still trusted: {_read11h[-1]}"
+    _run11h("remote")
+    assert _read11h[-1] == [], "the fresh verdict was not written down again"
+
+    # -- on-site is a different question: "not remote" says nothing about it, so the ads that were
+    #    turned away for being on-site are exactly what is asked for now
+    _run11h("onsite")
+    assert _read11h[-1] == [3, 4, 5], f"on-site was answered from the remote search's memory: {_read11h[-1]}"
+
+    # -- and asking for any work mode does not consult it either
+    _clean11h()
+    _run11h("remote")
+    _run11h("")
+    assert _read11h[-1] == [3, 4, 5], f"any work mode was answered from a remote-only memory: {_read11h[-1]}"
+finally:
+    (app.DB, app._SCHEMA_DONE, scrape.discover, scrape.hydrate, app.llm.score,
+     app.llm.language_gate, app.llm.ad_language, app.settings) = _keep11h
+
+assert "skipped_unread" in _iK.getsource(app._search) and "_passed_over(" in _iK.getsource(app._search)
+assert _iK.getsource(app._search).index("_passed_over(") < _iK.getsource(app._search).index("scrape.hydrate("), \
+    "the memory is consulted after the reading it exists to prevent"
+assert "skipped 190 already judged" in _au11c.timing_line(
+    {"total": 10, "find": 1, "read": 8, "score": 1, "skipped_unread": 190, "boards": {}, "llm_waits": {}})
+assert "skipped" not in _au11c.timing_line(
+    {"total": 10, "find": 1, "read": 8, "score": 1, "skipped_unread": 0, "boards": {}, "llm_waits": {}})
+assert "skipped_unread" in (app.HERE / "templates" / "health.html").read_text(encoding="utf-8")
 
 # 11b. The note shows where a manual row actually is, and says the thing that costs you.
 #

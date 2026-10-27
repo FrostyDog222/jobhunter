@@ -26,6 +26,22 @@ def needs_browser(url):
     return any(h in (url or "") for h in NEEDS_BROWSER)
 
 
+# Nothing this browser is asked for needs a picture, a font or a video: every caller reads text,
+# JSON or the page's own markup. Not fetching them is the ordinary Playwright way to make a page
+# load faster, and it changes nothing about who is asking.
+_SKIP_KINDS = {"image", "font", "media"}
+
+
+def _skip_heavy(route):
+    # fallback(), not continue_(): the sign-in code's own route (the Google One Tap stub) is
+    # registered underneath this one, and a handler that does not pass the request down would
+    # silently switch it off.
+    if route.request.resource_type in _SKIP_KINDS:
+        route.abort()
+    else:
+        route.fallback()
+
+
 def _page():
     """The shared browser page, opened on first use. Carries the saved session, so a board that
     shows more to a signed-in visitor shows it here too."""
@@ -34,6 +50,7 @@ def _page():
         from playwright.sync_api import sync_playwright
         pw = sync_playwright().start()
         browser, ctx, page = prefill._open(pw, headless=True)
+        ctx.route("**/*", _skip_heavy)
         _BROWSER.extend([pw, browser, ctx, page])
     return _BROWSER[3]
 
@@ -95,14 +112,27 @@ def _browser_pool():
     return _POOL[0]
 
 
-def browser_get(url, timeout=45000, want="content", script=None):
+def browser_get(url, timeout=45000, want="content", script=None, ready=None, ready_ms=8000):
     """-> the page's html, its text, or what `script` evaluates to, for a url a plain client is
-    refused. Always fetched on the browser's own thread."""
+    refused. Always fetched on the browser's own thread.
+
+    `ready` is a JS predicate that turns true when the page has what the caller came for. Without
+    one the wait is the old fixed 1.2 seconds, which is both too long for a page that was ready in
+    a third of it and too short for one that was not: OLX rendered 5 of the 14 results it said it
+    had when read at that moment. Not arriving inside `ready_ms` is not an error - the page is
+    read as it stands, and the caller can tell from what comes back that the signal never showed.
+    """
     def work():
         import prefill
         page = _page()
         page.goto(url, wait_until="domcontentloaded", timeout=timeout)
-        page.wait_for_timeout(1200)
+        if ready:
+            try:
+                page.wait_for_function(ready, timeout=ready_ms)
+            except Exception:
+                pass
+        else:
+            page.wait_for_timeout(1200)
         # Once per host, not once per page. The wall is answered with a cookie, so it does not
         # come back - but dismiss_consent cannot know that and walks every link and button on the
         # page looking for it, three patterns deep. On OLX that was most of the cost: four
@@ -195,17 +225,77 @@ def _bj_pay(text):
     return f"{t} EUR/month" if t and re.fullmatch(r"[\d][\d\s.,-]*", t) else t
 
 
+# A board's layout changing under us, as the scraper noticed it while reading. The search drains
+# this into its warnings, so the person sees "olx: could not find the results grid" on the run
+# that hit it instead of finding out a week later that a board has been quietly thin.
+DRIFT = []
+
+
+def note_drift(board, msg):
+    line = f"{board}: {msg}"
+    if line not in DRIFT:
+        DRIFT.append(line)
+
+
+def take_drift():
+    out = list(DRIFT)
+    DRIFT[:] = []
+    return out
+
+
 OLX = "https://www.olx.ro/locuri-de-munca/{loc}q-{q}/"
 
 # Each result card, straight out of the rendered page. OLX is a client-rendered app: the listing
 # html a plain request would get carries no adverts at all, so there is nothing to regex and the
 # DOM is the only source. Taken per CARD rather than per link, because a card also holds the
 # location and the salary, and matching those up afterwards by url is guesswork.
-_OLX_CARDS = """() => [...document.querySelectorAll('[data-cy=l-card]')].map(c => {
-    const a = c.querySelector('a[href]');
-    const t = (c.innerText || '').split('\\n').map(x => x.trim()).filter(Boolean);
-    return {href: a ? a.getAttribute('href') : '', lines: t};
-}).filter(x => x.href && x.href.includes('/oferta/'))"""
+#
+# Taken from inside the results GRID, not from the page. A search that matches nothing does not
+# come back empty: OLX prints "Am gasit 0 rezultate" and then fills the page with forty adverts of
+# its own choosing, and every one of those is a card too. Measured: "zendesk" and "poker support
+# specialist" each said 0 results and each returned 30 unrelated ads here, all of which were then
+# read through the one-at-a-time browser and sent to be scored. In the grid, none of them are.
+#
+# What the page says about itself comes back too - the grid, and its count message - because the
+# caller has to tell "nothing matched" from "this page is not laid out the way it was".
+_OLX_CARDS = """() => {
+    const first = s => document.querySelector(s);
+    const grid = first('[data-testid=listing-grid], [data-cy=listing-grid]');
+    const msg = first('[data-testid=listing-count-msg], [data-cy=listing-count-msg]');
+    const nl = String.fromCharCode(10);
+    const cards = [...(grid || document).querySelectorAll('[data-cy=l-card]')].map(c => {
+        // The ad's own link, not just the first one. An employer's listing carries two anchors
+        // and leads with the link to the employer's profile page (/oferte/user/...), so taking
+        // the first read nine of the fourteen results for "customer support" as having no advert
+        // at all - and the filter below then threw them away, every run. They were the better
+        // half: businesses posting under their own name.
+        const a = c.querySelector('a[href*="/oferta/"]') || c.querySelector('a[href]');
+        const t = (c.innerText || '').split(nl).map(x => x.trim()).filter(Boolean);
+        return {href: a ? a.getAttribute('href') : '', lines: t};
+    }).filter(x => x.href && x.href.includes('/oferta/'));
+    return {cards: cards, grid: !!grid, count: msg ? msg.innerText.trim() : ''};
+}"""
+
+# True once the results page is complete: OLX says how many it found, and that many cards (up to
+# twenty - the caller keeps far fewer) are on the page. Read at a fixed 1.2 seconds, "customer
+# support" showed 5 of the 14 results OLX counted; this waits for the other nine, and is done in a
+# fraction of the time on a page that says 0. If the count message is the thing that changed, any
+# card at all will do, so a redesign costs accuracy rather than the wait's whole timeout.
+_OLX_READY = """() => {
+    const first = s => document.querySelector(s);
+    const msg = first('[data-testid=listing-count-msg], [data-cy=listing-count-msg]');
+    const grid = first('[data-testid=listing-grid], [data-cy=listing-grid]');
+    if (!msg) return !!first('[data-cy=l-card]');
+    const m = msg.innerText.match(/[0-9][0-9.]*/);
+    const n = m ? parseInt(m[0].split('.').join(''), 10) : 0;
+    if (!n) return true;
+    const have = grid ? grid.querySelectorAll('[data-cy=l-card]').length : 0;
+    return have >= Math.min(n, 20);
+}"""
+
+# An advert page is ready when its structured data is there. Without waiting for it, one of six
+# OLX adverts read as having none - which the search then drops as an ad with no description.
+_OLX_AD_READY = """() => !!document.querySelector('script[type="application/ld+json"]')"""
 
 
 def olx(query, limit=25, timeout=30, location=""):
@@ -218,7 +308,26 @@ def olx(query, limit=25, timeout=30, location=""):
     """
     loc = f"{_slug(location)}/" if location else ""
     url = OLX.format(loc=loc, q=_slug(query) or "")
-    cards = browser_get(url, timeout=timeout * 1000, script=_OLX_CARDS)
+    got = browser_get(url, timeout=timeout * 1000, script=_OLX_CARDS, ready=_OLX_READY)
+    cards, said = got["cards"], got["count"]
+    counted = re.search(r"\d[\d.]*", said or "")
+    n = int(counted.group().replace(".", "")) if counted else None
+    if n == 0:
+        # OLX says nothing matched. Whatever else is on the page is its own suggestions, and the
+        # grid already excludes them - this is the same answer by a second route, and the one that
+        # still holds if the grid's marker is ever renamed.
+        return []
+    # ...and what this page says about itself, so a redesign is reported rather than inferred
+    # from the numbers going quiet. Each of these means the extraction below is working on a page
+    # that is not shaped the way it was written for.
+    if n is None and not cards:
+        note_drift("olx", "the results page showed neither a result count nor any ads - its layout "
+                          "may have changed, or it is asking for a check")
+    elif n and not cards:
+        note_drift("olx", f"it counted {n} results but none could be read from the page")
+    elif cards and not got["grid"]:
+        note_drift("olx", "could not find the results grid, so every ad on the page was taken, "
+                          "its own suggestions included")
     out, seen = [], set()
     for card in cards:
         href = card["href"].split("?")[0]
@@ -1365,7 +1474,11 @@ def hydrate(jobs, timeout=30, on_progress=None, report=None):
 
     def by_browser(j):
         try:
-            return j, browser_get(j["url"], timeout=timeout * 1000)
+            # 4s, not the listing's 8: the structured data is in the page as it arrives, so this
+            # wait is for slack, and an advert OLX has since pulled has none and would otherwise
+            # cost the whole timeout - one at a time, behind the one browser.
+            return j, browser_get(j["url"], timeout=timeout * 1000, ready_ms=4000,
+                                  ready=_OLX_AD_READY if "olx.ro" in j["url"] else None)
         except Exception:
             return j, None
 
@@ -1390,6 +1503,16 @@ def hydrate(jobs, timeout=30, on_progress=None, report=None):
                     j["note"] = " · ".join(x for x in (j.get("note"), EXTERNAL_NOTE) if x)
                 jp = _jobposting(page)
                 markup = _markup(j["source"], page)
+                # Per board, for pages that ANSWERED. A page that came back and yielded nothing is
+                # the signature of a board that has changed how it publishes an ad, and it was
+                # invisible: the ad is simply dropped below, `unread` only counts pages that never
+                # arrived, and the search reports "0 new" as it would on a quiet day.
+                if report is not None:
+                    seen_here = report.setdefault("answered", {})
+                    seen_here[j["source"]] = seen_here.get(j["source"], 0) + 1
+                    if not jp and not markup:
+                        bad = report.setdefault("unparsed", {})
+                        bad[j["source"]] = bad.get(j["source"], 0) + 1
                 if not jp:
                     # no JSON-LD: fall back to the board's own markup, keeping what phase 1 gave us
                     if markup:

@@ -148,6 +148,33 @@ def _remember(report):
         print(f"[auto] could not write the run history: {type(e).__name__}: {e}")
 
 
+def _span(secs):
+    secs = int(round(secs))
+    return f"{secs // 60}m{secs % 60:02d}s" if secs >= 60 else f"{secs}s"
+
+
+def timing_line(t):
+    """One line saying where a search's time went, for the run log.
+
+    Written because the run log said when a search started and when it ended and nothing between,
+    so "it took 33 minutes" could not be told apart as slow boards, slow reading, or a model that
+    kept timing out - and each of those has a different fix.
+    """
+    parts = [f"total {_span(t['total'])}",
+             "find " + _span(t["find"]) + " (" + ", ".join(
+                 f"{b} {_span(v['seconds'])}" for b, v in t["boards"].items()) + ")",
+             f"read {_span(t['read'])}"
+             + (f" (skipped {t['skipped_unread']} already judged)" if t.get("skipped_unread") else ""),
+             f"score {_span(t['score'])}"]
+    line = "timing: " + " · ".join(parts)
+    waits = [f"{prov} {v['count']}x {why} ({_span(v['seconds'])})"
+             for prov, byWhy in t["llm_waits"].items() for why, v in byWhy.items()]
+    if waits:
+        # summed across calls that ran side by side - see _timing_report
+        line += "\n   providers that did not answer: " + ", ".join(waits)
+    return line
+
+
 def run():
     """-> the report dict, also written to auto_last.json for the dashboard to show."""
     s = app.settings()
@@ -166,6 +193,9 @@ def run():
     log(f"scheduled run starting: {s['auto_query']!r}")
     try:
         found = asyncio.run(app.search({
+            # how the Health tab tells this run from one somebody started by hand, and the same
+            # timestamp the run's own summary carries, so the two records of it are one record
+            "via": "scheduled", "when": report["when"],
             "query": s["auto_query"], "location": s.get("auto_location", ""),
             "county": s.get("auto_county", ""),
             "country": s.get("auto_country", "ro"),
@@ -176,6 +206,8 @@ def run():
                         "seniority": s.get("auto_seniority", ""),
                         "auto_apply_available": s.get("auto_ats", "")}}))
         report["searched"] = found
+        if found.get("timing"):
+            log(timing_line(found["timing"]))
         log(f"search: {found['found']} ads seen, {found['new']} new, {found['scored']} scored"
             + (f", {found['vetoed']} skipped on language" if found.get("vetoed") else "")
             # never read, never scored: the whole point of the skip list is this number

@@ -280,6 +280,12 @@ MAX_QUOTA = 3600
 # Every time a provider refused for quota, even when the chain recovered from it. The
 # scoring loop watches this to decide how hard to push.
 QUOTA_EVENTS = []
+# What each provider that did NOT answer cost, as (provider, why, seconds). QUOTA_EVENTS counts
+# refusals; this says how long they took, which is the number that decides whether a slow run is
+# a scraping problem or a model problem. A refusal comes back in under a second, but a timeout
+# costs its whole patience (45-180s), and the chain recovers from both without anyone noticing.
+# The search reads it before and after scoring, so appending from many threads is fine.
+WAIT_EVENTS = []
 
 
 # The last few repairs, kept so the panel can explain a switch nobody watched happen. Capped,
@@ -1027,6 +1033,7 @@ def ask(system, user, max_tokens=8000, tries=5):
         if _breaker((provider, model)):
             spent.append(f"{provider}/{model}")
             continue
+        t0 = time.perf_counter()
         try:
             got = _call(provider, model, key, system, user, max_tokens, tries)
             _ANSWERED.by = f"{provider}/{model}"
@@ -1066,6 +1073,7 @@ def ask(system, user, max_tokens=8000, tries=5):
             # never sees this unless EVERY provider is spent - yet it is exactly the signal a
             # caller needs to slow down. Appending is atomic; an exact count is not needed.
             QUOTA_EVENTS.append(provider)
+            WAIT_EVENTS.append((provider, "spent", time.perf_counter() - t0))
             spent.append(str(e).split(":")[0])
             print(f"[llm] {provider}/{model} spent, trying next", flush=True)
             continue
@@ -1080,6 +1088,7 @@ def ask(system, user, max_tokens=8000, tries=5):
             # a timeout or dropped connection is this provider's problem, not the prompt's,
             # so move down the chain rather than failing the whole call
             spent.append(f"{provider}/{model} ({type(e).__name__})")
+            WAIT_EVENTS.append((provider, type(e).__name__, time.perf_counter() - t0))
             # slow=True: this one cost us its whole timeout to discover, so leave it longer
             _breaker((provider, model), f"{provider}/{model}: {type(e).__name__}", slow=True)
             print(f"[llm] {provider}/{model} unreachable ({type(e).__name__}), trying next")

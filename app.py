@@ -16,7 +16,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
-import creds, lang, llm, prefill, scrape
+import creds, health, lang, llm, prefill, scrape
 
 # Windows consoles default to cp1252, so a single print of a Romanian job title raises
 # UnicodeEncodeError and takes the whole request down with it.
@@ -117,6 +117,13 @@ def _connect():
         -- one column of rows already written. Never shown in the UI. Worth knowing before you
         -- read it by hand and conclude a run saved nothing: 16:16 local is stored as 13:16.
         status TEXT DEFAULT 'new', cv TEXT, found TEXT DEFAULT (datetime('now')))""")
+    # Ads a search has already read and turned away, so the next search does not read them again.
+    # Not in `jobs`: a rejected ad is not a job, and 190 of them there would sit in every count and
+    # filter on the dashboard. Keyed by WHY, because "not remote" is only true while the filter says
+    # remote - switch to on-site and those same ads are exactly what you asked for.
+    c.execute("""CREATE TABLE IF NOT EXISTS passed_over(
+        url TEXT, why TEXT, at TEXT DEFAULT (datetime('now','localtime')),
+        PRIMARY KEY (url, why))""")
     for col in ("note TEXT", "lang TEXT", "applied_at TEXT", "untapped TEXT",
                 "salary TEXT", "expires TEXT", "terms TEXT",
                 # how many times scoring this ad has failed for a reason that is the AD's fault.
@@ -1104,6 +1111,34 @@ def dashboard(request: Request):
 @app.get("/profile", response_class=HTMLResponse)
 def profile_page(request: Request):
     return page(request, "profile.html")
+
+
+@app.get("/health", response_class=HTMLResponse)
+def health_page(request: Request):
+    return page(request, "health.html")
+
+
+@app.get("/api/health")
+def get_health():
+    """What broke and where the time went, from the record of recent searches.
+
+    Reads files only - no browser, no network, no model call - so opening the tab can never cost
+    anything or make a bad day worse.
+    """
+    try:
+        hist = json.loads(BOARD_COUNTS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        hist = {}
+    sw = settings()
+    try:
+        chain = [{"provider": p_, "model": m, "blocked": llm._breaker((p_, m)) or ""}
+                 for p_, m, _ in llm.chain()]
+    except Exception:
+        chain = []                          # no model set up is its own message elsewhere
+    return health.build(health.merge(health.load(SEARCH_LOG), _run_history(40)),
+                        list(scrape.SOURCES), {b: bool(sw.get(f"search_{b}", True))
+                                               for b in scrape.SOURCES},
+                        hist, prefill.board_status(), creds.status(), chain)
 
 
 # ---------- profile ----------
@@ -2217,7 +2252,16 @@ async def search(body: dict = Body(...)):
         raise HTTPException(400, "Fill in your profile first - there is nothing to match jobs "
                                  "against. Your studies or a project counts, not only paid work.")
     try:
-        return await _search(body, p)
+        out = await _search(body, p)
+        health.log_search(SEARCH_LOG, body, out)
+        return out
+    except HTTPException:
+        raise                               # a refused request is not a search that went wrong
+    except Exception as e:
+        # The search itself failing is the loudest thing that can happen to a run, and it used to
+        # leave nothing behind but a line in a log. Recorded here so the Health tab can say so.
+        health.log_search(SEARCH_LOG, body, error=f"the search failed: {type(e).__name__}: {e}")
+        raise
     finally:
         _finish()
 
@@ -2627,6 +2671,95 @@ def _store_scores(jobs, results, warnings):
     return failed
 
 
+BOARD_COUNTS = HERE / ".board_counts.json"
+SEARCH_LOG = HERE / ".search_log.json"      # every search, manual or scheduled - see health.py
+THIN = 0.4          # below this share of a board's usual yield, something has changed
+
+
+def _check_board_counts(per_board, n_queries, scoped):
+    """-> warnings for a board that answered, but with far fewer ads than it usually does.
+
+    The check that already existed only fires on exactly zero, which is how a board breaks
+    LOUDLY. A portal that changes its markup usually breaks quietly: the parser still finds some of
+    what it used to, a third perhaps, and nothing anywhere says so - the run is merely thinner, and
+    thin looks like a quiet day. This compares each board with its own recent runs, per search
+    term so that a one-term manual search is not held against a fifty-term scheduled one.
+
+    A thin run is not written into the history. The baseline would otherwise slide down to meet a
+    broken board within a few runs and stop reporting it, which is the failure this exists for.
+    """
+    try:
+        hist = json.loads(BOARD_COUNTS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        hist = {}
+    out = []
+    for board, v in per_board.items():
+        if not v.get("ads"):
+            continue                        # none at all is the older check's, with its own wording
+        key = f"{board}|{'local' if scoped else 'any'}"       # a city search is a smaller question
+        now = v["ads"] / max(1, n_queries)
+        prev = [x for x in hist.get(key, []) if isinstance(x, (int, float))]
+        usual = sorted(prev)[len(prev) // 2] if prev else 0
+        if len(prev) >= 3 and usual >= 5 and now < THIN * usual:
+            out.append(f"{board} returned about {now:.0f} ads per search term where it usually "
+                       f"returns {usual:.0f} - it may have changed its layout")
+            continue
+        hist[key] = (prev + [round(now, 1)])[-8:]
+    try:
+        _atomic_write(BOARD_COUNTS, json.dumps(hist))
+    except OSError:
+        pass                                # a missing baseline costs a warning, never a search
+    return out
+
+
+PASSED_OVER_DAYS = 14        # long enough to stop the daily re-reading, short enough that an
+                             # employer who edits an ad into a remote one is not ignored for ever
+
+
+def _passed_over(why):
+    """-> the urls an earlier search read and rejected for `why`, still inside their fortnight.
+
+    Measured, twice in a row: 247 ads found, 190-197 read and dropped as not remote, nothing kept,
+    and 2m25s then 2m42s spent doing it. Nothing remembered them, so every run read them again -
+    one scheduled run read 1,924 ads to keep a handful. They are not stored as jobs, so `known`
+    never saw them either.
+    """
+    with db() as c:
+        c.execute("DELETE FROM passed_over WHERE at < datetime('now','localtime',?)",
+                  (f"-{PASSED_OVER_DAYS} days",))
+        return {r[0] for r in c.execute("SELECT url FROM passed_over WHERE why=?", (why,))}
+
+
+def _pass_over(why, urls):
+    if urls:
+        with db() as c:
+            c.executemany("INSERT OR REPLACE INTO passed_over(url, why) VALUES (?, ?)",
+                          [(u, why) for u in urls])
+
+
+def _timing_report(clock, per_board, t_score, waits_from, skipped_unread=0):
+    """Wall-clock seconds per phase, per board, and what the providers that did not answer cost.
+
+    "llm_waits" is summed over the calls that ran side by side, so a provider that timed out five
+    times at once reads as five timeouts' worth of seconds - more than the phase's own wall clock.
+    It answers "is this provider costing us anything", not "how long was the run held up".
+    """
+    now = time.perf_counter()
+    waits = {}
+    for provider, why, secs in list(llm.WAIT_EVENTS[waits_from:]):
+        w = waits.setdefault(provider, {})
+        slot = w.setdefault(why, {"count": 0, "seconds": 0.0})
+        slot["count"] += 1
+        slot["seconds"] += secs
+    del llm.WAIT_EVENTS[:-200]          # a long-lived server must not grow this for ever
+    found = clock.get("found", now)
+    return {"total": now - clock["start"], "find": found - clock["start"],
+            "read": clock.get("read", 0.0), "score": now - t_score,
+            # ads this search did not read because an earlier one already had and turned them away
+            "skipped_unread": skipped_unread,
+            "boards": per_board, "llm_waits": waits}
+
+
 async def _search(body, p):
     queries = [q.strip() for q in re.split(r"[,;]", body.get("query", "")) if q.strip()]
     # An empty box used to fall back to [""], which asks every board for everything: on a listing
@@ -2684,8 +2817,15 @@ async def _search(body, p):
     step("searching the boards", 0, to_ask)
     with db() as c:
         prior = {r[0]: r[1] for r in c.execute("SELECT source, COUNT(*) FROM jobs GROUP BY source")}
+    # Where the time goes, written into the result and the run log. The search had no clock at all,
+    # so "the run took 33 minutes" could not be pulled apart into scraping, reading and scoring -
+    # and the guess about which was to blame was a guess. Wall-clock seconds per phase, and per
+    # board for the one phase that is a loop over them.
+    clock = {"start": time.perf_counter()}
+    per_board = {}
     for b in boards:
         got = []
+        t_board = time.perf_counter()
         # Ask the boards we can actually APPLY to for more, because their extra results are
         # already in our hands. eJobs and Hipo answer a search with one listing page holding 40
         # job links and `limit` only decides how many of them we keep - we were discarding half
@@ -2717,7 +2857,10 @@ async def _search(body, p):
                 step("searching the boards", asked, to_ask)
         if not got and prior.get(b):
             warnings.append(f"{b}: 0 results but {prior[b]} stored previously - parser may be broken")
+        per_board[b] = {"seconds": time.perf_counter() - t_board, "ads": len(got)}
         found += got
+    clock["found"] = time.perf_counter()
+    warnings += _check_board_counts(per_board, len(queries), bool(loc))
 
     # one posting reaches us twice: the same url from two sources, or the same role listed under
     # both the employer and its ATS subdomain. Dedupe here, before anything hits the database.
@@ -2779,13 +2922,34 @@ async def _search(body, p):
                     {"url": j["url"], "applicants": j.get("applicants"),
                      "responsive": j.get("responsive"),
                      "salary": j.get("salary") or "", "pay_est": j.get("pay_est") or ""})
+    # Ads an earlier search already READ and rejected for the work mode asked for now. After the
+    # family skip above rather than before it, so that count means what it always meant.
+    mode = (filters.get("work_mode") or "").strip().lower()
+    skipped_unread = 0
+    if mode in ("remote", "onsite"):
+        already_read = _passed_over(f"mode:{mode}")
+        unread = [j for j in new_urls if j["url"] not in already_read]
+        skipped_unread, new_urls = len(new_urls) - len(unread), unread
     step("reading the ads", 0, max(1, len(new_urls)))
     # hydrate reports each page as it lands: this phase is a minute or more on a real search,
     # and a bar that does not move for a minute is the same as no bar at all
     read_report = {}
+    t_read = time.perf_counter()
     fresh = await off(lambda: scrape.hydrate(
         new_urls, on_progress=lambda d, t: step("reading the ads", d, t),
         report=read_report))
+    clock["read"] = time.perf_counter() - t_read
+    # Pages that ANSWERED and gave nothing readable. hydrate drops those without a word, and a
+    # board that stopped publishing structured data looks exactly like a quiet day: "0 new". A few
+    # blank pages are ordinary - a closed ad, an ad the employer pulled - so it takes both a
+    # handful and most of the board's pages before this says anything.
+    answered = read_report.get("answered") or {}
+    for board, bad in (read_report.get("unparsed") or {}).items():
+        if bad >= 5 and bad >= 0.6 * answered.get(board, bad):
+            warnings.append(f"{board}: {bad} of {answered.get(board, bad)} ad pages loaded but had "
+                            f"nothing readable on them - it may have changed how it publishes an ad")
+    # whatever a scraper noticed about a board's layout while it was reading (OLX, so far)
+    warnings += scrape.take_drift()
 
     # An ad whose detail page did not answer is skipped inside hydrate, and was skipped in
     # silence: a board rate-limiting us for a minute could swallow twenty of thirty and the
@@ -2817,11 +2981,13 @@ async def _search(body, p):
     #
     # hybrid is deliberately not enforced here: the remote pattern counts hybrid AS remote, so a
     # post-filter would answer a different question from the one that was asked.
-    mode = (filters.get("work_mode") or "").strip().lower()
     off_mode = 0
     if mode in ("remote", "onsite"):
         want_remote = mode == "remote"
-        keep = [j for j in fresh if scrape.remote_job(j) == want_remote]
+        verdict = [(j, scrape.remote_job(j) == want_remote) for j in fresh]
+        keep = [j for j, ok in verdict if ok]
+        # written down, so the next search does not pay to read these again
+        _pass_over(f"mode:{mode}", [j["url"] for j, ok in verdict if not ok])
         off_mode, fresh = len(fresh) - len(keep), keep
 
     # Seniority, for the same reason and in the same place. It is a freehire facet too, so picking
@@ -2981,6 +3147,7 @@ async def _search(body, p):
     # score in small chunks: the pool is shared with tailoring, applying and PDF rendering,
     # and a partial result is worth keeping if a later chunk fails
     scored = []
+    t_score, waits_from = time.perf_counter(), len(llm.WAIT_EVENTS)
     # the language the model writes its reasons in. Read once here, not inside the worker: the
     # answers land on the card, and the app translates its own 631 sentences only to print the one
     # that matters most - why this job suits you - in English.
@@ -3046,6 +3213,7 @@ async def _search(body, p):
                         f"queue - worth pressing after changing the AI model, which is what most "
                         f"of them are stuck on.")
     return {"found": len(found), "new": len(fresh), "freed": len(freed), "expired": expired,
+            "timing": _timing_report(clock, per_board, t_score, waits_from, skipped_unread),
             # how many of those you would have applied to - the only part of `expired` that
             # anybody can do anything about
             "expired_good": expired_good, "scored": len(todo) - failed,

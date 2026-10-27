@@ -1,0 +1,234 @@
+{% extends "base.html" %}{% set page='health' %}
+{% block title %}Health · jobhunter{% endblock %}
+{% block css %}
+/* Colour carries the state and the words say it too - nothing here is understood by colour alone. */
+.hsum{display:flex;gap:14px;align-items:center}
+.hsum .dot{flex:0 0 auto;width:14px;height:14px;border-radius:50%;background:var(--dim)}
+.hsum.good .dot{background:var(--good)} .hsum.warn .dot{background:var(--mid)}
+.hsum.bad .dot{background:var(--bad)}
+.hsum h2{margin:0;font-size:18px;text-transform:none;letter-spacing:0}
+.hgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:10px;margin-top:10px}
+.hsrc{border:1px solid var(--line);border-radius:10px;padding:11px 13px;background:var(--bg)}
+.hsrc.broken,.hsrc.silent{border-color:color-mix(in srgb,var(--bad) 60%,var(--line));
+  background:color-mix(in srgb,var(--bad) 7%,var(--bg))}
+.hsrc.unsteady{border-color:color-mix(in srgb,var(--mid) 55%,var(--line))}
+.hsrc.ok{border-color:color-mix(in srgb,var(--good) 40%,var(--line))}
+.hsrc.off,.hsrc.unknown{opacity:.75}
+.hsrc b{font-size:14.5px}
+.hsrc .row{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.hsrc .st{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.hsrc.ok .st{color:var(--good)} .hsrc.unsteady .st{color:var(--mid)}
+.hsrc.broken .st,.hsrc.silent .st{color:var(--bad)}
+.hsrc .muted{display:block;margin-top:3px}
+.hiss{border-left:4px solid var(--line);padding:9px 12px;margin:10px 0;border-radius:0 8px 8px 0;
+  background:var(--bg)}
+.hiss.break{border-left-color:var(--bad)} .hiss.transient{border-left-color:var(--mid)}
+.hiss.past{opacity:.7}
+.hiss .top{display:flex;gap:8px;flex-wrap:wrap;align-items:baseline}
+.hiss .eg{font-size:12.2px;color:var(--dim);margin-top:5px;overflow-wrap:anywhere}
+.hiss .adv{margin-top:6px;font-size:13.5px}
+.hpill{font-size:11px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--dim)}
+.hpill.now{border-color:var(--bad);color:var(--bad)} .hpill.mid{border-color:var(--mid);color:var(--mid)}
+.hbar{display:flex;height:22px;border-radius:6px;overflow:hidden;margin:10px 0 6px;background:var(--line)}
+.hbar i{display:block;height:100%}
+.hbar .f{background:var(--accent)} .hbar .r{background:color-mix(in srgb,var(--accent) 55%,var(--bg))}
+.hbar .s{background:color-mix(in srgb,var(--mid) 80%,var(--bg))}
+.hkey{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--dim)}
+.hkey u{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;text-decoration:none}
+.hkey u.f{background:var(--accent)} .hkey u.r{background:color-mix(in srgb,var(--accent) 55%,var(--bg))}
+.hkey u.s{background:color-mix(in srgb,var(--mid) 80%,var(--bg))}
+.hbrd{display:grid;grid-template-columns:90px 1fr 70px;gap:8px;align-items:center;font-size:13px;margin:4px 0}
+.hbrd .trk{height:9px;background:var(--line);border-radius:5px;overflow:hidden}
+.hbrd .trk i{display:block;height:100%;background:var(--accent)}
+.htab{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+.htab th{text-align:left;color:var(--dim);font-weight:500;padding:5px 8px;border-bottom:1px solid var(--line)}
+.htab td{padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.htab td.num,.htab th.num{text-align:right}
+.hscroll{overflow-x:auto}
+.hmodel{display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line)}
+.hmodel:last-child{border-bottom:0}
+.hmodel .mn{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+{% endblock %}
+
+{% block body %}
+<div class="card hsum" id="summary"><span class="dot"></span><div><h2>Checking…</h2></div></div>
+
+<div class="card">
+  <b>Sources</b>
+  <div class="muted" style="margin-top:3px">How each job site read on its most recent search, against how it usually reads.</div>
+  <div class="hgrid" id="sources"></div>
+</div>
+
+<div class="card">
+  <b>What broke</b>
+  <div class="muted" style="margin-top:3px">Everything the recent searches complained about, grouped, with whether it is still going on.</div>
+  <div id="issues"></div>
+</div>
+
+<div class="card">
+  <b>Where the time went</b>
+  <div id="time"></div>
+</div>
+
+<div class="card">
+  <b>AI models</b>
+  <div class="muted" style="margin-top:3px">In the order they are asked. A model that is resting is skipped until it recovers.</div>
+  <div id="models"></div>
+</div>
+
+<div style="text-align:right;margin:4px 0 24px">
+  <button class="ghost" id="reload">Check again</button>
+</div>
+{% endblock %}
+
+{% block js %}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// 75 -> "1m15s", 9 -> "9s". Whole seconds: nothing on this page is decided by a fraction.
+function span(secs){
+  if(secs == null) return '–';
+  const s = Math.round(secs);
+  return s >= 60 ? Math.floor(s / 60) + 'm' + String(s % 60).padStart(2, '0') + 's' : s + 's';
+}
+const how = v => v === 'scheduled' ? t('scheduled run') : t('search by hand');
+
+function drawSummary(d){
+  const box = $('#summary');
+  box.className = 'card hsum ' + (d.level === 'none' ? '' : d.level);
+  const worst = d.issues.filter(i => i.ongoing && i.severity === 'break').length;
+  const head = {
+    none: t('No searches recorded yet'),
+    good: t('Everything is reading normally'),
+    warn: t('Working, with a few things to keep an eye on'),
+    bad: worst ? fill('{n} thing(s) have stopped reading properly', {n: worst})
+               : t('Every AI model is resting right now'),
+  }[d.level];
+  const sub = d.level === 'none'
+    ? t('This fills in after the next search, whether the scheduled run or one you start.')
+    : fill('Last search {when} · {how}', {when: d.checked || '?', how: how(d.via)})
+      + (d.signed_out.length ? ' · ' + fill('Signed out of {who}', {who: d.signed_out.join(', ')}) : '');
+  box.innerHTML = `<span class="dot"></span><div><h2>${esc(head)}</h2>
+    <div class="muted">${esc(sub)}</div></div>`;
+}
+
+function drawSources(d){
+  const label = {ok: t('Reading normally'), unsteady: t('Unsteady'), broken: t('Broken'),
+                 silent: t('Returned nothing'), unknown: t('Not seen yet'), off: t('Not searched')};
+  $('#sources').innerHTML = d.boards.map(b => {
+    const lines = [];
+    if(b.per_term != null)
+      lines.push(b.usual != null
+        ? fill('{n} ads per search term (usually {u})', {n: b.per_term, u: b.usual})
+        : fill('{n} ads per search term', {n: b.per_term}));
+    else if(b.status !== 'off') lines.push(t('No reading recorded yet'));
+    if(b.seconds_per_term != null) lines.push(fill('{s}s per search term', {s: b.seconds_per_term}));
+    if(b.signed_in != null || b.saved)
+      lines.push(b.locked ? t('Sign-in stopped after failing')
+                 : b.signed_in ? t('Signed in') : t('Signed out'));
+    const bad = b.issues.map(k => ({silent: 'Returned nothing', thin: 'Returning far fewer ads than usual',
+      unreadable: 'Ad pages load but nothing can be read', layout: 'The page layout has changed',
+      blocked: 'Turning the app away on nearly every search', unanswered: 'Did not answer some searches',
+      unread: 'Some ad pages did not answer', scoring: 'Some ads were not scored',
+      quota: 'AI models out of quota', other: 'Warning'}[k])).filter(Boolean);
+    return `<div class="hsrc ${esc(b.status)}">
+      <div class="row"><b>${esc(b.name)}</b><span class="st">${esc(label[b.status])}</span></div>
+      ${lines.map(l => `<span class="muted">${esc(l)}</span>`).join('')}
+      ${bad.map(l => `<span class="muted" style="color:var(--mid)">${esc(t(l))}</span>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+function drawIssues(d){
+  if(!d.issues.length){
+    $('#issues').innerHTML = `<p class="muted" style="margin:10px 0 0">${esc(
+      d.level === 'none' ? t('Nothing to show until a search has run.')
+                         : t('Nothing has gone wrong in the searches recorded.'))}</p>`;
+    return;
+  }
+  $('#issues').innerHTML = d.issues.map(i => {
+    const who = i.name || t('The search');
+    const when = i.runs > 1
+      ? fill('{n}× in {r} searches · first {a} · last {b}', {n: i.count, r: i.runs, a: i.first, b: i.last})
+      : fill('{n}× · {b}', {n: i.count, b: i.last});
+    return `<div class="hiss ${esc(i.severity)} ${i.ongoing ? '' : 'past'}">
+      <div class="top"><b>${esc(who)}</b><span>${esc(t(i.label))}</span>
+        <span class="hpill ${i.ongoing ? (i.severity === 'break' ? 'now' : 'mid') : ''}">${esc(
+          i.ongoing ? t('still happening') : t('not on the latest search'))}</span></div>
+      <div class="muted">${esc(when)}</div>
+      ${i.advice ? `<div class="adv">${esc(t(i.advice))}</div>` : ''}
+      <div class="eg">${esc(i.example)}</div></div>`;
+  }).join('');
+}
+
+function drawTime(d){
+  const tm = d.timing;
+  let h = '';
+  if(!tm){
+    h = `<p class="muted" style="margin:10px 0 0">${esc(
+      t('No timing was recorded for the latest search. The next one will have it.'))}</p>`;
+  } else {
+    const parts = [['f', tm.find, t('finding ads')], ['r', tm.read, t('reading them')],
+                   ['s', tm.score, t('scoring them')]];
+    const sum = parts.reduce((a, p) => a + (p[1] || 0), 0) || 1;
+    h += `<div class="muted" style="margin-top:3px">${esc(fill('The latest search took {total}.',
+      {total: span(tm.total)}))}</div>
+      <div class="hbar">${parts.map(p => `<i class="${p[0]}" style="width:${(p[1] || 0) / sum * 100}%"
+        title="${esc(p[2] + ' ' + span(p[1]))}"></i>`).join('')}</div>
+      <div class="hkey">${parts.map(p => `<span><u class="${p[0]}"></u>${
+        esc(p[2])} ${esc(span(p[1]))}</span>`).join('')}</div>`;
+    if(tm.skipped_unread) h += `<div class="muted" style="margin-top:6px">${esc(
+      fill('{n} ads were not read this time: an earlier search had already read them and they did not match your work-mode filter.',
+           {n: tm.skipped_unread}))}</div>`;
+    const bs = Object.entries(tm.boards || {});
+    const top = Math.max(1, ...bs.map(([, v]) => v.seconds));
+    if(bs.length) h += `<div style="margin-top:14px"><span class="muted">${esc(
+      t('Time finding ads, per site'))}</span>${bs.map(([k, v]) => {
+        const nm = (d.boards.find(b => b.id === k) || {}).name || k;
+        return `<div class="hbrd"><span>${esc(nm)}</span><span class="trk"><i style="width:${
+          v.seconds / top * 100}%"></i></span><span style="text-align:right">${esc(span(v.seconds))}</span></div>`;
+      }).join('')}</div>`;
+  }
+  if(d.waits.length) h += `<div style="margin-top:14px"><span class="muted">${esc(
+    t('AI models that did not answer, across the searches recorded'))}</span>${d.waits.slice(0, 5).map(w =>
+      `<div class="hbrd" style="grid-template-columns:1fr auto"><span>${esc(fill('{p}: {n}× {why}',
+        {p: w.provider, n: w.count, why: w.why === 'spent' ? t('out of quota') : w.why}))}</span>
+        <span>${esc(fill('about {t} lost', {t: span(w.seconds)}))}</span></div>`).join('')}
+    <div class="muted" style="margin-top:4px">${esc(t(
+      'Added up across calls that ran side by side, so it can exceed the time the search took.'))}</div></div>`;
+  if(d.runs.length) h += `<div class="hscroll"><table class="htab"><thead><tr>
+    <th>${esc(t('When'))}</th><th>${esc(t('How'))}</th><th class="num">${esc(t('Total'))}</th>
+    <th class="num">${esc(t('Finding'))}</th><th class="num">${esc(t('Reading'))}</th>
+    <th class="num">${esc(t('Scoring'))}</th><th class="num">${esc(t('New'))}</th>
+    <th class="num">${esc(t('Warnings'))}</th></tr></thead><tbody>${d.runs.map(r => `<tr>
+      <td>${esc(r.when || '')}</td><td>${esc(how(r.via))}</td>
+      <td class="num">${esc(span(r.total))}</td><td class="num">${esc(span(r.find))}</td>
+      <td class="num">${esc(span(r.read))}</td><td class="num">${esc(span(r.score))}</td>
+      <td class="num">${r.new ?? '–'}</td>
+      <td class="num">${r.error ? esc(t('stopped')) : r.warnings}</td></tr>`).join('')}</tbody></table></div>`;
+  $('#time').innerHTML = h;
+}
+
+function drawModels(d){
+  $('#models').innerHTML = d.providers.length ? d.providers.map(m => `<div class="hmodel">
+      <span class="mn"><b>${esc(m.provider)}</b> <span class="muted">${esc(m.model)}</span>${
+        m.blocked ? `<span class="muted" style="display:block">${esc(m.blocked)}</span>` : ''}</span>
+      <span class="hpill ${m.blocked ? 'mid' : ''}">${esc(m.blocked ? t('resting') : t('available'))}</span>
+    </div>`).join('')
+    : `<p class="muted" style="margin:10px 0 0">${esc(t('No AI model is set up yet.'))}</p>`;
+}
+
+async function load(){
+  let d;
+  try { d = await api('/api/health', undefined, 'GET'); }
+  catch(e){
+    $('#summary').className = 'card hsum bad';
+    $('#summary').innerHTML = `<span class="dot"></span><div><h2>${esc(
+      t('Could not read the health record just now'))}</h2><div class="muted">${esc(e.message || e)}</div></div>`;
+    return;
+  }
+  drawSummary(d); drawSources(d); drawIssues(d); drawTime(d); drawModels(d);
+}
+$('#reload').onclick = e => busy(e.target, load);
+load();
+{% endblock %}

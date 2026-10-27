@@ -37,7 +37,14 @@ SKIP_NAMES = {"audit.json", "research_ux.json", ".profile.test.json",
               # the live progress of a run in flight: how far through it is, and the search terms
               # it is running. Momentary on this machine and nobody else's business - it carries
               # the job titles someone is looking for, which is as personal as the list itself.
-              ".auto_now.json"}
+              ".auto_now.json",
+              # how many ads each board usually returns HERE, for the "this board looks thin"
+              # warning. Someone else's search terms and filters give someone else's numbers, and a
+              # baseline copied across would either hide a broken board or accuse a working one.
+              ".board_counts.json",
+              # every search this install ran: the terms somebody is looking for, and what went
+              # wrong on which day. As personal as the job list, and meaningless on another PC.
+              ".search_log.json"}
 NAME = "jobhunter"
 
 

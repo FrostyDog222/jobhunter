@@ -31,3 +31,5 @@ auto_runs.json
 backup/
 .llm_down.json
 .shortlist.json
+.board_counts.json
+.search_log.json
