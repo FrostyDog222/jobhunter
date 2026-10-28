@@ -2676,7 +2676,7 @@ SEARCH_LOG = HERE / ".search_log.json"      # every search, manual or scheduled 
 THIN = 0.4          # below this share of a board's usual yield, something has changed
 
 
-def _check_board_counts(per_board, n_queries, scoped):
+def _check_board_counts(per_board, n_queries, scoped, fp=""):
     """-> warnings for a board that answered, but with far fewer ads than it usually does.
 
     The check that already existed only fires on exactly zero, which is how a board breaks
@@ -2696,7 +2696,8 @@ def _check_board_counts(per_board, n_queries, scoped):
     for board, v in per_board.items():
         if not v.get("ads"):
             continue                        # none at all is the older check's, with its own wording
-        key = f"{board}|{'local' if scoped else 'any'}"       # a city search is a smaller question
+        # a city search is a smaller question, and so is a different list of terms
+        key = f"{board}|{'local' if scoped else 'any'}" + (f"|{fp}" if fp else "")
         now = v["ads"] / max(1, n_queries)
         prev = [x for x in hist.get(key, []) if isinstance(x, (int, float))]
         usual = sorted(prev)[len(prev) // 2] if prev else 0
@@ -2714,10 +2715,14 @@ def _check_board_counts(per_board, n_queries, scoped):
 
 PASSED_OVER_DAYS = 14        # long enough to stop the daily re-reading, short enough that an
                              # employer who edits an ad into a remote one is not ignored for ever
+# A page that loaded and had nothing readable on it is remembered for far less. It is usually an ad
+# the employer pulled, which stays pulled - but it can also be a glitch, or a board that changed how
+# it publishes an ad and is fixed by the next update, and neither should hide an ad for a fortnight.
+UNREADABLE_DAYS = 3
 
 
-def _passed_over(why):
-    """-> the urls an earlier search read and rejected for `why`, still inside their fortnight.
+def _passed_over(why, days=PASSED_OVER_DAYS):
+    """-> the urls an earlier search read and rejected for `why`, still inside `days`.
 
     Measured, twice in a row: 247 ads found, 190-197 read and dropped as not remote, nothing kept,
     and 2m25s then 2m42s spent doing it. Nothing remembered them, so every run read them again -
@@ -2727,7 +2732,9 @@ def _passed_over(why):
     with db() as c:
         c.execute("DELETE FROM passed_over WHERE at < datetime('now','localtime',?)",
                   (f"-{PASSED_OVER_DAYS} days",))
-        return {r[0] for r in c.execute("SELECT url FROM passed_over WHERE why=?", (why,))}
+        return {r[0] for r in c.execute(
+            "SELECT url FROM passed_over WHERE why=? AND at >= datetime('now','localtime',?)",
+            (why, f"-{days} days"))}
 
 
 def _pass_over(why, urls):
@@ -2737,7 +2744,7 @@ def _pass_over(why, urls):
                           [(u, why) for u in urls])
 
 
-def _timing_report(clock, per_board, t_score, waits_from, skipped_unread=0):
+def _timing_report(clock, per_board, t_score, waits_from, skipped_unread=0, read_dropped=None):
     """Wall-clock seconds per phase, per board, and what the providers that did not answer cost.
 
     "llm_waits" is summed over the calls that ran side by side, so a provider that timed out five
@@ -2757,6 +2764,8 @@ def _timing_report(clock, per_board, t_score, waits_from, skipped_unread=0):
             "read": clock.get("read", 0.0), "score": now - t_score,
             # ads this search did not read because an earlier one already had and turned them away
             "skipped_unread": skipped_unread,
+            # ads that were read and then dropped for a reason other than the work mode, by reason
+            "read_dropped": dict(read_dropped or {}),
             "boards": per_board, "llm_waits": waits}
 
 
@@ -2860,7 +2869,8 @@ async def _search(body, p):
         per_board[b] = {"seconds": time.perf_counter() - t_board, "ads": len(got)}
         found += got
     clock["found"] = time.perf_counter()
-    warnings += _check_board_counts(per_board, len(queries), bool(loc))
+    warnings += _check_board_counts(per_board, len(queries), bool(loc),
+                                    health.fingerprint(", ".join(queries)))
 
     # one posting reaches us twice: the same url from two sources, or the same role listed under
     # both the employer and its ATS subdomain. Dedupe here, before anything hits the database.
@@ -2925,11 +2935,14 @@ async def _search(body, p):
     # Ads an earlier search already READ and rejected for the work mode asked for now. After the
     # family skip above rather than before it, so that count means what it always meant.
     mode = (filters.get("work_mode") or "").strip().lower()
-    skipped_unread = 0
+    # What an earlier search read and threw away: for not fitting the work mode asked for now (only
+    # while that is what is asked), for being past its date or closed (always - a date does not
+    # un-pass), and for a page with nothing readable on it (briefly).
+    already_read = _passed_over("gone") | _passed_over("unreadable", UNREADABLE_DAYS)
     if mode in ("remote", "onsite"):
-        already_read = _passed_over(f"mode:{mode}")
-        unread = [j for j in new_urls if j["url"] not in already_read]
-        skipped_unread, new_urls = len(new_urls) - len(unread), unread
+        already_read |= _passed_over(f"mode:{mode}")
+    unread = [j for j in new_urls if j["url"] not in already_read]
+    skipped_unread, new_urls = len(new_urls) - len(unread), unread
     step("reading the ads", 0, max(1, len(new_urls)))
     # hydrate reports each page as it lands: this phase is a minute or more on a real search,
     # and a bar that does not move for a minute is the same as no bar at all
@@ -2939,6 +2952,8 @@ async def _search(body, p):
         new_urls, on_progress=lambda d, t: step("reading the ads", d, t),
         report=read_report))
     clock["read"] = time.perf_counter() - t_read
+    for why, urls in (read_report.get("remember") or {}).items():
+        _pass_over(why, urls)
     # Pages that ANSWERED and gave nothing readable. hydrate drops those without a word, and a
     # board that stopped publishing structured data looks exactly like a quiet day: "0 new". A few
     # blank pages are ordinary - a closed ad, an ad the employer pulled - so it takes both a
@@ -3213,7 +3228,8 @@ async def _search(body, p):
                         f"queue - worth pressing after changing the AI model, which is what most "
                         f"of them are stuck on.")
     return {"found": len(found), "new": len(fresh), "freed": len(freed), "expired": expired,
-            "timing": _timing_report(clock, per_board, t_score, waits_from, skipped_unread),
+            "timing": _timing_report(clock, per_board, t_score, waits_from, skipped_unread,
+                                     read_report.get("dropped")),
             # how many of those you would have applied to - the only part of `expired` that
             # anybody can do anything about
             "expired_good": expired_good, "scored": len(todo) - failed,

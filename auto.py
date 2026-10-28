@@ -164,7 +164,11 @@ def timing_line(t):
              "find " + _span(t["find"]) + " (" + ", ".join(
                  f"{b} {_span(v['seconds'])}" for b, v in t["boards"].items()) + ")",
              f"read {_span(t['read'])}"
-             + (f" (skipped {t['skipped_unread']} already judged)" if t.get("skipped_unread") else ""),
+             + (f" (skipped {t['skipped_unread']} already judged)" if t.get("skipped_unread") else "")
+             # what was read and then thrown away for a reason the skip memory does not cover
+             + (" (dropped after reading: " + ", ".join(f"{n} {why}" for why, n in
+                                                         t["read_dropped"].items()) + ")"
+                if t.get("read_dropped") else ""),
              f"score {_span(t['score'])}"]
     line = "timing: " + " · ".join(parts)
     waits = [f"{prov} {v['count']}x {why} ({_span(v['seconds'])})"

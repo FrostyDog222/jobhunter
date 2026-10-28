@@ -1850,7 +1850,10 @@ _dead = {"source": "ejobs", "url": "http://127.0.0.1:9/nope", "title": "t", "com
          "location": "", "posted": "", "description": "", "note": "", "salary": "",
          "lang": "", "_full": False}
 assert scrape.hydrate([_dead], timeout=2, report=_rep) == []
-assert _rep == {"unread": 1}, _rep
+assert _rep["unread"] == 1, _rep          # the property: pages that never answered, counted
+# ...and it is the ONLY thing `unread` counts. The new per-reason tally of what was read and then
+# dropped is a separate key, so a career fair or an expired ad cannot inflate it.
+assert _rep["dropped"] == {"no answer": 1}, _rep          # told apart from a page that answered with nothing
 assert "read_report" in _src4p or "read_report" in (app.HERE / "app.py").read_text(encoding="utf-8")
 # health()'s empty-list branch could never run - the caller guarded the whole call with
 # `if rows`. The check itself is not missing: it is done at phase 1, where "nothing" can still
@@ -6615,6 +6618,13 @@ try:
     # a page with neither a count nor any ads: not a quiet day
     _scr.browser_get = _page11e([], grid=False, count="")
     assert _scr.olx("x") == [] and "layout" in " ".join(_scr.take_drift())
+    # ...and it says what the page was, since a throttle, a check and a slow render are different
+    # problems and the one occurrence seen so far was never caught in the act
+    _scr.browser_get = lambda *a, **k: {"cards": [], "grid": False, "count": "",
+                                        "title": "Just a moment...", "head": "Verifying you are human"}
+    _scr.olx("x")
+    _note11e = " ".join(_scr.take_drift())
+    assert "Just a moment" in _note11e and "Verifying you are human" in _note11e, _note11e
     # a count with no ads behind it
     _scr.browser_get = _page11e([], count="Am găsit 7 rezultate pentru tine")
     assert _scr.olx("x") == [] and "7" in " ".join(_scr.take_drift())
@@ -6906,6 +6916,190 @@ assert "skipped 190 already judged" in _au11c.timing_line(
 assert "skipped" not in _au11c.timing_line(
     {"total": 10, "find": 1, "read": 8, "score": 1, "skipped_unread": 0, "boards": {}, "llm_waits": {}})
 assert "skipped_unread" in (app.HERE / "templates" / "health.html").read_text(encoding="utf-8")
+
+# 11j. The adult-work check is remembered per text - and answers exactly what the regex does.
+#
+# /api/jobs asked it of every stored advert on every request. Profiled, that regex was 90% of the
+# endpoint: 238 ms for 250 adverts, so a list ten times longer took over two seconds to open.
+_ads11j = [{"title": "Videochat model online", "company": "", "description": ""},
+           {"title": "Trainer", "company": "Creative Fantasy Studio", "description": "webcam studio job, 18+ content"},
+           {"title": "Support Engineer", "company": "ACME", "description": "live chat support for customers " * 40},
+           {"title": "Agent escorta valori", "company": "SecurCash", "description": "transport de numerar"},
+           {"title": "ML Engineer", "company": "X", "description": "online model serving and inference"},
+           {"title": None, "company": None, "description": None}, {}]
+_raw11j = lambda j: bool(scrape.ADULT.search(" ".join(str(j.get(k) or "") for k in ("title", "company", "description"))))
+for _j11j in _ads11j + _ads11j:                       # twice: the second pass is answered from memory
+    assert scrape.adult_job(_j11j) == _raw11j(_j11j), f"the remembered answer differs from the regex: {_j11j}"
+assert [scrape.adult_job(j) for j in _ads11j[:5]] == [True, True, False, False, False]
+assert scrape.adult_job("not a dict") is False and scrape.adult_job(None) is False
+_h11j = scrape._adult_text.cache_info().hits
+scrape.adult_job(_ads11j[0])
+assert scrape._adult_text.cache_info().hits == _h11j + 1, "a repeated advert was read again"
+# keyed on the TEXT, not the url: an advert that is edited is read afresh rather than trusted
+_ed11j = {"title": "Support", "company": "ACME", "description": "answer customers"}
+assert scrape.adult_job(_ed11j) is False
+_ed11j["description"] = "answer customers, videochat studio work"
+assert scrape.adult_job(_ed11j) is True, "an edited advert kept its old answer"
+assert scrape._adult_text.cache_info().maxsize == 2048, "the memory of adverts is no longer bounded"
+
+# 11k. Two false alarms from one real run, both traced to the monitor and not to the boards.
+#
+# (1) "olx returned about 7 ads per search term where it usually returns 22 - it may have changed
+# its layout". OLX's yield depends on WHICH terms are searched: 14-22 a term for the two everyday
+# ones, 7 for a list of 23 that includes rare ones. One baseline per board mixed them.
+_bc11k = app.BOARD_COUNTS
+app.BOARD_COUNTS = _pl11h.Path(_tf11h.mkdtemp()) / ".board_counts.json"
+try:
+    _few11k, _many11k = _h11g.fingerprint("customer support, operator call center"), \
+        _h11g.fingerprint(", ".join(f"term {i}" for i in range(23)))
+    assert _few11k != _many11k and len(_few11k) == 8
+    assert _h11g.fingerprint("B, a ;  A") == _h11g.fingerprint("a, b"), "the same terms in another order are another set"
+    for _ in range(4):                                # the two-term search is the usual one: 22 ads a term
+        app._check_board_counts({"olx": {"seconds": 1, "ads": 44}}, 2, False, _few11k)
+    assert app._check_board_counts({"olx": {"seconds": 1, "ads": 155}}, 23, False, _many11k) == [], \
+        "a longer list of terms was held against a two-term baseline"
+    for _ in range(3):                                # ...and it earns its own
+        app._check_board_counts({"olx": {"seconds": 1, "ads": 155}}, 23, False, _many11k)
+    assert app._check_board_counts({"olx": {"seconds": 1, "ads": 30}}, 23, False, _many11k), \
+        "a real collapse on the SAME terms was not reported"
+    assert app._check_board_counts({"olx": {"seconds": 1, "ads": 44}}, 2, False, _few11k) == []
+finally:
+    app.BOARD_COUNTS = _bc11k
+# the Health tab shows "usually N" for the terms that were searched, not a mixture
+assert _h11g.usual_per_term({"olx|any|abc": [5, 5, 5], "olx|any": [22, 22, 22]}, "olx", "abc") == 5
+assert _h11g.usual_per_term({"olx|any|abc": [5, 5, 5]}, "olx", "other") is None
+_rec11k = {"when": "2026-10-27 17:00", "via": "scheduled", "terms": 5, "fp": "abc", "warnings": [],
+           "timing": {"boards": {"olx": {"seconds": 5, "ads": 25}}}}
+assert _h11g.board_rows([_rec11k], [], ("olx",), {"olx": True}, {"olx|any|abc": [5, 5, 5]}, {}, {})[0]["usual"] == 5
+assert _h11g.log_search.__doc__ and "fp" in _iK.getsource(_h11g.log_search)
+
+# (2) "bestjobs: every company empty - parser broken". Asked of the rows a search KEPT, which since
+# rejected ads are remembered is often one or two - and two ads from employers who hide their name
+# are "every company empty". "Every" needs enough rows to mean something.
+_blank11k = lambda n: [{"title": f"T{i}", "company": "", "description": "x"} for i in range(n)]
+assert scrape.health("bestjobs", _blank11k(2), 0) == "", "two ads from hidden employers called a parser broken"
+assert scrape.health("bestjobs", _blank11k(scrape.HEALTH_MIN_ROWS - 1), 0) == ""
+assert "every company empty" in scrape.health("bestjobs", _blank11k(scrape.HEALTH_MIN_ROWS), 0), \
+    "a real parser failure over a full page of ads went unreported"
+assert "every title empty" in scrape.health("x", [{"title": "", "company": "A"}], 0),     "a blank title needs no sample: an advert always has one"
+assert "HTML fragments" in scrape.health("x", [{"title": "A &amp; B", "company": "C"}], 0), \
+    "the entity check is about one row being wrong and must not need a sample"
+
+# (3) What is STILL read for nothing, by reason. Reading is most of a run, and an ad dropped after it
+# is dropped - and read - again every run unless something remembers it; so it has to be countable.
+_keep11k = (scrape._get, scrape.needs_browser)
+_today11k = _dt11h.date.today().isoformat()
+_pages11k = {
+    "ok": ('<script type="application/ld+json">' + json.dumps({"@type": "JobPosting", "title": "Support Agent",
+        "description": "Answer customers. " * 30, "hiringOrganization": {"name": "ACME"},
+        "datePosted": _today11k}) + "</script>"),
+    "old": ('<script type="application/ld+json">' + json.dumps({"@type": "JobPosting", "title": "Old Agent",
+        "description": "Answer customers. " * 30, "hiringOrganization": {"name": "ACME"},
+        "datePosted": "2020-01-01"}) + "</script>"),
+    "closed": ('<script type="application/ld+json">' + json.dumps({"@type": "JobPosting", "title": "Closed Agent",
+        "description": "Answer customers. " * 30, "hiringOrganization": {"name": "ACME"},
+        "datePosted": _today11k, "validThrough": "2020-01-01"}) + "</script>"),
+    "nothing": "<html><body>nothing here at all</body></html>",
+    "stub": ('<script type="application/ld+json">' + json.dumps({"@type": "JobPosting", "title": "Stub Agent",
+        "description": "Short.", "hiringOrganization": {"name": "ACME"}, "datePosted": _today11k}) + "</script>"),
+}
+class _R11k:
+    def __init__(self, t): self.text = t
+scrape._get = lambda c, url, **k: _R11k(_pages11k[url.rsplit("/", 1)[1]])
+scrape.needs_browser = lambda url: False
+try:
+    _jobs11k = [{"source": "hipo", "url": f"https://www.hipo.ro/{k}", "title": k, "company": "", "location": "",
+                 "posted": "", "description": "", "note": "", "salary": "", "lang": "", "_full": False}
+                for k in ("ok", "old", "closed", "nothing", "stub")]
+    _rep11k = {}
+    _out11k = scrape.hydrate(_jobs11k, report=_rep11k)
+    assert [j["url"].rsplit("/", 1)[1] for j in _out11k] == ["ok"], [j["url"] for j in _out11k]
+    assert _rep11k["dropped"] == {"nothing readable": 1, "too short": 1, "too old": 1, "closed": 1}, _rep11k
+    # a stub is real data that is merely short: it is told apart from a page with nothing on it, so the
+    # next run's log says which of the two is the larger cost before anything is remembered about it
+    assert "https://www.hipo.ro/stub" not in sum(_rep11k["remember"].values(), [])
+    # ...and WHICH urls, in the two kinds the search remembers: dates that will not un-pass, and a
+    # page that answered with nothing. A page that never answered is weather and is not here.
+    assert _rep11k["remember"] == {"unreadable": ["https://www.hipo.ro/nothing"],
+                                   "gone": ["https://www.hipo.ro/old", "https://www.hipo.ro/closed"]}, _rep11k
+    # ads that arrived already read (freehire) are not this call's reading and are not counted
+    _rep11k2 = {}
+    scrape.hydrate([dict(_jobs11k[0], _full=True, title="Support Agent", description="Answer. " * 40,
+                         posted="2020-01-01")], report=_rep11k2)
+    assert _rep11k2.get("dropped", {}) == {}, "an ad this call never read was counted as read for nothing"
+finally:
+    (scrape._get, scrape.needs_browser) = _keep11k
+assert "(dropped after reading: 3 too old, 1 closed)" in _au11c.timing_line(
+    {"total": 10, "find": 1, "read": 8, "score": 1, "read_dropped": {"too old": 3, "closed": 1},
+     "boards": {}, "llm_waits": {}})
+assert "dropped after reading" not in _au11c.timing_line(
+    {"total": 10, "find": 1, "read": 8, "score": 1, "read_dropped": {}, "boards": {}, "llm_waits": {}})
+assert "read_report.get(\"dropped\")" in _iK.getsource(app._search)
+
+# 11l. What is read and then thrown away for ANY reason is remembered - for as long as it stays true.
+#
+# After the work-mode memory, a real run still read 88 ads and kept none: 43 not remote (now
+# remembered) and 45 more - 36 pages that loaded with nothing readable, 4 past their date, 5 the
+# same ad twice. Each of those is read, and dropped, again on every run. A date does not un-pass, so
+# those are remembered for the fortnight; a page with nothing readable is remembered for three
+# days only, because it may be a glitch or a layout the next update reads.
+_keep11l = (app.DB, app._SCHEMA_DONE, scrape.discover, scrape.hydrate, app.llm.score,
+            app.llm.language_gate, app.llm.ad_language, app.settings)
+try:
+    _u11l = lambda n: f"https://www.ejobs.ro/user/locuri-de-munca/x/{n}"
+    _ads11l = {n: {"source": "ejobs", "url": _u11l(n), "title": f"Support {n}", "company": "ACME",
+                   "location": "Remote", "posted": _dt11h.date.today().isoformat(), "salary": "", "pay_est": "",
+                   "expires": "", "terms": "", "note": "", "lang": "en", "applicants": None, "responsive": None,
+                   "_full": True, "description": "Fully remote, work from home. " + "Answer customers. " * 30}
+               for n in (1, 2, 3)}
+    _read11l = []
+    scrape.discover = lambda *a, **k: [dict(a_, _full=False, description="") for a_ in _ads11l.values()]
+
+    def _hyd11l(jobs, **k):
+        _read11l.append(sorted(int(j["url"].rsplit("/", 1)[1]) for j in jobs))
+        rep = k.get("report")
+        # ad 1 is fine; ad 2 is past its date; ad 3 is a page that answered with nothing
+        got = [dict(_ads11l[1])] if any(j["url"] == _u11l(1) for j in jobs) else []
+        if rep is not None:
+            rem = rep.setdefault("remember", {})
+            if any(j["url"] == _u11l(2) for j in jobs):
+                rem.setdefault("gone", []).append(_u11l(2))
+            if any(j["url"] == _u11l(3) for j in jobs):
+                rem.setdefault("unreadable", []).append(_u11l(3))
+        return got
+
+    scrape.hydrate = _hyd11l
+    app.llm.language_gate = lambda p, j: (True, "")
+    app.llm.ad_language = lambda j: "en"
+    app.llm.score = lambda profile, job, send=None, reply_in="": {"fit": 70, "why": "ok", "gaps": [], "untapped": []}
+    app.settings = lambda: {**_keep11l[7](), "skip_families": []}
+    app.DB, app._SCHEMA_DONE = pathlib.Path(_tf11i.mkdtemp()) / "t.sqlite", False
+
+    def _run11l():
+        with _cx11h.redirect_stdout(_io11h.StringIO()):
+            return _as11h.run(app.search({"query": "support", "country": "ro", "boards": ["ejobs"], "filters": {}}))
+
+    def _age11l(why, days):
+        with app.db() as _c:
+            _c.execute("UPDATE passed_over SET at = datetime('now','localtime',?) WHERE why=?", (f"-{days} days", why))
+
+    _o11l = _run11l()
+    assert _read11l[-1] == [1, 2, 3] and _o11l["new"] == 1, (_read11l, _o11l)
+    _o11l = _run11l()
+    assert _read11l[-1] == [], f"ads already read and dropped were read again: {_read11l[-1]}"
+    assert _o11l["timing"]["skipped_unread"] == 2, _o11l["timing"]      # 1 is stored; 2 and 3 are remembered
+    # four days on: the unreadable page gets another look, the ad past its date does not
+    _age11l("unreadable", 4); _age11l("gone", 4)
+    _run11l()
+    assert _read11l[-1] == [3], f"after 3 days only the unreadable page is read again: {_read11l[-1]}"
+    # ...and a fortnight on, so is everything
+    _age11l("unreadable", 4); _age11l("gone", 15)
+    _run11l()
+    assert 2 in _read11l[-1], f"an ad past its date was trusted for more than a fortnight: {_read11l[-1]}"
+finally:
+    (app.DB, app._SCHEMA_DONE, scrape.discover, scrape.hydrate, app.llm.score,
+     app.llm.language_gate, app.llm.ad_language, app.settings) = _keep11l
+assert app.UNREADABLE_DAYS < app.PASSED_OVER_DAYS
 
 # 11b. The note shows where a manual row actually is, and says the thing that costs you.
 #

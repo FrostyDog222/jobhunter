@@ -273,7 +273,11 @@ _OLX_CARDS = """() => {
         const t = (c.innerText || '').split(nl).map(x => x.trim()).filter(Boolean);
         return {href: a ? a.getAttribute('href') : '', lines: t};
     }).filter(x => x.href && x.href.includes('/oferta/'));
-    return {cards: cards, grid: !!grid, count: msg ? msg.innerText.trim() : ''};
+    // what the page IS, for the case where it is not a results page at all
+    const head = (document.body.innerText || '').split(nl).map(x => x.trim()).filter(Boolean)
+        .slice(0, 6).join(' | ').slice(0, 160);
+    return {cards: cards, grid: !!grid, count: msg ? msg.innerText.trim() : '',
+            title: document.title, head: head};
 }"""
 
 # True once the results page is complete: OLX says how many it found, and that many cards (up to
@@ -321,8 +325,13 @@ def olx(query, limit=25, timeout=30, location=""):
     # from the numbers going quiet. Each of these means the extraction below is working on a page
     # that is not shaped the way it was written for.
     if n is None and not cards:
+        # Seen on a real scheduled run - 5 of 56 terms, four of them in a row, and gone on the next
+        # pass over the same terms - and never caught in the act, so the page's own words are kept:
+        # a throttle, a check and a slow render each look different, and the fix is different.
+        said = " - ".join(x for x in (got.get("title"), got.get("head")) if x)
         note_drift("olx", "the results page showed neither a result count nor any ads - its layout "
-                          "may have changed, or it is asking for a check")
+                          "may have changed, or it is asking for a check"
+                          + (f" (the page said: {said[:140]})" if said else ""))
     elif n and not cards:
         note_drift("olx", f"it counted {n} results but none could be read from the page")
     elif cards and not got["grid"]:
@@ -805,6 +814,9 @@ def freehire(query, country="ro", limit=25, timeout=30, filters=None):
     return jobs
 
 
+HEALTH_MIN_ROWS = 5
+
+
 def health(source, jobs, seen_before):
     """Scrapers rot silently: a portal changes its markup and the parser still exits cleanly with
     zero rows or blank fields. Returns a complaint string, or "" when the source looks fine.
@@ -814,9 +826,14 @@ def health(source, jobs, seen_before):
     if not jobs:
         return ""
     blank = lambda k: sum(1 for j in jobs if not (j.get(k) or "").strip()) == len(jobs)
+    # A title is never legitimately missing, so one blank is already a broken parser. A company
+    # CAN be: employers hide their name. And this is asked of the rows a search KEPT, which since
+    # rejected ads are remembered is often one or two - two BestJobs ads from confidential
+    # employers read as "every company empty - parser broken" on a real run, over a parser that was
+    # fine. "Every" needs enough rows to mean something, so only that check waits for them.
     if blank("title"):
         return f"{source}: every title empty - parser broken"
-    if blank("company"):
+    if len(jobs) >= HEALTH_MIN_ROWS and blank("company"):
         return f"{source}: every company empty - parser broken"
     if any("&amp;" in (j.get("title") or "") or "<" in (j.get("title") or "") for j in jobs):
         return f"{source}: HTML fragments in titles - entities not decoded"
@@ -1116,17 +1133,28 @@ ADULT = re.compile(
     r"|\bmodel[ea]?\s+online\b", re.I)
 
 
+@functools.lru_cache(maxsize=2048)
+def _adult_text(text):
+    return bool(ADULT.search(text))
+
+
 def adult_job(job):
     """Is this advert adult-industry work?
 
     Title, company AND description, because the title is often coy - "Trainer" at a company called
     "Creative Fantasy Studio" - while the body says plainly what the work is. Measured: of 458
     stored ads, 3 name it in the title or company and a 4th only in the body.
+
+    Memoised on the text it reads. The dashboard's list asks this of every stored ad on every
+    request, and the answer only changes if the ad's text does: profiled, that regex was 90% of
+    /api/jobs - 238 ms for 250 ads, about 0.9 ms an ad, so a list ten times longer took over two
+    seconds to open. The cache is keyed on the text itself rather than on the url, so an ad that is
+    edited is read afresh, and bounded (2048 ads is a few megabytes) so a long-lived server cannot
+    grow it for ever.
     """
     if not isinstance(job, dict):
         return False
-    return bool(ADULT.search(" ".join(str(job.get(k) or "")
-                                      for k in ("title", "company", "description"))))
+    return _adult_text(" ".join(str(job.get(k) or "") for k in ("title", "company", "description")))
 
 
 def seniority_fits(job, want):
@@ -1495,6 +1523,7 @@ def hydrate(jobs, timeout=30, on_progress=None, report=None):
                 if on_progress:
                     on_progress(done, len(todo))
                 if page is None:
+                    j["_why"] = "no answer"
                     if report is not None:
                         report["unread"] = report.get("unread", 0) + 1
                     continue
@@ -1513,15 +1542,21 @@ def hydrate(jobs, timeout=30, on_progress=None, report=None):
                     if not jp and not markup:
                         bad = report.setdefault("unparsed", {})
                         bad[j["source"]] = bad.get(j["source"], 0) + 1
+                        # answered, and said nothing readable: worth remembering, but only briefly -
+                        # see _search. A page that never answered is NOT here: that is weather.
+                        report.setdefault("remember", {}).setdefault("unreadable", []).append(j["url"])
                 if not jp:
                     # no JSON-LD: fall back to the board's own markup, keeping what phase 1 gave us
                     if markup:
                         j.update(description=markup, _full=True)
+                    else:
+                        j["_why"] = "nothing readable"
                     continue
                 # whichever source carries more of the ad wins - a score computed from a third of
                 # a posting is confident and wrong
                 body = max(_ld_body(jp), markup, key=len)
                 if len(body) < MIN_AD:
+                    j["_why"] = "too short"
                     continue                  # scoring a title is a guess dressed up as a number
                 # JSON-LD first: it is the employer's own figure, with a currency and a
                 # unit. _salary() reads BestJobs' unlabelled range off the markup and is the
@@ -1553,12 +1588,27 @@ def hydrate(jobs, timeout=30, on_progress=None, report=None):
     # empty for the HTML boards. Without this the same ad reaches the database from two sources,
     # gets scored twice, and can be applied to twice.
     out, seen = [], set()
+    # Why each ad that WAS read did not survive, counted. Reading is most of a run, and an ad
+    # dropped here is dropped again - and read again - on every run, so the answer to "what is
+    # still being read for nothing" has to come from somewhere. Only ads read in this call count.
+    gone = report.setdefault("dropped", {}) if report is not None else {}
+    mine = {id(j) for j in todo}
     for j in jobs:
-        if (not j.get("_full") or NOISE.search(j["title"]) or _too_old(j.get("posted"))
-                or _closed(j.get("expires"))):
+        why = (j.get("_why") or "nothing readable" if not j.get("_full")
+               else "noise" if NOISE.search(j["title"])
+               else "too old" if _too_old(j.get("posted")) else "closed" if _closed(j.get("expires"))
+               else "")
+        if why:
+            if id(j) in mine:
+                gone[why] = gone.get(why, 0) + 1
+                if why in ("too old", "closed") and report is not None:
+                    # a date does not un-pass: this ad will be read and dropped again, every run
+                    report.setdefault("remember", {}).setdefault("gone", []).append(j["url"])
             continue
         key = (j["title"].lower().strip(), (j.get("company") or "").lower().strip()[:18])
         if key[1] and key in seen:
+            if id(j) in mine:
+                gone["same ad twice"] = gone.get("same ad twice", 0) + 1
             continue
         seen.add(key)
         out.append(j)

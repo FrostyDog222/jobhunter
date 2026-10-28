@@ -11,6 +11,7 @@ Pure functions over plain data. The caller reads the files and hands them in, wh
 makes every rule here testable without a browser or a network.
 """
 import datetime
+import hashlib
 import json
 import os
 import re
@@ -23,6 +24,18 @@ NAMES = {"ejobs": "eJobs", "bestjobs": "BestJobs", "hipo": "Hipo", "olx": "OLX",
 
 
 # ---------------------------------------------------------------- the record of each search
+
+def fingerprint(query):
+    """A short, order-free id for a SET of search terms.
+
+    A board's yield per term depends on WHICH terms: OLX gave 14-22 ads a term for the two
+    everyday ones and 7 a term for a list of 23 that includes rare ones. Held against one
+    baseline, the longer search read as "returning far fewer ads than usual" - a false alarm that
+    teaches somebody to ignore the real one.
+    """
+    terms = sorted({t.strip().lower() for t in re.split(r"[,;]", query or "") if t.strip()})
+    return hashlib.sha1("|".join(terms).encode("utf-8")).hexdigest()[:8]
+
 
 def _round(x):
     """Floats to a tenth, recursively - a record is read by people and does not need microseconds."""
@@ -52,7 +65,8 @@ def log_search(path, body, out=None, error=None, now=None):
         now = now or datetime.datetime.now()
         terms = [q for q in re.split(r"[,;]", (body or {}).get("query") or "") if q.strip()]
         rec = {"when": (body or {}).get("when") or now.strftime("%Y-%m-%d %H:%M"),
-               "via": (body or {}).get("via") or "manual", "terms": len(terms), "error": error}
+               "via": (body or {}).get("via") or "manual", "terms": len(terms), "error": error,
+               "fp": fingerprint((body or {}).get("query"))}
         if out:
             rec.update({k: out.get(k) for k in ("found", "new", "scored", "vetoed", "off_mode")})
             # kept whole, cut per line: a clipped list would hide exactly the repeated
@@ -233,10 +247,12 @@ def issues(records, sources=tuple(NAMES)):
 
 # ---------------------------------------------------------------- the tab itself
 
-def usual_per_term(hist, board):
-    """The median ads-per-term this board has recently returned, or None before there is enough
-    history to call anything usual. Same history the thin-board warning compares against."""
-    xs = sorted(x for x in (hist or {}).get(f"{board}|any", []) if isinstance(x, (int, float)))
+def usual_per_term(hist, board, fp=""):
+    """The median ads-per-term this board has recently returned FOR THIS SET OF TERMS, or None
+    before there is enough history to call anything usual. Same history the thin-board warning
+    compares against."""
+    key = f"{board}|any" + (f"|{fp}" if fp else "")
+    xs = sorted(x for x in (hist or {}).get(key, []) if isinstance(x, (int, float)))
     return xs[len(xs) // 2] if len(xs) >= 3 else None
 
 
@@ -247,7 +263,7 @@ def board_rows(records, issue_list, sources, switches, hist, signins, saved):
         seen = ((rec or {}).get("timing") or {}).get("boards", {}).get(b)
         terms = max(1, (rec or {}).get("terms") or 1)
         per = round(seen["ads"] / terms, 1) if seen else None
-        usual = usual_per_term(hist, b)
+        usual = usual_per_term(hist, b, (rec or {}).get("fp") or "")
         mine = [i for i in issue_list if i["board"] == b and i["ongoing"]]
         if not switches.get(b, True):
             status = "off"
