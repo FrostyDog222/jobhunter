@@ -26,8 +26,16 @@ from share import PRIVATE, PRIVATE_DIRS          # noqa: E402  one list, so the 
 KEEP = set(PRIVATE) | {"backup"}
 
 
+def sha(data):
+    """Same text, same answer: Windows line endings (what a zip from share.bat carries) and Unix ones
+    (what GitHub serves) are one file, or every copy would look out of date forever."""
+    if b"\x00" not in data:                           # text only; an image is compared as it is
+        data = data.replace(b"\r\n", b"\n")
+    return hashlib.sha1(data).hexdigest()
+
+
 def digest(path):
-    return hashlib.sha1(path.read_bytes()).hexdigest() if path.is_file() else None
+    return sha(path.read_bytes()) if path.is_file() else None
 
 
 def safe(rel):
@@ -90,7 +98,7 @@ def differs(files):
         target = HERE / rel
         if rel.lower() == "update.bat" and (HERE / "Update.bat.new").is_file():
             target = HERE / "Update.bat.new"          # already waiting to be swapped in
-        if not target.is_file() or digest(target) != hashlib.sha1(data).hexdigest():
+        if not target.is_file() or digest(target) != sha(data):
             out.append(rel)
     return out
 
@@ -104,7 +112,7 @@ def apply(files):
 
     for rel, data in sorted(files.items()):
         target = HERE / rel
-        if target.is_file() and digest(target) == hashlib.sha1(data).hexdigest():
+        if target.is_file() and digest(target) == sha(data):
             same += 1
             continue
         # THIS script is being read line by line by cmd, from a byte offset, as it runs. Writing
