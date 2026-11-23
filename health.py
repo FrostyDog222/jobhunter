@@ -303,7 +303,7 @@ def waits(records):
                   key=lambda v: -v["seconds"])
 
 
-def runs(records, limit=8):
+def runs(records, limit=30):
     out = []
     for r in records[:limit]:
         t = r.get("timing") or {}

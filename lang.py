@@ -1127,6 +1127,46 @@ RO = {
         "Programată — următoarea rulare <b>{when}</b>.",
     "Signed in to {board}.":
         "Autentificat pe {board}.",
+    # --- the Health page, second pass
+    "How each job site and each AI model is doing, read from your recent searches.":
+        "Cum se descurcă fiecare site de joburi și fiecare model AI, citit din căutările tale recente.",
+    "ads per term":
+        "anunțuri per termen",
+    "per term":
+        "per termen",
+    "usually {u}":
+        "de obicei {u}",
+    "Sources reading normally":
+        "Surse care se citesc normal",
+    "Problems right now":
+        "Probleme acum",
+    "AI models available":
+        "Modele AI disponibile",
+    "Searches recorded":
+        "Căutări înregistrate",
+    # --- the Profile page: heading, preview
+    "Your profile":
+        "Profilul tău",
+    "Every job score and every tailored CV is built from what you write here.":
+        "Fiecare punctaj de job și fiecare CV adaptat se bazează pe ce scrii aici.",
+    "CV preview":
+        "Previzualizare CV",
+    "Dark":
+        "Întunecat",
+    "Light":
+        "Luminos",
+    "Preview colours":
+        "Culorile previzualizării",
+    "Updates as you type. Your tailored CVs use the template you choose on the dashboard.":
+        "Se actualizează pe măsură ce scrii. CV-urile adaptate folosesc șablonul ales în Panou.",
+    "Your name":
+        "Numele tău",
+    "Your target role":
+        "Postul vizat",
+    "Professional summary":
+        "Rezumat profesional",
+    "Start typing and your CV appears here.":
+        "Începe să scrii și CV-ul tău apare aici.",
     # --- the Health tab
     "{n} ads were not read this time: an earlier search had already read them and they did not match your work-mode filter.":
         "{n} anunțuri nu au fost citite de data aceasta: o căutare anterioară le citise deja și nu se potriveau cu filtrul tău de mod de lucru.",
@@ -1184,14 +1224,8 @@ RO = {
         "Încă nevăzut",
     "Not searched":
         "Nu e căutat",
-    "{n} ads per search term (usually {u})":
-        "{n} anunțuri per termen de căutare (de obicei {u})",
-    "{n} ads per search term":
-        "{n} anunțuri per termen de căutare",
     "No reading recorded yet":
         "Nicio citire înregistrată încă",
-    "{s}s per search term":
-        "{s}s per termen de căutare",
     "Sign-in stopped after failing":
         "Autentificarea a fost oprită după eșecuri",
     "Signed in":
@@ -1246,6 +1280,18 @@ RO = {
         "Avertismente",
     "stopped":
         "oprită",
+    "Recent searches":
+        "Căutări recente",
+    "{n} new":
+        "{n} noi",
+    "{n} warning(s)":
+        "{n} avertisment(e)",
+    "No timing was recorded for this search.":
+        "Pentru această căutare nu s-a înregistrat niciun timp.",
+    "Previous page":
+        "Pagina anterioară",
+    "Next page":
+        "Pagina următoare",
     "resting":
         "se odihnește",
     "available":

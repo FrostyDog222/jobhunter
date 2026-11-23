@@ -444,12 +444,16 @@ _real = (scrape.discover, scrape.hydrate, app.llm.score, app.llm.language_gate,
          app.llm.ad_language)
 try:
     app.DB, app._SCHEMA_DONE = pathlib.Path(_tmp.mkdtemp()) / "t.sqlite", False
+    # Posted TODAY, not on a date written down in 2026. The search expires an unscored advert after
+    # 30 days, so a fixed date passed its own test's shelf life on the day the calendar got there -
+    # which looked like "the width never moves", and had nothing to do with the width.
+    _today1y = __import__("datetime").date.today().isoformat()
     with app.db() as _c:
         for _n in range(40):
             _c.execute("INSERT INTO jobs(url,source,title,company,location,posted,description,"
                        "status,note,lang) VALUES(?,?,?,?,?,?,?,?,?,?)",
                        (f"https://www.ejobs.ro/user/locuri-de-munca/x/{_n}", "ejobs", f"Job {_n}",
-                        "ACME", "Bucuresti", "2026-09-28", "long enough to score " * 12,
+                        "ACME", "Bucuresti", _today1y, "long enough to score " * 12,
                         "new", "", "en"))
     scrape.discover = lambda *a, **k: []
     scrape.hydrate = lambda jobs, **k: []
@@ -7100,6 +7104,134 @@ finally:
     (app.DB, app._SCHEMA_DONE, scrape.discover, scrape.hydrate, app.llm.score,
      app.llm.language_gate, app.llm.ad_language, app.settings) = _keep11l
 assert app.UNREADABLE_DAYS < app.PASSED_OVER_DAYS
+
+# 12a. The redesign: what has to stay true about a stylesheet and a preview.
+#
+# A page's look is not testable the way a function is, but the failures it has actually had are: a
+# brace followed by a hash is how Jinja opens a comment, and one such sequence in the CSS made every
+# page a 500; the artwork it leans on has to exist; the cog has to be a cog; and a CV preview that
+# builds HTML out of text from uploaded CVs has to be unable to run any of it.
+_tpl12a = {n: (app.HERE / "templates" / n).read_text(encoding="utf-8")
+           for n in ("base.html", "dashboard.html", "profile.html", "health.html")}
+for _n12a, _t12a in _tpl12a.items():
+    assert "{#" not in _t12a, f"{_n12a}: a brace followed by a hash opens a Jinja comment and 500s the page"
+assert (app.HERE / "static" / "bg.png").stat().st_size > 10_000, "the page background image is missing"
+assert "/static/bg.png" in _tpl12a["base.html"]
+
+# icons are inline, so nothing is fetched and nothing leaves the PC
+assert "http://" not in _tpl12a["base.html"].replace("http://www.w3.org/2000/svg", ""), \
+    "the stylesheet reaches for something outside the app"
+assert "fonts.googleapis" not in _tpl12a["base.html"] and "@import" not in _tpl12a["base.html"]
+
+# the Settings icon is a real cog (teeth round a hub), not a handful of spokes that reads as a sun
+_gear12a = next(l for l in _tpl12a["base.html"].splitlines() if l.strip().startswith("--i-gear:"))
+assert "circle" in _gear12a.lower() or "%3Ccircle" in _gear12a, "the cog has no hub"
+assert _gear12a.count("L") + _gear12a.count("%20L") >= 28, "the cog has no teeth - it is a sun again"
+assert "var(--i-gear)" in _tpl12a["dashboard.html"]
+
+# none of the things the brief ruled out has crept in: an account menu, a bell, a theme toggle
+for _n12a in ("base.html", "dashboard.html", "profile.html", "health.html"):
+    _low12a = _tpl12a[_n12a].lower()
+    for _banned12a in ("notification", "account menu", "avatar", "theme-toggle", "dark mode toggle"):
+        assert _banned12a not in _low12a, f"{_n12a} has grown a {_banned12a!r}"
+
+# the preview, in a real browser, on a page served from stubs: no server and no real profile involved
+_html12a = _cl9.get("/profile").text
+_prof12a = {"name": "Ana Maria Pop", "title": "Support Agent", "email": "ana@example.com", "phone": "0700 000 000",
+            "location": "Cluj", "links": ["https://www.example.com/ana/"], "summary": "Helps customers.",
+            "experience": [{"role": "Agent", "company": "ACME", "location": "Cluj", "start": "2022", "end": "2024",
+                            "bullets": ["Answered tickets", "<b>bold</b> claim"]}],
+            "education": [{"degree": "BA", "school": "UBB", "start": "2018", "end": "2021"}],
+            "projects": [], "skills": ["Zendesk", "Excel"], "certifications": [], "hobbies": [],
+            "languages": [{"name": "English", "level": "Advanced"}], "new_to_work": False}
+try:
+    from playwright.sync_api import sync_playwright as _sp12a
+    with _sp12a() as _pw12a:
+        _b12a = _pw12a.chromium.launch()
+        _pg12a = _b12a.new_page(viewport={"width": 1500, "height": 900})
+        _writes12a, _errs12a = [], []
+        _pg12a.on("pageerror", lambda e: _errs12a.append(str(e)))
+
+        def _serve12a(route):
+            req, url = route.request, route.request.url
+            if req.method != "GET":
+                _writes12a.append(req.method + " " + url)
+                return route.fulfill(status=200, content_type="application/json", body="{}")
+            # the API route first: "/api/profile" also ends in "/profile", and answering it with the
+            # page's own HTML made the page (correctly) refuse a "non-JSON reply"
+            if url.endswith("/api/profile"):
+                return route.fulfill(status=200, content_type="application/json", body=json.dumps(_prof12a))
+            if url.endswith("/profile"):
+                return route.fulfill(status=200, content_type="text/html", body=_html12a)
+            if "/static/" in url:
+                return route.fulfill(status=200, content_type="image/png", body=b"")
+            return route.fulfill(status=200, content_type="application/json", body="{}")
+
+        _pg12a.route("http://suite.test/**", _serve12a)
+        _pg12a.goto("http://suite.test/profile", wait_until="networkidle")
+        _pg12a.wait_for_timeout(600)
+        _text12a = lambda sel: _pg12a.locator(sel).first.inner_text()
+        _paper12a = _pg12a.locator("#cvpaper")
+
+        # it shows what the profile holds, from the same object the form edits
+        assert _text12a(".pvname") == "Ana Maria Pop" and _text12a(".pvav") == "AP", _text12a(".pvname")
+        _all12a = _paper12a.inner_text()
+        for _want12a in ("Support Agent", "ana@example.com", "example.com/ana", "Helps customers.",
+                         "Agent", "ACME", "Answered tickets", "BA", "UBB", "Zendesk", "English"):
+            assert _want12a in _all12a, f"the preview does not show {_want12a!r}"
+
+        # ...and it follows what is typed
+        _pg12a.fill("#f_name", "Radu Ionescu"); _pg12a.wait_for_timeout(450)
+        assert _text12a(".pvname") == "Radu Ionescu" and _text12a(".pvav") == "RI"
+        _pg12a.fill("#f_name", "Madonna"); _pg12a.wait_for_timeout(450)
+        assert _text12a(".pvav") == "M", "a single name should give a single initial"
+
+        # text from an uploaded CV is data. Markup in any field must appear as text and never run.
+        _evil12a = "<img src=x onerror=window.__ran=1><script>window.__ran=1</script><b>x</b>"
+        for _sel12a in ("#f_name", "#f_title", "#f_summary", "#f_email", "#f_location"):
+            _pg12a.fill(_sel12a, _evil12a)
+        _pg12a.wait_for_timeout(500)
+        assert _paper12a.locator("img, script").count() == 0, "markup in a field became an element"
+        assert _pg12a.evaluate("window.__ran === undefined"), "a script in a field ran"
+        assert "<img" in _paper12a.inner_text(), "the markup should be shown as the text it is"
+        # ...including inside the lists the form builds, which are the likeliest place to forget
+        _pg12a.fill("#f_name", "Ana"); _pg12a.fill("#f_title", ""); _pg12a.fill("#f_summary", "")
+        _pg12a.fill("[data-e='experience.0.role']", _evil12a); _pg12a.wait_for_timeout(500)
+        assert _paper12a.locator("img, script").count() == 0, "markup in a role became an element"
+        assert _pg12a.evaluate("window.__ran === undefined")
+
+        # an empty profile says so; it never prints "undefined"
+        for _sel12a in ("#f_name", "#f_title", "#f_email", "#f_phone", "#f_location", "#f_summary"):
+            _pg12a.fill(_sel12a, "")
+        _pg12a.wait_for_timeout(500)
+        assert _text12a(".pvname") == "Your name" and _text12a(".pvav") == "?", _text12a(".pvname")
+        assert "undefined" not in _paper12a.inner_text() and "null" not in _paper12a.inner_text()
+
+        # Light is a separate look for the same content, and it is remembered
+        _pg12a.click("[data-pv=light]"); _pg12a.wait_for_timeout(200)
+        assert "paper" in _pg12a.locator("#cvprev").get_attribute("class")
+        assert _pg12a.locator("[data-pv=light]").get_attribute("aria-pressed") == "true"
+        assert _pg12a.locator("[data-pv=dark]").get_attribute("aria-pressed") == "false"
+        _pg12a.click("[data-pv=dark]"); _pg12a.wait_for_timeout(200)
+        assert "paper" not in _pg12a.locator("#cvprev").get_attribute("class")
+        assert not _errs12a, f"the page raised: {_errs12a[:2]}"
+        _b12a.close()
+except ImportError:
+    print("SKIPPED the CV-preview test: playwright is not installed here")
+
+# the preview is a column of the page, and steps aside when there is no room for it
+assert "grid-template-columns:minmax(0,1fr) 410px" in _tpl12a["profile.html"]
+assert "@media(max-width:1180px){.profgrid{grid-template-columns:minmax(0,1fr)}.cvside{display:none}}" in _tpl12a["profile.html"]
+assert "esc(" in _tpl12a["profile.html"].split("function drawPreview")[1].split("let _pvTimer")[0], \
+    "the preview builds HTML without escaping"
+
+# moving between tabs: the header stays, the pill glides, motion-averse readers get none of it
+_base12a = _tpl12a["base.html"]
+assert "@view-transition{navigation:auto}" in _base12a
+assert "view-transition-name:site-header" in _base12a and "view-transition-name:nav-pill" in _base12a
+assert "prefers-reduced-motion:reduce){\n  ::view-transition-group(*)" in _base12a
+# Health lists are five to a page
+assert "ISSUES_PER_PAGE = 5" in _tpl12a["health.html"] and "RUNS_PER_PAGE = 5" in _tpl12a["health.html"]
 
 # 11b. The note shows where a manual row actually is, and says the thing that costs you.
 #

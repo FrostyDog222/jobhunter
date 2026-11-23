@@ -94,6 +94,12 @@ The dashboard shows a checklist until all three are done.
    does not contain, or a skill you never listed, is dropped before you see it. Where a number is
    genuinely missing it leaves `[X]` for you to fill in rather than inventing one.
 
+   On a wide screen the *CV preview* beside the form shows your profile laid out as a CV and
+   follows every keystroke, so a missing employer or a stray character is visible as you type.
+   *Dark* and *Light* switch its colours (Light is the paper it will be printed on). It shows what
+   the profile holds, not the final PDF: your tailored CVs use the template you pick on the
+   dashboard. On a narrow screen the preview steps aside and the form takes the width.
+
    Declare every language you work in. A job that demands a language you have not listed is
    skipped before it is scored.
 

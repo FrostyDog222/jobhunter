@@ -2,13 +2,19 @@
 {% block title %}Dashboard · jobhunter{% endblock %}
 {% block css %}
 /* ---- setup strip: one line at rest, panel on demand ---- */
-.setup{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:13px;
-  color:var(--dim);padding:10px 14px;background:var(--card);border:1px solid var(--line);
-  border-radius:10px;margin-bottom:14px}
-.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px}
-.dot.on{background:var(--good)} .dot.off{background:var(--dim);opacity:.5}
-.setup b{color:var(--fg);font-weight:600}
+.setup{display:flex;align-items:center;gap:20px;flex-wrap:wrap;font-size:14.5px;
+  color:var(--dim);padding:13px 22px;background:var(--card);border:1px solid var(--edge);
+  border-radius:18px;margin-bottom:16px;box-shadow:var(--glow)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:8px}
+.dot.on{background:var(--good);box-shadow:0 0 9px var(--good)} .dot.off{background:var(--dim);opacity:.55}
+.setup b{color:var(--fg);font-weight:700}
 .setup .gap{flex:1}
+/* a connected board is named in green, as well as dotted, so the row reads at a glance */
+#boardstate span:has(.dot.on){color:var(--good);font-weight:500}
+#setupbtn::before{content:"";display:inline-block;width:16px;height:16px;margin:-3px 8px -3px 0;
+  vertical-align:middle;background:currentColor;
+  -webkit-mask:var(--i-gear) center/contain no-repeat;mask:var(--i-gear) center/contain no-repeat}
+#setupbtn{padding:7px 16px !important;font-size:13.5px !important}
 .panel{display:none;margin-bottom:14px}
 .panel.open{display:block}
 
@@ -19,8 +25,8 @@
    so the row read as grey noise. Each board is now a tile that states which board it is, what
    its session is doing, and what the button will do, with the border carrying the state. */
 .boardrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
-.boardcard{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;
-  border:1px solid var(--line);background:var(--card);flex:0 1 auto}
+.boardcard{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;
+  border:1px solid var(--edge);background:var(--card);flex:0 1 auto}
 /* the per-source search switch sitting on each card */
 .srcsw{display:flex;align-items:center;gap:5px;font-size:12px;opacity:.85;cursor:pointer;
   text-transform:none;letter-spacing:0;margin-left:auto}
@@ -37,11 +43,11 @@
 .boardcard.off .who span{color:var(--bad)}
 /* signed in: a real outline, foreground text - visible without competing with the primary
    actions on the page. Signed out: the ordinary accent button, because it is the thing to press */
-.boardcard button.quiet{background:transparent;color:var(--fg);border:1px solid var(--dim);
-  font-weight:500;padding:8px 14px}
+.boardcard button.quiet{background:transparent;color:var(--fg);border:1px solid var(--edge);
+  font-weight:500;padding:8px 16px;border-radius:99px;box-shadow:none}
 .boardcard button.quiet:hover:not(:disabled){border-color:var(--accent);color:var(--accent);
   filter:none}
-.autobox{margin-top:18px;padding:14px 16px;border-radius:10px;
+.autobox{margin-top:18px;padding:16px 18px;border-radius:14px;
   border:1px solid color-mix(in srgb,var(--accent) 38%,var(--line));
   background:color-mix(in srgb,var(--accent) 5%,transparent)}
 .autodetail{margin:10px 0 4px}
@@ -56,34 +62,89 @@
   border-top:1px solid var(--line)}
 .advanced.open{display:flex} .advanced>div{flex:1;min-width:130px}
 .tpl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* An icon in front of each label. Drawn from CSS so the labels stay the plain text the Romanian
+   translation already swaps. Each one is named, because a rule that matched every label would put a
+   square on the ones with no icon. */
+.searchbar label[for=preset]::before,.searchbar label[for=loc]::before,
+.searchbar label[for=county]::before,.searchbar label[for=country]::before,
+.searchbar .fieldlabel::before{content:"";display:inline-block;width:15px;height:15px;
+  margin:-3px 8px -3px 0;vertical-align:middle;background:currentColor;
+  -webkit-mask:var(--ico) center/contain no-repeat;mask:var(--ico) center/contain no-repeat}
+.searchbar .fieldlabel{--ico:var(--i-search);font-size:12.5px;color:var(--fg);letter-spacing:.09em}
+label[for=preset]{--ico:var(--i-case)} label[for=loc]{--ico:var(--i-pin)}
+label[for=county]{--ico:var(--i-building)} label[for=country]{--ico:var(--i-globe)}
+#go{display:inline-flex;align-items:center;gap:10px;padding:13px 22px;border-radius:14px;
+  font-size:15px;align-self:flex-end;white-space:nowrap}
+#go::before,#go::after{content:"";width:17px;height:17px;background:currentColor;flex:0 0 auto}
+#go::before{-webkit-mask:var(--i-search) center/contain no-repeat;mask:var(--i-search) center/contain no-repeat}
+#go::after{-webkit-mask:var(--i-arrow) center/contain no-repeat;mask:var(--i-arrow) center/contain no-repeat}
+#advtoggle::before{content:"";display:inline-block;width:14px;height:14px;margin:-2px 6px -2px 0;
+  vertical-align:middle;background:currentColor;
+  -webkit-mask:var(--i-filter) center/contain no-repeat;mask:var(--i-filter) center/contain no-repeat}
 
 /* ---- stats ---- */
-.stats{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 12px}
-.stat{flex:1;min-width:110px;background:var(--card);border:1px solid var(--line);
-  border-radius:10px;padding:12px 14px;cursor:pointer;transition:border-color .12s}
-.stat:hover{border-color:var(--accent)}
-.stat.active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--card))}
-.stat b{display:block;font-size:26px;line-height:1.15;color:var(--fg)}
-.stat span{font-size:12px}
+/* Seven tiles in a row, each in its own colour with an icon on a tile of that colour. They come in a
+   fixed order, so the colour and the icon are picked by position and the script that fills them in
+   does not change. The wave in the corner is decoration: it is not a chart and carries no data. */
+.stats{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px;margin:18px 0 14px}
+.stat{--tint:#8b5cf6;--glyph:var(--w-case);position:relative;display:grid;
+  grid-template-columns:44px minmax(0,1fr);column-gap:11px;align-items:center;min-width:0;
+  padding:16px 14px;border-radius:16px;cursor:pointer;overflow:hidden;
+  border:1px solid color-mix(in srgb,var(--tint) 42%,var(--edge));
+  background:linear-gradient(135deg,color-mix(in srgb,var(--tint) 22%,transparent),
+    color-mix(in srgb,var(--tint) 5%,transparent) 72%),var(--card);
+  transition:border-color .15s,box-shadow .15s,transform .15s}
+.stat::before{content:"";grid-row:1/3;width:44px;height:44px;border-radius:13px;
+  background:var(--glyph) center/22px no-repeat,
+    linear-gradient(135deg,var(--tint),color-mix(in srgb,var(--tint) 55%,#000));
+  box-shadow:0 8px 20px -8px var(--tint)}
+.stat::after{content:"";position:absolute;right:0;bottom:4px;width:46%;height:38%;pointer-events:none;
+  background:var(--tint);opacity:.3;
+  -webkit-mask:var(--wave) right bottom/100% 100% no-repeat;mask:var(--wave) right bottom/100% 100% no-repeat}
+.stat b,.stat span{position:relative;z-index:1;grid-column:2}
+.stat:hover{transform:translateY(-2px);border-color:var(--tint);
+  box-shadow:0 14px 30px -16px var(--tint)}
+.stat.active{border-color:var(--tint);
+  box-shadow:0 0 0 1px var(--tint),0 0 32px -6px var(--tint)}
+.stat b{display:block;font-size:28px;line-height:1.1;font-weight:700;color:var(--fg)}
+.stat span{font-size:12.5px;line-height:1.25}
+.stat:nth-child(1){--tint:#8b5cf6;--glyph:var(--w-case)}
+.stat:nth-child(2){--tint:#22c55e;--glyph:var(--w-star)}
+.stat:nth-child(3){--tint:#3b82f6;--glyph:var(--w-calendar)}
+.stat:nth-child(4){--tint:#f59e0b;--glyph:var(--w-check)}
+.stat:nth-child(5){--tint:#06b6d4;--glyph:var(--w-bolt)}
+.stat:nth-child(6){--tint:#a855f7;--glyph:var(--w-users)}
+.stat:nth-child(7){--tint:#22c55e;--glyph:var(--w-check)}
+/* the notes under them: a bulb for the filters, a warning for the floor */
+#filterednote,#floornote{position:relative;padding-left:62px;border-radius:16px}
+#filterednote::before,#floornote::before{content:"";position:absolute;left:24px;top:50%;width:22px;
+  height:22px;transform:translateY(-50%);background:var(--mid);
+  -webkit-mask:var(--i-bulb) center/contain no-repeat;mask:var(--i-bulb) center/contain no-repeat}
+#floornote::before{-webkit-mask-image:var(--i-alert);mask-image:var(--i-alert)}
 
 /* ---- view filters ---- */
 .viewbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .viewbar select{flex:0 0 auto;width:auto;min-width:130px}
 .viewbar .gap{flex:1}
-.bands{display:flex;gap:12px;align-items:center;font-size:12.5px;color:var(--dim)}
+.bands{display:flex;gap:6px 12px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--dim)}
+.viewbar button,.bands button{padding:8px 18px;font-size:14px}
 .bands label{display:flex;gap:5px;align-items:center;margin:0;text-transform:none;
   letter-spacing:0;font-size:12.5px;cursor:pointer;white-space:nowrap}
 .bands input{width:auto;cursor:pointer}
 
 /* ---- job card ---- */
-.job{display:grid;grid-template-columns:56px 1fr auto;gap:14px;align-items:start;
-  padding:14px 16px}
+.job{display:grid;grid-template-columns:62px 1fr auto;gap:18px;align-items:start;
+  padding:18px 20px;border-radius:18px;transition:border-color .15s,box-shadow .15s}
+.job:hover{border-color:color-mix(in srgb,var(--accent2) 60%,var(--edge));
+  box-shadow:0 0 44px -16px rgba(124,92,255,.7)}
 .job.done{opacity:.62}
-.fit{font-weight:700;font-size:20px;text-align:center;padding:8px 0;border-radius:9px;
-  background:var(--bg);border:1px solid var(--line)}
-.fit.g{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,var(--line))}
-.fit.m{color:var(--mid);border-color:color-mix(in srgb,var(--mid) 45%,var(--line))}
-.fit.b{color:var(--bad)}
+.fit{font-weight:700;font-size:21px;text-align:center;padding:9px 0;border-radius:14px;
+  background:color-mix(in srgb,var(--fg) 5%,transparent);border:1px solid var(--edge)}
+.fit.g{color:var(--good);border-color:color-mix(in srgb,var(--good) 55%,var(--edge));
+  background:color-mix(in srgb,var(--good) 10%,transparent)}
+.fit.m{color:var(--mid);border-color:color-mix(in srgb,var(--mid) 55%,var(--edge));
+  background:color-mix(in srgb,var(--mid) 9%,transparent)}
+.fit.b{color:var(--bad);background:color-mix(in srgb,var(--bad) 8%,transparent)}
 .pick{display:block;text-align:center;margin-top:8px}
 .pick input{width:auto;cursor:pointer;transform:scale(1.15)}
 .title{color:var(--fg);font-weight:600;font-size:15.5px;text-decoration:none}
@@ -94,10 +155,11 @@
 .gaps{margin-top:5px;font-size:12.5px;color:var(--dim)}
 .more{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);
   display:flex;gap:4px;flex-wrap:wrap;align-items:center}
-.more button,.more a{font-size:12.5px;padding:5px 10px;background:var(--bg);
-  border:1px solid var(--line);color:var(--fg);cursor:pointer;border-radius:6px;
-  text-decoration:none;line-height:1.55;display:inline-block}
-.more button:hover,.more a:hover{background:var(--line);border-color:var(--accent)}
+.more button,.more a{font-size:12.5px;padding:6px 12px;background:color-mix(in srgb,var(--fg) 4%,transparent);
+  border:1px solid var(--edge);color:var(--fg);cursor:pointer;border-radius:10px;font-weight:500;
+  text-decoration:none;line-height:1.55;display:inline-block;box-shadow:none}
+.more button:hover,.more a:hover{background:color-mix(in srgb,var(--accent) 16%,transparent);
+  border-color:var(--accent);filter:none;box-shadow:none}
 .more .cv{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
 .more .danger{color:var(--dim)}
 .more .danger:hover{color:var(--bad);border-color:var(--bad)}
@@ -113,8 +175,8 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
   border-radius:8px}
 
 /* ---- batch bar ---- */
-#picked{display:none;position:sticky;top:60px;z-index:5;
-  border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
+#picked{display:none;position:sticky;top:76px;z-index:5;background:var(--card-solid);
+  border-color:color-mix(in srgb,var(--accent) 55%,var(--edge))}
 .warn{color:var(--mid)}
 
 /* ---- scheduled run ---- */
@@ -139,12 +201,12 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 .pager{display:flex;gap:6px;justify-content:center;align-items:center;margin:14px 0 4px;
   flex-wrap:wrap}
 .pager button{min-width:34px;padding:6px 10px}
-.pager button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pager button.on{background:var(--btn);color:#fff;border-color:transparent}
 .applied-when{font-size:12.5px;color:var(--good)}
 
 /* ---- CV template picker ---- */
 .tpls{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
-.tpl{flex:0 0 150px;cursor:pointer;border:2px solid var(--line);border-radius:10px;padding:8px;
+.tpl{flex:0 0 150px;cursor:pointer;border:2px solid var(--edge);border-radius:14px;padding:8px;
   background:var(--bg);text-align:center;transition:border-color .12s}
 .tpl:hover{border-color:var(--dim)}
 .tpl.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--bg))}
@@ -154,18 +216,19 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 .tpl span{display:block;font-size:11.5px;color:var(--dim);line-height:1.3;margin-top:2px}
 
 /* ---- modal ---- */
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;display:none;
-  align-items:center;justify-content:center;padding:16px}
+.modal{position:fixed;inset:0;background:rgba(3,3,24,.72);-webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(6px);z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
 .modal.open{display:flex}
-.modal .box{background:var(--card);border:1px solid var(--line);border-radius:12px;
-  padding:18px 20px;max-width:720px;width:100%;max-height:90vh;overflow:auto}
+.modal .box{background:var(--card-solid);border:1px solid var(--edge);border-radius:20px;
+  padding:22px 24px;max-width:720px;width:100%;max-height:90vh;overflow:auto;box-shadow:var(--glow)}
 .modal h3{margin:0 0 4px;font-size:16px}
 .modal .foot{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
 .modal .foot .gap{flex:1}
 .keylink{font-size:12.5px;margin-top:4px;display:block}
 
+@media(max-width:1180px){.stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:700px){
-  .stat{min-width:calc(50% - 5px)}        /* 2x2 rather than 3 then a lonely 1 */
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}     /* 2 across rather than 3 then a lonely 1 */
   .job{grid-template-columns:48px 1fr;padding:12px}
   .primary{grid-column:1/-1;width:100%}
   .viewbar select{flex:1 1 140px}
@@ -769,7 +832,7 @@ details.desc pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--di
 <!-- filled by #pickthree. Hidden until there is something to say, because an empty panel
      promising advice is worse than no panel. -->
 <div id="today" style="display:none"></div>
-<div id="list"></div>
+<div id="list"><div class="skel" style="--h:150px"></div><div class="skel" style="--h:150px"></div><div class="skel" style="--h:150px"></div></div>
 <div class="pager" id="pager"></div>
 {% endblock %}
 
@@ -2190,7 +2253,10 @@ function capChips(id){
   btn.style.display = '';
   btn.textContent = open ? t('Show fewer')
                          : fill('Show {n} more', {n: hidden.length});
-  wrap.style.maxHeight = open ? '' : (row * CHIP_ROWS) + 'px';
+  // N rows have N-1 gaps between them. The row height here includes one gap, so the plain product
+  // let six pixels of the next row show under the last - invisible on the old near-black chips,
+  // plain on the new ones with a visible border.
+  wrap.style.maxHeight = open ? '' : (row * CHIP_ROWS - 6) + 'px';
 }
 
 // A typo is not a cosmetic problem here: eJobs and Hipo return nothing at all for one, while
@@ -3062,7 +3128,7 @@ function drawAlerts(){
     `<div class="alert ${kind === 'warn' ? 'warn' : ''}">
        <span class="ico">${kind === 'warn' ? '&#9888;' : '&#9888;'}</span>
        <span class="body"><b>${esc(title)}</b><span class="muted">${esc(why)}</span></span>
-       <a class="act" href="#" data-alert="${i}">${esc(label)} &rsaquo;</a></div>`).join('');
+       <a class="act" href="#" data-alert="${i}">${esc(label)}</a></div>`).join('');
   box.onclick = e => { const i = e.target.closest('[data-alert]');
     if(i){ e.preventDefault(); out[+i.dataset.alert][4](); } };
 }
@@ -3129,7 +3195,11 @@ document.addEventListener('change', e => {
 
 $('#pager').addEventListener('click', e => {
   const b = e.target.closest('[data-page]'); if(!b || b.disabled) return;
-  PAGE = +b.dataset.page; draw(); window.scrollTo({top: $('#list').offsetTop - 80, behavior: 'smooth'});
+  const L = $('#list'), keep = L.offsetHeight, y = scrollY;
+  // pin the list's height and the scroll position while the new page is drawn, so nothing snaps
+  L.style.minHeight = keep + 'px'; PAGE = +b.dataset.page; draw(); scrollTo(0, y); L.classList.remove('fade'); void L.offsetWidth; L.classList.add('fade');
+  // a page that is shorter than the last one lets go of the height once the redraw is done
+  requestAnimationFrame(() => { L.style.minHeight = ''; });
 });
 $('#stats').addEventListener('keydown', e => {
   if((e.key === 'Enter' || e.key === ' ') && e.target.closest('.stat')){ e.preventDefault(); e.target.click(); }

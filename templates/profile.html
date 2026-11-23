@@ -1,21 +1,173 @@
 {% extends "base.html" %}{% set page='profile' %}
 {% block title %}Profile · jobhunter{% endblock %}
 {% block css %}
-.entry{border:1px solid var(--line);border-radius:8px;padding:12px;margin:8px 0;position:relative}
+.entry{border:1px solid var(--edge);border-radius:14px;padding:16px;margin:10px 0;position:relative;
+  background:color-mix(in srgb,var(--fg) 3%,transparent)}
 /* a full-size button does not fit a 12px corner: at 1280px it was 46x43 and hung 10px over the
    first field. Size it to the glyph and it sits in the padding band where it belongs. */
 .entry .del{position:absolute;top:6px;right:6px;padding:0;width:26px;height:26px;
   display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1}
 .lang{display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
 .lang:last-child{border-bottom:0}
-.lang input{flex:2;min-width:120px} .lang select{flex:1;min-width:120px}
+.lang input{flex:2;min-width:90px} .lang select{flex:1;min-width:90px}
 .lang button{flex:0 0 auto;padding:6px 10px}
-.sug{border-left:3px solid var(--accent);padding:10px 12px;margin:8px 0;background:var(--card);border-radius:0 8px 8px 0}
+.sug{border-left:3px solid var(--accent);padding:12px 14px;margin:10px 0;background:var(--card);border-radius:0 12px 12px 0}
 .sug .val{white-space:pre-wrap;font-size:14px;margin:6px 0;padding:8px;background:var(--bg);border-radius:6px}
-.bar{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:12px 0;display:flex;gap:10px;align-items:center}
+/* The page's actions, level with its title: the saved-state, the interface language, Save. It used to be
+   a card that floated over the form and covered whatever was under it. Save is secondary anyway - the
+   page saves itself a moment after you stop typing - and a FAILED save raises a toast, so the state is
+   never hidden by scrolling. */
+.pagehead{flex-wrap:wrap}
+.bar{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
+.bar #save{white-space:nowrap;padding:10px 22px}
+.bar .pick{display:flex;align-items:center;gap:9px;margin:0;font-size:11.5px}
+.bar .pick select{width:auto;padding:7px 34px 7px 12px;border-radius:99px;font-size:13.5px;
+  text-transform:none;letter-spacing:0;font-weight:500;color:var(--fg)}
+.bar #saved{font-size:12.5px;min-width:5ch}
+@media(max-width:760px){.bar{margin-left:0;width:100%;justify-content:flex-start}}
+
+/* ---- a section is one card with its heading inside it ---- */
+.sect{padding:22px 24px;border-radius:20px}
+.sechead{display:flex;align-items:center;gap:12px;margin:0 0 16px}
+.sechead h2.sec{margin:0}
+.sechead .act{margin-left:auto;flex:0 0 auto;padding:8px 18px;font-size:13.5px}
+.sect>.muted:first-of-type{margin-top:-4px}
+.sect.upload{background:linear-gradient(120deg,color-mix(in srgb,var(--accent2) 20%,var(--card)),var(--card) 70%)}
+.sect.danger{border-color:color-mix(in srgb,var(--bad) 45%,var(--edge));
+  background:linear-gradient(120deg,color-mix(in srgb,var(--bad) 9%,var(--card)),var(--card) 70%)}
+.sect.danger h2.sec::before{background:var(--g) center/18px no-repeat,linear-gradient(135deg,#f87171,#b91c1c);
+  box-shadow:0 8px 20px -10px #ef4444}
+.sect.danger #purge{background:linear-gradient(135deg,#ef4444,#b91c1c);box-shadow:0 8px 24px -10px #ef4444}
+
+/* ---- fields on a six-column grid, so a form can be shaped instead of stacked ---- */
+.fg{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px 16px}
+.fg>.s2{grid-column:span 2} .fg>.s3{grid-column:span 3} .fg>.s6{grid-column:1/-1}
+.fg label{margin:0 0 6px}
+#f_summary{min-height:120px}
+.fg+.fg{margin-top:14px}
+@media(max-width:760px){.fg>*{grid-column:1/-1 !important}}
+
+/* the "I am new to the workforce" box is a decision with consequences, so it reads as one */
+.callout{display:flex;gap:12px;align-items:flex-start;margin:18px 0 0;padding:14px 16px;cursor:pointer;
+  border-radius:14px;border:1px dashed var(--edge);font-size:13.5px;line-height:1.5;
+  text-transform:none;letter-spacing:0;font-weight:400;color:var(--dim);
+  background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.callout b{color:var(--fg)}
+.callout input{width:auto;margin-top:3px;flex:0 0 auto}
+
+/* ---- one role / study / project: its fields laid out as the sentence they are ---- */
+.entry{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px 14px;padding:18px 18px 16px}
+.entry .ef{min-width:0}
+.entry .ef label{margin:0 0 6px}
+.ef-role,.ef-company,.ef-degree,.ef-school{grid-column:span 3}
+.ef-location,.ef-start,.ef-end{grid-column:span 2}
+.entry[data-kind=education] .ef-start,.entry[data-kind=education] .ef-end{grid-column:span 3}
+.ef-bullets,.ef-desc,.ef-name,.ef-link{grid-column:1/-1}
+@media(max-width:760px){.entry .ef{grid-column:1/-1 !important}}
+.entry+.entry{margin-top:12px}
+.empty{margin:0;padding:18px;text-align:center;border-radius:14px;border:1px dashed var(--edge)}
+
+/* a thin scrollbar in the colour of the card, not the browser's bright default */
+.cvpaper{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--accent2) 55%,transparent) transparent}
+.cvpaper::-webkit-scrollbar{width:8px}
+.cvpaper::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--accent2) 55%,transparent);border-radius:99px}
+.cvpaper::-webkit-scrollbar-track{background:transparent}
+h2.sec[data-ico=doc]{--g:var(--w-doc)} h2.sec[data-ico=alert]{--g:var(--w-alert)}
+h2.sec[data-ico=refresh]{--g:var(--w-refresh)}
+
+/* ---- two columns: the form, and the CV it makes. Below 1180px the preview steps aside - the form
+   is the page, and a preview stacked under thirty fields is a preview nobody scrolls to. ---- */
+.profgrid{display:grid;grid-template-columns:minmax(0,1fr) 410px;gap:28px;align-items:start}
+.profmain{min-width:0}
+.cvside{position:sticky;top:84px}
+@media(max-width:1180px){.profgrid{grid-template-columns:minmax(0,1fr)}.cvside{display:none}}
+
+/* ---- section headings: the same words, with an icon tile in front ---- */
+h2.sec{display:flex;align-items:center;gap:12px;margin:28px 0 10px;font-size:17px;font-weight:700;
+  text-transform:none;letter-spacing:0;color:var(--fg)}
+h2.sec::before{content:"";width:34px;height:34px;flex:0 0 auto;border-radius:10px;
+  background:var(--g) center/18px no-repeat,linear-gradient(135deg,#7c5cff,#4f46e5);
+  box-shadow:0 8px 20px -10px #7c5cff}
+h2.sec[data-ico=user]{--g:var(--w-user)} h2.sec[data-ico=case]{--g:var(--w-case)}
+h2.sec[data-ico=cap]{--g:var(--w-cap)} h2.sec[data-ico=folder]{--g:var(--w-folder)}
+h2.sec[data-ico=spark]{--g:var(--w-spark)} h2.sec[data-ico=chat]{--g:var(--w-chat)}
+h2.sec[data-ico=globe]{--g:var(--w-globe)}
+
+/* ---- an icon inside each of the first fields ---- */
+#f_name,#f_title,#f_email,#f_phone,#f_location{padding-left:44px;background-repeat:no-repeat;
+  background-position:14px center;background-size:18px}
+#f_name{background-image:var(--f-user)} #f_title{background-image:var(--f-case)}
+#f_email{background-image:var(--f-mail)} #f_phone{background-image:var(--f-phone)}
+#f_location{background-image:var(--f-pin)}
+
+/* ---- the CV preview. Dark by default, like the page; Light is the paper it will be printed on. ---- */
+.cvprev{--pfg:var(--fg);--pdim:var(--dim);border:1px solid var(--edge);border-radius:20px;padding:16px;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--accent2) 16%,var(--card)),var(--card));
+  box-shadow:var(--glow)}
+.cvprev-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 12px}
+.cvprev-title{display:inline-flex;align-items:center;gap:10px;font-weight:700;font-size:16px}
+.cvprev-title::before{content:"";width:19px;height:19px;background:currentColor;
+  -webkit-mask:var(--i-eye) center/contain no-repeat;mask:var(--i-eye) center/contain no-repeat}
+.seg{display:inline-flex;padding:3px;border-radius:99px;border:1px solid var(--edge);background:var(--field)}
+.seg button{background:none;box-shadow:none;border-radius:99px;padding:5px 14px;font-size:12.5px;
+  font-weight:500;color:var(--dim)}
+.seg button.on{background:var(--btn);color:#fff;box-shadow:0 4px 14px -6px rgba(99,102,241,.9)}
+.seg button:hover:not(.on){filter:none;color:var(--fg);box-shadow:none}
+.cvpaper{max-height:calc(100vh - 215px);overflow:auto;border-radius:16px;padding:20px;font-size:13px;
+  line-height:1.5;background:color-mix(in srgb,var(--bg) 70%,transparent);border:1px solid var(--edge)}
+.cvprev.paper .cvpaper{background:#fff;border-color:#e2dffa;--pfg:#1c1b3a;--pdim:#5c5c85}
+.pvtop{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.pvav{width:60px;height:60px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;
+  font-weight:700;font-size:20px;color:var(--pfg);border:3px solid transparent;
+  background:linear-gradient(var(--card-solid),var(--card-solid)) padding-box,
+    linear-gradient(135deg,#a78bfa,#4f6bff) border-box}
+.cvprev.paper .pvav{background:linear-gradient(#fff,#fff) padding-box,linear-gradient(135deg,#a78bfa,#4f6bff) border-box}
+.pvname{margin:0;font-size:17px;font-weight:700;color:var(--pfg);overflow-wrap:anywhere}
+.pvtitle{font-size:13px;color:var(--accent2);font-weight:500;overflow-wrap:anywhere}
+.cvprev.paper .pvtitle{color:#6d4fe0}
+.pvcontact{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--pdim);padding-bottom:12px;
+  margin-bottom:4px;border-bottom:1px solid color-mix(in srgb,var(--accent2) 45%,transparent)}
+.pvc{display:inline-flex;align-items:center;gap:6px;overflow-wrap:anywhere}
+.pvm{width:13px;height:13px;flex:0 0 auto;background:currentColor;
+  -webkit-mask:var(--ico) center/contain no-repeat;mask:var(--ico) center/contain no-repeat}
+.pvm-mail{--ico:var(--i-mail)} .pvm-phone{--ico:var(--i-phone)} .pvm-pin{--ico:var(--i-pin)}
+.pvm-link{--ico:var(--i-link)}
+.pvh{display:flex;align-items:center;gap:9px;margin:16px 0 8px;font-size:14px;font-weight:700;color:var(--pfg)}
+.pvt{width:26px;height:26px;border-radius:8px;flex:0 0 auto;
+  background:var(--g) center/15px no-repeat,linear-gradient(135deg,#7c5cff,#4f46e5)}
+.pvt-summary{--g:var(--w-user)} .pvt-experience{--g:var(--w-case)} .pvt-education{--g:var(--w-cap)}
+.pvt-projects{--g:var(--w-folder)} .pvt-skills{--g:var(--w-spark)} .pvt-languages{--g:var(--w-globe)}
+.cvpaper p{margin:0;color:color-mix(in srgb,var(--pfg) 80%,transparent);overflow-wrap:anywhere}
+.pve{margin:0 0 10px}
+.pvrow{display:flex;justify-content:space-between;gap:10px;color:var(--pfg)} .pvrow b{font-weight:600}
+.pvd{color:var(--pdim);font-size:12px;white-space:nowrap} .pvsub{color:var(--pdim);font-size:12px}
+.cvpaper ul{margin:5px 0 0;padding-left:18px;color:var(--pdim)} .cvpaper li{margin:2px 0;overflow-wrap:anywhere}
+.pvchips{display:flex;flex-wrap:wrap;gap:6px}
+.pvchip{padding:3px 11px;border-radius:99px;font-size:12px;color:var(--pfg);border:1px solid var(--edge);
+  background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.cvprev.paper .pvchip{background:#f1eeff;border-color:#d9d3fb}
+.pvempty{color:var(--pdim);text-align:center;padding:36px 10px}
+.cvnote{margin:10px 4px 0;font-size:12px}
 {% endblock %}
 
 {% block body %}
+<div class="pagehead">
+  <span class="tile" aria-hidden="true"></span>
+  <div>
+    <h1>Your profile</h1>
+    <p class="muted">Every job score and every tailored CV is built from what you write here.</p>
+  </div>
+  <div class="bar">
+    <span class="muted" id="saved"></span>
+    <label class="muted pick">Interface language
+      <select id="ui_lang_p"
+              title="The language of this page and the dashboard. The CV has its own setting further up.">
+        <option value="en">English</option><option value="ro">Română</option>
+      </select>
+    </label>
+    <button id="save">Save profile</button>
+  </div>
+</div>
 <div class="card" id="nomodel" style="display:none;
   border-color:color-mix(in srgb,var(--mid) 55%,var(--line));
   background:color-mix(in srgb,var(--mid) 8%,transparent)">
@@ -26,8 +178,11 @@
     free. You can still fill this page in by hand without one.</p>
 </div>
 
-<div class="card">
-  <b>Start from an existing CV</b>
+<div class="profgrid">
+<div class="profmain">
+
+<section class="card sect upload">
+  <div class="sechead"><h2 class="sec" data-ico="doc">Start from an existing CV</h2></div>
   <p class="muted">Upload a PDF/DOCX/TXT and the profile below is filled in automatically. Nothing is invented — blanks stay blank.</p>
   <div class="row">
     <input type="file" id="file" accept=".pdf,.docx,.txt">
@@ -37,54 +192,62 @@
     <textarea id="paste" placeholder="Paste your CV here..."></textarea>
     <button id="pasteBtn" class="ghost" style="margin-top:6px">Parse pasted text</button>
   </details>
-</div>
+</section>
 
-<h2>Basics</h2>
-<div class="card row">
-  <div><label for="f_name">Full name</label><input data-f="name" id="f_name"></div>
-  <div><label for="f_title">Headline / target role</label><input data-f="title" id="f_title"></div>
-</div>
-<div class="card row">
-  <div><label for="f_email">Email</label><input data-f="email" id="f_email"></div>
-  <div><label for="f_phone">Phone</label><input data-f="phone" id="f_phone"></div>
-  <div><label for="f_location">Location</label><input data-f="location" id="f_location"></div>
-</div>
-<div class="card">
-  <label for="chip_links">Links</label><div class="chips" id="c_links"></div>
-  <label for="f_summary">Summary</label><textarea data-f="summary" id="f_summary"></textarea>
-</div>
+<section class="card sect">
+  <div class="sechead"><h2 class="sec" data-ico="user">Basics</h2></div>
+  <div class="fg">
+    <div class="s3"><label for="f_name">Full name</label><input data-f="name" id="f_name"></div>
+    <div class="s3"><label for="f_title">Headline / target role</label><input data-f="title" id="f_title"></div>
+    <div class="s2"><label for="f_email">Email</label><input data-f="email" id="f_email"></div>
+    <div class="s2"><label for="f_phone">Phone</label><input data-f="phone" id="f_phone"></div>
+    <div class="s2"><label for="f_location">Location</label><input data-f="location" id="f_location"></div>
+    <div class="s6"><label for="chip_links">Links</label><div class="chips" id="c_links"></div></div>
+    <div class="s6"><label for="f_summary">Summary</label><textarea data-f="summary" id="f_summary"></textarea></div>
+  </div>
+  <label class="callout">
+    <input type="checkbox" data-f="new_to_work" id="f_new_to_work">
+    <span><b>I am new to the workforce — no paid job yet.</b> Scoring stops treating "no
+      experience" as a fault on every ad and looks at what an employer hiring a beginner actually
+      checks: your studies, a licence, languages, and whether the job trains you. Fill in
+      Education and Projects below — a summer job or volunteering goes under Experience.</span>
+  </label>
+</section>
 
-<label class="muted" style="display:flex;gap:8px;align-items:flex-start;margin:18px 0 0;
-       font-size:13.5px;cursor:pointer;max-width:70ch">
-  <input type="checkbox" data-f="new_to_work" id="f_new_to_work" style="width:auto;margin-top:3px">
-  <span><b>I am new to the workforce — no paid job yet.</b> Scoring stops treating "no
-    experience" as a fault on every ad and looks at what an employer hiring a beginner actually
-    checks: your studies, a licence, languages, and whether the job trains you. Fill in
-    Education and Projects below — a summer job or volunteering goes under Experience.</span>
-</label>
-<h2>Experience</h2><div id="experience"></div>
-<button class="ghost" data-add="experience">+ Add role</button>
+<section class="card sect">
+  <div class="sechead"><h2 class="sec" data-ico="case">Experience</h2>
+    <button class="ghost act" data-add="experience">+ Add role</button></div>
+  <div id="experience"></div>
+</section>
 
-<h2>Education</h2><div id="education"></div>
-<button class="ghost" data-add="education">+ Add education</button>
+<section class="card sect">
+  <div class="sechead"><h2 class="sec" data-ico="cap">Education</h2>
+    <button class="ghost act" data-add="education">+ Add education</button></div>
+  <div id="education"></div>
+</section>
 
-<h2>Projects</h2><div id="projects"></div>
-<button class="ghost" data-add="projects">+ Add project</button>
+<section class="card sect">
+  <div class="sechead"><h2 class="sec" data-ico="folder">Projects</h2>
+    <button class="ghost act" data-add="projects">+ Add project</button></div>
+  <div id="projects"></div>
+</section>
 
-<h2>Skills &amp; more</h2>
-<div class="card">
-  <label for="chip_skills">Skills</label><div class="chips" id="c_skills"></div>
-  <label for="chip_certifications">Certifications</label><div class="chips" id="c_certifications"></div>
-  <label for="chip_hobbies">Interests / hobbies</label><div class="chips" id="c_hobbies"></div>
-</div>
+<section class="card sect">
+  <div class="sechead"><h2 class="sec" data-ico="spark">Skills &amp; more</h2></div>
+  <div class="fg">
+    <div class="s6"><label for="chip_skills">Skills</label><div class="chips" id="c_skills"></div></div>
+    <div class="s3"><label for="chip_certifications">Certifications</label><div class="chips" id="c_certifications"></div></div>
+    <div class="s3"><label for="chip_hobbies">Interests / hobbies</label><div class="chips" id="c_hobbies"></div></div>
+  </div>
+</section>
 
-<h2>Application answers</h2>
-<div class="card">
+<section class="card sect">
+  <div class="sechead"><h2 class="sec" data-ico="chat">Application answers</h2></div>
   <p class="muted">Employers on eJobs often attach a short "mini interviu" before your application
     goes through. These are the questions no CV answers, so the app fills them with exactly what
     you write here and leaves them blank if you do not. It never invents a figure.</p>
-  <div class="row">
-    <div><label for="f_salary_expectation">Salary expectation</label>
+  <div class="fg">
+    <div class="s3"><label for="f_salary_expectation">Salary expectation</label>
       <div style="display:flex;gap:6px">
         <input data-f="salary_expectation" id="f_salary_expectation" placeholder="e.g. 5500 net / month" style="flex:1">
         <select id="salary_currency" style="flex:0 0 auto;width:auto"
@@ -95,44 +258,43 @@
           <option value="RON">RON (lei)</option>
         </select>
       </div></div>
-    <div><label for="f_notice_period">Notice period</label>
+    <div class="s3"><label for="f_notice_period">Notice period</label>
       <input data-f="notice_period" id="f_notice_period" placeholder="e.g. 30 days"></div>
-    <div><label for="f_work_weekends">Can work weekends</label>
+    <div class="s2"><label for="f_work_weekends">Can work weekends</label>
       <select data-f="work_weekends" id="f_work_weekends"
         title="Only used where a posting actually asks. Leave it blank and nothing is claimed either way.">
         <option value="">not stated</option>
         <option value="yes">yes</option>
         <option value="no">no</option></select></div>
-    <div><label for="f_work_shifts">Can work shifts or nights</label>
+    <div class="s2"><label for="f_work_shifts">Can work shifts or nights</label>
       <select data-f="work_shifts" id="f_work_shifts"
         title="Only used where a posting actually asks. Leave it blank and nothing is claimed either way.">
         <option value="">not stated</option>
         <option value="yes">yes</option>
         <option value="no">no</option></select></div>
-    <div><label for="f_earliest_start">Earliest start</label>
+    <div class="s2"><label for="f_earliest_start">Earliest start</label>
       <input data-f="earliest_start" id="f_earliest_start" placeholder="e.g. immediately"></div>
   </div>
-</div>
+</section>
 
-<h2>Languages</h2>
-<div class="card">
+<section class="card sect">
+  <div class="sechead"><h2 class="sec" data-ico="globe">Languages</h2>
+    <button class="ghost act" id="addlang">+ Add language</button></div>
   <div id="langs"></div>
-  <button class="ghost" id="addlang" style="margin-top:8px">+ Add language</button>
-</div>
+</section>
 
-<h2>AI review</h2>
-<div class="card">
+<section class="card sect">
+  <div class="sechead"><h2 class="sec" data-ico="spark">AI review</h2></div>
   <button id="sug">Suggest improvements</button>
   <span class="muted">The model reviews what you wrote and proposes rewrites. Accept the ones you like.</span>
   <div id="sugs"></div>
-</div>
+</section>
 
-
-<b style="display:block;margin-top:18px">Photo</b>
-<div class="card">
+<section class="card sect">
+  <div class="sechead"><h2 class="sec" data-ico="user">Photo</h2></div>
   <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
     <img id="photoimg" alt="" style="display:none;width:88px;height:110px;object-fit:cover;
-      border:1px solid var(--line);border-radius:4px;background:var(--bg)">
+      border:1px solid var(--edge);border-radius:12px;background:var(--bg)">
     <div style="flex:1;min-width:240px">
       <div class="row" style="margin:0">
         <div style="flex:1"><input type="file" id="photofile" accept="image/jpeg,image/png"></div>
@@ -148,51 +310,55 @@
         <b>European</b> is the template built around one.</p>
     </div>
   </div>
-</div>
+</section>
 
-<b style="display:block;margin-top:18px">Download my CV</b>
-<div class="card">
+<section class="card sect">
+  <div class="sechead"><h2 class="sec" data-ico="doc">Download my CV</h2></div>
   <p class="muted" style="margin:0 0 10px">Your profile as it stands, in whichever style you
     want — nothing is tailored to a job and no AI is used, so it is instant. The tailored ones
     are written per posting, from the job list.</p>
   <!-- "Language" alone reads as the language of the APP, which is a different setting and
-       lives in the bar at the top of this page. -->
+       lives at the top of this page. -->
   <div class="small" style="max-width:210px;margin-bottom:12px"><label for="cvlang">Language of the CV</label>
     <select id="cvlang" title="Which language the downloaded PDF is written in. The language of this page is the switch at the top.">
       <option value="en">English</option>
       <option value="ro">Română</option></select></div>
   <div id="cvbuttons" style="display:flex;gap:10px;flex-wrap:wrap"></div>
   <p class="muted" id="cvphotonote" style="margin:12px 0 0"></p>
-</div>
+</section>
 
-<b style="display:block;margin-top:18px">Erase everything</b>
-<div class="card" style="border-color:color-mix(in srgb,var(--bad) 45%,var(--line))">
+<section class="card sect">
+  <div class="sechead"><h2 class="sec" data-ico="refresh">Go back one step</h2></div>
+  <p class="muted" style="margin:0 0 10px">Every save keeps the copy it replaced. If an upload
+    read your CV badly, or you deleted something you wanted, this puts that copy back. One step
+    only — it is the profile as it was immediately before the most recent save.</p>
+  <button id="restore" class="ghost">Restore the previous copy</button>
+</section>
+
+<section class="card sect danger">
+  <div class="sechead"><h2 class="sec" data-ico="alert">Erase everything</h2></div>
   <p class="muted" style="margin:0 0 10px">Deletes everything this app holds about you — your
     profile and photo, every job it found and scored, your applied history, the CVs it wrote,
     the board sign-ins, your settings and the schedule. It cannot be undone, and it does
     not touch anything on eJobs, BestJobs or Hipo: applications you have already sent stay sent.</p>
   <button id="purge" style="background:var(--bad)">Erase all my data</button>
   <p id="purgefailed" class="warn" style="display:none;margin:10px 0 0"></p>
-</div>
+</section>
+</div><!-- /profmain -->
 
-<div class="card">
-  <h2 style="margin-top:0">Go back one step</h2>
-  <p class="muted" style="margin:0 0 10px">Every save keeps the copy it replaced. If an upload
-    read your CV badly, or you deleted something you wanted, this puts that copy back. One step
-    only — it is the profile as it was immediately before the most recent save.</p>
-  <button id="restore" class="ghost">Restore the previous copy</button>
-</div>
-
-<div class="bar"><button id="save">Save profile</button><span class="muted" id="saved"></span>
-  <span style="flex:1"></span>
-  <label class="muted" style="display:flex;align-items:center;gap:7px;font-size:13px">
-    Interface language
-    <select id="ui_lang_p" style="width:auto;padding:5px 8px"
-            title="The language of this page and the dashboard. The CV has its own setting further up.">
-      <option value="en">English</option><option value="ro">Română</option>
-    </select>
-  </label>
-</div>
+<aside class="cvside" aria-label="CV preview">
+  <div class="cvprev" id="cvprev">
+    <div class="cvprev-head">
+      <span class="cvprev-title">CV preview</span>
+      <span class="seg" role="group" aria-label="Preview colours">
+        <button type="button" data-pv="dark" aria-pressed="true" class="on">Dark</button><button type="button" data-pv="light" aria-pressed="false">Light</button>
+      </span>
+    </div>
+    <div class="cvpaper" id="cvpaper"></div>
+    <p class="muted cvnote">Updates as you type. Your tailored CVs use the template you choose on the dashboard.</p>
+  </div>
+</aside>
+</div><!-- /profgrid -->
 {% endblock %}
 
 {% block js %}
@@ -213,14 +379,16 @@ function esc(s){ return String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&
 
 function renderList(key){
   const box = $('#'+key);
-  box.innerHTML = (P[key]||[]).map((item,i) => `<div class="entry" data-i="${i}">
+  // Each field sits in a wrapper that names it, so the stylesheet can lay a role out as the sentence it
+  // is - title beside employer, then place / from / until - instead of six full-width rows.
+  box.innerHTML = (P[key]||[]).map((item,i) => `<div class="entry" data-i="${i}" data-kind="${key}">
     <button class="ghost del" data-del="${key}" data-idx="${i}">✕</button>
-    ${FIELDS[key].map(f => f==='bullets'
+    ${FIELDS[key].map(f => `<div class="ef ef-${f}">` + (f==='bullets'
       ? `<label for="chip_${key}.${i}.${f}">What you did</label><div class="chips" id="c_${key}.${i}.${f}"></div>`
       : f==='desc'
       ? `<label for="e_${key}.${i}.${f}">${lab(f)}</label><textarea id="e_${key}.${i}.${f}" data-e="${key}.${i}.${f}">${esc(item[f])}</textarea>`
-      : `<label for="e_${key}.${i}.${f}">${lab(f)}</label><input id="e_${key}.${i}.${f}" data-e="${key}.${i}.${f}" value="${esc(item[f])}">`).join('')}
-  </div>`).join('') || '<p class="muted">Nothing yet.</p>';
+      : `<label for="e_${key}.${i}.${f}">${lab(f)}</label><input id="e_${key}.${i}.${f}" data-e="${key}.${i}.${f}" value="${esc(item[f])}">`) + `</div>`).join('')}
+  </div>`).join('') || '<p class="muted empty">Nothing yet.</p>';
   if(key === 'experience') (P.experience||[]).forEach((_,i) => renderChips(`experience.${i}.bullets`));
   localiseDOM(box);        // built with innerHTML, so the server's pass never saw it
 }
@@ -311,6 +479,7 @@ function render(){
   CHIPS.forEach(renderChips);
   renderLangs();
   fillFlags();
+  drawPreview();
 }
 
 // and back the other way, or a reload always shows it unticked
@@ -356,6 +525,9 @@ function mark(state, when){
     : state === 'failed' ? t('could not save - press Save profile')
     : t('saved') + ' ' + hhmm(when || new Date());
   el.style.color = state === 'failed' ? 'var(--bad)' : '';
+  // The status sits at the top of the page now, and a save that failed while you were scrolled down the
+  // form would otherwise fail where nobody is looking.
+  if(state === 'failed') toast('could not save - press Save profile', 9000);
 }
 
 // Everything that changes P without touching a [data-f]/[data-e] field has to say so itself:
@@ -730,6 +902,83 @@ $('#sugs').addEventListener('click', async e => {
 
 // Until this lands, every field on the page is empty because nothing has filled them in yet -
 // which looks identical to a profile with nothing in it. Save stays shut until it arrives.
+/* ---------- the CV preview ----------
+   Read straight from P, the same object the form edits and the autosave writes, so it can never
+   show something the profile does not hold. Every value goes through esc(): a name or a bullet is
+   text somebody typed, and this builds HTML. */
+function pvInitials(name){
+  const w = String(name || '').trim().split(/\s+/).filter(Boolean);
+  const first = w.length ? Array.from(w[0])[0] : '';
+  const last = w.length > 1 ? Array.from(w[w.length - 1])[0] : '';
+  return (first + last).toUpperCase() || '?';
+}
+function drawPreview(){
+  const box = $('#cvpaper'); if(!box) return;
+  const d = P || {};
+  const when = r => [r.start, r.end].filter(Boolean).join(' \u2013 ');
+  const sec = (key, title, body) => body
+    ? `<section><h3 class="pvh"><i class="pvt pvt-${key}"></i>${esc(t(title))}</h3>${body}</section>` : '';
+  const chips = list => list.length
+    ? `<div class="pvchips">${list.map(x => `<span class="pvchip">${esc(x)}</span>`).join('')}</div>` : '';
+  const contact = [['mail', d.email], ['phone', d.phone], ['pin', d.location]].filter(x => x[1])
+    .map(x => `<span class="pvc"><i class="pvm pvm-${x[0]}"></i>${esc(x[1])}</span>`)
+    .concat((d.links || []).map(l => `<span class="pvc"><i class="pvm pvm-link"></i>${esc(
+      String(l).replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</span>`)).join('');
+  const roles = (d.experience || []).filter(r => r.role || r.company).map(r => `<div class="pve">
+      <div class="pvrow"><b>${esc(r.role || '')}</b><span class="pvd">${esc(when(r))}</span></div>
+      <div class="pvsub">${esc([r.company, r.location].filter(Boolean).join(' \u00b7 '))}</div>
+      ${(r.bullets || []).length ? `<ul>${r.bullets.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}
+    </div>`).join('');
+  const studies = (d.education || []).filter(r => r.degree || r.school).map(r => `<div class="pve">
+      <div class="pvrow"><b>${esc(r.degree || '')}</b><span class="pvd">${esc(when(r))}</span></div>
+      <div class="pvsub">${esc(r.school || '')}</div></div>`).join('');
+  const projects = (d.projects || []).filter(r => r.name || r.desc).map(r => `<div class="pve">
+      <div class="pvrow"><b>${esc(r.name || '')}</b></div>
+      ${r.desc ? `<div class="pvsub">${esc(r.desc)}</div>` : ''}</div>`).join('');
+  const langs = (d.languages || []).filter(l => l.name)
+    .map(l => l.name + (l.level ? ' \u2013 ' + l.level : ''));
+  const name = (d.name || '').trim();
+  const body = [
+    sec('summary', 'Professional summary', d.summary ? `<p>${esc(d.summary)}</p>` : ''),
+    sec('experience', 'Experience', roles), sec('education', 'Education', studies),
+    sec('projects', 'Projects', projects),
+    sec('skills', 'Skills', chips([...(d.skills || []), ...(d.certifications || [])])),
+    sec('languages', 'Languages', chips(langs)),
+  ].join('');
+  box.innerHTML = `<div class="pvtop"><span class="pvav">${esc(pvInitials(name))}</span>
+      <div><h3 class="pvname">${esc(name || t('Your name'))}</h3>
+      <div class="pvtitle">${esc(d.title || t('Your target role'))}</div></div></div>
+    ${contact ? `<div class="pvcontact">${contact}</div>` : ''}
+    ${body || `<div class="pvempty">${esc(t('Start typing and your CV appears here.'))}</div>`}`;
+}
+// Whenever P can have changed. collect() is what the autosave already runs, so this adds no new way
+// to read the form; the signature check stops a click that changed nothing from redrawing.
+let _pvTimer, _pvSig = '';
+function queuePreview(){
+  clearTimeout(_pvTimer);
+  _pvTimer = setTimeout(() => {
+    if(!LOADED) return;
+    try { collect(); } catch(e) { return; }
+    const sig = JSON.stringify(P);
+    if(sig !== _pvSig){ _pvSig = sig; drawPreview(); }
+  }, 140);
+}
+['input', 'change', 'click'].forEach(ev => document.addEventListener(ev, queuePreview, true));
+function setPreviewMode(mode){
+  $('#cvprev').classList.toggle('paper', mode === 'light');
+  document.querySelectorAll('[data-pv]').forEach(b => {
+    const on = b.dataset.pv === mode;
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  try { localStorage.setItem('cvPreviewMode', mode); } catch(e) {}      // a convenience, never needed
+}
+document.addEventListener('click', e => {
+  const m = e.target.dataset && e.target.dataset.pv; if(m) setPreviewMode(m);
+});
+let _pvMode = 'dark';
+try { _pvMode = localStorage.getItem('cvPreviewMode') === 'light' ? 'light' : 'dark'; } catch(e) {}
+setPreviewMode(_pvMode);
+
 let LOADED = false;
 api('/api/profile', undefined, 'GET')
   .then(p => { P = p; LOADED = true; render(); })
