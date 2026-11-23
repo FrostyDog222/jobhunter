@@ -228,6 +228,8 @@ DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
             # take new versions from GitHub by itself, between searches. Off until someone says so:
             # real applications go out from this app, and a change should not arrive unseen.
             "auto_update": False,
+            # Pause remembers what was on, so Resume can put it back. Stop ("I found a job") forgets.
+            "paused": False, "resume_auto": False, "resume_keep": False,
             # The language of the buttons and the help text, which is a separate question
             # from the language a CV is written in - plenty of people want the app in
             # Romanian and their CV in English. English until someone says otherwise.
@@ -849,6 +851,103 @@ def _auto_update_loop():
         except Exception as e:
             print(f"[update] could not look for updates: {type(e).__name__}: {e}")
         time.sleep(6 * 3600)
+
+
+# ---------- pause / stop everything ----------
+# Pause: switch the scheduled search and the keep-signed-in timer off, remember what was on, and
+# let Resume put it back. Stop ("I got a job, I'm done"): the same switching off, nothing
+# remembered. Both end a search that is only reading; neither interrupts one that is sending
+# applications - that finishes the one batch it is in, and then nothing more goes out.
+def _search_in_flight():
+    """-> the heartbeat of a live run, or None."""
+    try:
+        d = json.loads((HERE / ".auto_now.json").read_text(encoding="utf-8"))
+        if time.time() - float(d.get("when") or 0) < 20:
+            return d
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
+def _end_running_search():
+    """-> "none", "stopped" or "applying"."""
+    d = _search_in_flight()
+    if not d:
+        return "none"
+    if d.get("applying"):
+        return "applying"
+    try:
+        pid = int(d.get("pid") or 0)
+    except (TypeError, ValueError):
+        return "none"
+    if pid <= 0:
+        return "none"
+    # only ever the run's own process: confirm by its command line that the number is still auto.py
+    _, out, _ = _ps(f"(Get-CimInstance Win32_Process -Filter 'ProcessId={pid}').CommandLine")
+    if "auto.py" not in (out or ""):
+        return "none"
+    subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+    (HERE / ".auto_now.json").unlink(missing_ok=True)
+    return "stopped"
+
+
+def _automation_state():
+    s = settings()
+    d = _search_in_flight()
+    return {"paused": bool(s.get("paused")), "auto": bool(s.get("auto_enabled")),
+            "keep": bool(s.get("keep_signed_in")),
+            "resume_auto": bool(s.get("resume_auto")), "resume_keep": bool(s.get("resume_keep")),
+            "running": bool(d), "applying": bool(d and d.get("applying"))}
+
+
+def _switch_off(remember):
+    with _FILES:
+        cur = settings()
+        if remember:
+            if not cur.get("paused"):                 # a second Pause must not forget what the first saved
+                cur.update(paused=True, resume_auto=bool(cur.get("auto_enabled")),
+                           resume_keep=bool(cur.get("keep_signed_in")))
+        else:
+            cur.update(paused=False, resume_auto=False, resume_keep=False)
+        cur["auto_enabled"] = False
+        cur["keep_signed_in"] = False
+        save_settings_file(cur)
+    problems = [p for p in (schedule(False, cur["auto_days"], cur["auto_time"]), keep_signed_in(False)) if p]
+    return _end_running_search(), problems
+
+
+@app.get("/api/automation")
+def automation_state():
+    return _automation_state()
+
+
+@app.post("/api/automation/pause")
+def automation_pause():
+    run, problems = _switch_off(remember=True)
+    return {**_automation_state(), "search": run, "problems": problems}
+
+
+@app.post("/api/automation/stop")
+def automation_stop():
+    run, problems = _switch_off(remember=False)
+    return {**_automation_state(), "search": run, "problems": problems}
+
+
+@app.post("/api/automation/resume")
+def automation_resume():
+    with _FILES:
+        cur = settings()
+        if not cur.get("paused"):
+            return _automation_state()
+        on, keep = bool(cur.get("resume_auto")), bool(cur.get("resume_keep"))
+        if on and not (cur.get("auto_query") or "").strip():
+            raise HTTPException(400, "Type what the scheduled run should search for, then resume.")
+        cur.update(auto_enabled=on, keep_signed_in=keep, paused=False, resume_auto=False, resume_keep=False)
+        save_settings_file(cur)
+    problems = [p for p in (schedule(on, cur["auto_days"], cur["auto_time"]), keep_signed_in(keep)) if p]
+    if problems:
+        raise HTTPException(400, " ".join(problems))
+    return _automation_state()
 
 
 _RUNNING = []                         # the last process this button started, if it is still alive

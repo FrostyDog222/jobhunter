@@ -7233,6 +7233,47 @@ assert "prefers-reduced-motion:reduce){\n  ::view-transition-group(*)" in _base1
 # Health lists are five to a page
 assert "ISSUES_PER_PAGE = 5" in _tpl12a["health.html"] and "RUNS_PER_PAGE = 5" in _tpl12a["health.html"]
 
+# Pause, Resume and "I got a job": switching things off remembers (or forgets) what was on, ends a
+# search that is only reading, and never touches one that is sending applications. The Windows calls
+# are stubbed - this must never be able to remove the real scheduled tasks.
+_keep_auto, app.SETTINGS = app.SETTINGS, pathlib.Path(_tf.mkdtemp()) / "s.json"
+_calls = []
+_real = (app.schedule, app.keep_signed_in, app._end_running_search)
+app.schedule = lambda on, d, at: (_calls.append(("search", on)), "")[1]
+app.keep_signed_in = lambda on: (_calls.append(("keep", on)), "")[1]
+app._end_running_search = lambda: "none"
+try:
+    app.save_settings_file({**app.DEFAULTS, "auto_enabled": True, "keep_signed_in": True, "auto_query": "x",
+                            "auto_days": ["MON"], "auto_time": "09:00"})
+    _c = _TC(app.app)
+    _r = _c.post("/api/automation/pause").json()
+    assert _r["paused"] and not _r["auto"] and not _r["keep"] and _r["resume_auto"] and _r["resume_keep"], _r
+    assert ("search", False) in _calls and ("keep", False) in _calls
+    # a second Pause must not overwrite what the first one remembered with "nothing was on"
+    assert _c.post("/api/automation/pause").json()["resume_auto"] is True
+    _calls.clear()
+    _r = _c.post("/api/automation/resume").json()
+    assert not _r["paused"] and _r["auto"] and _r["keep"], _r
+    assert ("search", True) in _calls and ("keep", True) in _calls, _calls
+    # "I got a job": off, and nothing is kept to resume to
+    _r = _c.post("/api/automation/stop").json()
+    assert not _r["paused"] and not _r["auto"] and not _r["keep"] and not _r["resume_auto"], _r
+    assert _c.post("/api/automation/resume").json()["auto"] is False      # nothing to put back
+    # a run that is sending applications is left alone; one that only reads is ended
+    app._end_running_search = _real[2]
+    _beat = {"when": __import__("time").time(), "pid": 1, "applying": True}
+    (app.HERE / ".auto_now.json").write_text(json.dumps(_beat), encoding="utf-8")
+    try:
+        assert app._end_running_search() == "applying"
+        _beat["applying"] = False
+        (app.HERE / ".auto_now.json").write_text(json.dumps(_beat), encoding="utf-8")
+        assert app._end_running_search() == "none", "pid 1 is not auto.py, so it must not be killed"
+    finally:
+        (app.HERE / ".auto_now.json").unlink(missing_ok=True)
+finally:
+    app.schedule, app.keep_signed_in, app._end_running_search = _real
+    app.SETTINGS = _keep_auto
+
 # 11b. The note shows where a manual row actually is, and says the thing that costs you.
 #
 # It appeared in the "You apply yourself" filter alone - so the one view it never reached was

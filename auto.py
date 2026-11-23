@@ -49,6 +49,7 @@ KEEP_LINES = 400                       # the log covers the last few runs, not f
 NOW = HERE / ".auto_now.json"
 HEARTBEAT = 2.0
 _LAST_LINE = [""]
+APPLYING = [False]       # true once the run starts sending applications - the point of no easy return
 
 
 def _beat():
@@ -59,6 +60,9 @@ def _beat():
         try:
             p = dict(app.PROGRESS)
             p["when"], p["note"] = time.time(), _LAST_LINE[0]
+            # who to stop, and whether stopping is still harmless: until applications start, a run only
+            # reads boards and writes rows in transactions, so ending it loses nothing
+            p["pid"], p["applying"] = os.getpid(), APPLYING[0]
             tmp = NOW.with_suffix(".tmp")
             tmp.write_text(json.dumps(p), encoding="utf-8")
             os.replace(tmp, NOW)
@@ -269,6 +273,12 @@ def run():
 
     if not s.get("auto_apply"):
         return report
+    # Read again, not the copy from the top: the search takes minutes, and "I got a job" or Pause may
+    # have been pressed in that time. Nothing is sent after the person said stop.
+    if not app.settings().get("auto_enabled"):
+        log("automation was switched off during the search - not applying")
+        return report
+    APPLYING[0] = True
     try:
         report["applied"] = auto_apply.run(app, prefill, s, log)
     except Exception as e:

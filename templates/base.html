@@ -201,6 +201,29 @@ button:disabled .spin{opacity:.9}
   background:linear-gradient(120deg,color-mix(in srgb,#8b5cf6 22%,transparent),color-mix(in srgb,#4f46e5 8%,transparent)),var(--card);
   box-shadow:0 0 28px -10px #7c5cff}
 #updbanner[hidden]{display:none}
+#pausebanner{max-width:1380px;margin:14px auto -10px;width:calc(100% - 56px);box-sizing:border-box;padding:12px 16px;display:flex;
+  align-items:center;gap:14px;flex-wrap:wrap;border-radius:16px;
+  border:1px solid color-mix(in srgb,#f59e0b 60%,var(--edge));
+  background:linear-gradient(120deg,color-mix(in srgb,#f59e0b 20%,transparent),color-mix(in srgb,#f59e0b 5%,transparent)),var(--card);
+  box-shadow:0 0 28px -12px #f59e0b}
+#pausebanner[hidden]{display:none}
+/* a question that must be answered on purpose: Cancel is what is focused, and a risky yes waits a moment */
+#askdlg{border:1px solid var(--edge);border-radius:20px;padding:0;max-width:min(480px,92vw);width:100%;color:var(--fg);
+  background:color-mix(in srgb,var(--bg) 90%,transparent);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+  box-shadow:0 30px 80px -20px rgba(0,0,0,.7)}
+#askdlg::backdrop{background:rgba(2,2,20,.62);backdrop-filter:blur(3px)}
+#askdlg[open]{animation:fadein .2s ease-out both}
+#askdlg .ask{padding:22px 24px}
+#askdlg h2{margin:0 0 10px;font-size:19px;text-transform:none;letter-spacing:0;color:var(--fg)}
+#askdlg p{margin:0 0 10px;font-size:13.5px;line-height:1.5;color:var(--dim)}
+#askdlg p.warn{color:var(--fg);padding:10px 12px;border-radius:12px;border:1px solid color-mix(in srgb,#f59e0b 55%,var(--edge));
+  background:color-mix(in srgb,#f59e0b 12%,transparent)}
+#askdlg .btns{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;flex-wrap:wrap}
+#askdlg button.danger{background:linear-gradient(135deg,#ef4444,#b91c1c);box-shadow:0 8px 24px -10px rgba(239,68,68,.8)}
+@media(prefers-reduced-motion:reduce){ #askdlg[open]{animation:none}}
+#pausebanner .tx{flex:1 1 260px;min-width:0} #pausebanner .tx b{display:block;font-size:14.5px}
+#pausebanner .tx span{font-size:12.5px;color:var(--dim)}
+#pausebanner button{padding:8px 18px;font-size:13.5px}
 #updbanner .tx{flex:1 1 260px;min-width:0} #updbanner .tx b{display:block;font-size:14.5px}
 #updbanner .tx span{font-size:12.5px;color:var(--dim)}
 #updbanner button{padding:8px 18px;font-size:13.5px}
@@ -375,6 +398,8 @@ h2{font-size:15px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06e
        {% if page=='health' %}aria-current="page"{% endif %}>Health</a>
   </nav>
 </header>
+<dialog id="askdlg" aria-labelledby="asktitle"></dialog>
+<div id="pausebanner" role="status" hidden></div>
 <div id="updbanner" role="status" hidden></div>
 <main class="{{ 'wide' if page in ('dash', 'profile', 'health') }}">{% block body %}{% endblock %}</main>
 <footer style="text-align:center;padding:0 16px 30px;margin-top:-50px">
@@ -538,6 +563,48 @@ async function drawUpdBanner(){
     try { await api('/api/update/later', {}); } catch(_){}
     box.hidden = true; toast('Reminder kept. It comes back the next time the app is opened.'); };
 }
-drawUpdBanner(); setInterval(drawUpdBanner, 60000);
+// An in-app question in place of the browser's confirm(): it matches the page, it cannot be switched off by
+// the browser, Cancel is what has focus, and an answer that is hard to undo can make the yes wait a moment.
+function askConfirm({title, lines, warn, yes, danger, wait}){
+  return new Promise(resolve => {
+    const d = document.getElementById('askdlg');
+    d.innerHTML = '<div class="ask"><h2 id="asktitle">' + esc(title) + '</h2>'
+      + (lines || []).map(l => '<p>' + esc(l) + '</p>').join('')
+      + (warn ? '<p class="warn">' + esc(warn) + '</p>' : '')
+      + '<div class="btns"><button class="ghost" id="askno">' + esc(t('Cancel')) + '</button>'
+      + '<button id="askyes" class="' + (danger ? 'danger' : '') + '" disabled>' + esc(yes) + '</button></div></div>';
+    const yesB = document.getElementById('askyes'), noB = document.getElementById('askno');
+    let left = wait || 0, timer = null;
+    const label = yes;
+    const tick = () => {
+      if(left > 0){ yesB.textContent = label + ' (' + left + ')'; left--; timer = setTimeout(tick, 1000); }
+      else { yesB.textContent = label; yesB.disabled = false; }
+    };
+    tick();
+    let done = false;
+    const finish = v => { if(done) return; done = true; clearTimeout(timer); d.close(); resolve(v); };
+    yesB.onclick = () => finish(true);
+    noB.onclick = () => finish(false);
+    d.onclose = () => finish(false);                    // Escape
+    d.onclick = e => { if(e.target === d) finish(false); };   // the dimmed backdrop
+    d.showModal(); noB.focus();
+  });
+}
+// Paused is the one state that is easy to forget and costly if forgotten, so it sits at the top of every page.
+async function drawPauseBanner(){
+  const box = document.getElementById('pausebanner'); if(!box) return;
+  let a; try { a = await api('/api/automation', undefined, 'GET'); } catch(_){ return; }
+  if(!a.paused){ box.hidden = true; return; }
+  box.innerHTML = '<div class="tx"><b>' + esc(t('Automation is paused')) + '</b><span>'
+    + esc(t('Nothing is searching or keeping you signed in until you resume. A job site may log you out in the meantime.'))
+    + '</span></div><button id="pauseresume">' + esc(t('Resume')) + '</button>';
+  box.hidden = false;
+  document.getElementById('pauseresume').onclick = e => busy(e.target, async () => {
+    try { await api('/api/automation/resume', {}); toast('Resumed. It runs again at its usual time.'); }
+    catch(err){ toast(err.message || String(err), 8000); }
+    drawPauseBanner(); if(typeof loadAutoCtl === 'function') loadAutoCtl();
+  }, 'working...');
+}
+drawUpdBanner(); drawPauseBanner(); setInterval(drawUpdBanner, 60000); setInterval(drawPauseBanner, 60000);
 {% block js %}{% endblock %}
 </script></body></html>

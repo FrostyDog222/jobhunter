@@ -1382,6 +1382,60 @@ RO = {
         "Reamintirea rămâne. Revine data viitoare când deschizi aplicația.",
     "Looks every six hours and tells you when a version is ready. Nothing installs until you press Update now.":
         "Verifică la șase ore și te anunță când e gata o versiune. Nu se instalează nimic până nu apeși Actualizează acum.",
+    "Automation is paused":
+        "Automatizarea este în pauză",
+    "The scheduled search and the keep-signed-in timer are off. Your settings are kept.":
+        "Căutarea programată și temporizatorul de menținere a autentificării sunt oprite. Setările rămân salvate.",
+    "I got a job, I'm done":
+        "Mi-am găsit un job, am terminat",
+    "Automation is on":
+        "Automatizarea este pornită",
+    "A search is running right now.":
+        "O căutare rulează chiar acum.",
+    "Automation is off":
+        "Automatizarea este oprită",
+    "Nothing runs on its own. Switch the scheduled search on below when you want it.":
+        "Nimic nu rulează singur. Pornește căutarea programată mai jos când vrei.",
+    "It is sending applications right now. That batch finishes, then nothing more goes out.":
+        "Trimite aplicații chiar acum. Lotul acela se termină, apoi nu mai pleacă nimic.",
+    "The search that was running was stopped.":
+        "Căutarea care rula a fost oprită.",
+    "Pause everything?":
+        "Pui totul în pauză?",
+    "The scheduled search and the keep-signed-in timer stop, and a search that is only reading is ended. Your settings are kept; Resume puts them back.":
+        "Căutarea programată și temporizatorul de menținere a autentificării se opresc, iar o căutare care doar citește este oprită. Setările rămân; Reia le pune la loc.",
+    "While it is paused nothing visits the job sites, so one of them may log you out. After resuming you might have to sign in again.":
+        "Cât timp este în pauză, nimic nu mai vizitează site-urile, deci unul dintre ele te poate deconecta. După reluare ar putea fi nevoie să te autentifici din nou.",
+    "Paused.":
+        "În pauză.",
+    "Resumed. It runs again at its usual time.":
+        "Reluat. Rulează din nou la ora obișnuită.",
+    "This switches off the scheduled search and the keep-signed-in timer for good and ends a search that is running. Nothing is deleted. You can switch them on again here whenever you like.":
+        "Oprește definitiv căutarea programată și temporizatorul de menținere a autentificării și încheie o căutare în curs. Nu se șterge nimic. Le poți porni din nou de aici oricând.",
+    "If a search is sending applications at this very moment, that batch finishes and then nothing more goes out.":
+        "Dacă o căutare trimite aplicații chiar în acest moment, lotul acela se termină și apoi nu mai pleacă nimic.",
+    "Everything is switched off. Good luck with the job!":
+        "Totul este oprit. Mult succes la noul job!",
+    "The scheduled search and the keep-signed-in timer run by themselves, even when this window is closed.":
+        "Căutarea programată și temporizatorul de menținere a autentificării rulează singure, chiar și când fereastra aceasta este închisă.",
+    "The scheduled search runs by itself, even when this window is closed.":
+        "Căutarea programată rulează singură, chiar și când fereastra aceasta este închisă.",
+    "Only the keep-signed-in timer is on. It runs by itself, even when this window is closed.":
+        "Este pornit doar temporizatorul de menținere a autentificării. Rulează singur, chiar și când fereastra aceasta este închisă.",
+    "Switches the scheduled search and the keep-signed-in timer back on, exactly as they were.":
+        "Pornește la loc căutarea programată și temporizatorul de menținere a autentificării, exact cum erau.",
+    "Switches everything off for good, and nothing is kept to resume. For when you have found a job.":
+        "Oprește totul definitiv și nu se păstrează nimic de reluat. Pentru când ți-ai găsit un job.",
+    "Stops the scheduled search and the keep-signed-in timer for now. Your settings are kept, and Resume puts them back. A job site may log you out meanwhile.":
+        "Oprește pentru moment căutarea programată și temporizatorul de menținere a autentificării. Setările rămân, iar Reia le pune la loc. Între timp, un site te poate deconecta.",
+    "Nothing is searching or keeping you signed in until you resume. A job site may log you out in the meantime.":
+        "Nimic nu caută și nu te ține autentificat până nu reiei. Între timp, un site te poate deconecta.",
+    "Yes, pause":
+        "Da, pune pauză",
+    "Yes, I'm done":
+        "Da, am terminat",
+    "Are you sure you are done?":
+        "Ești sigur că ai terminat?",
     "Recent searches":
         "Căutări recente",
     "{n} new":
