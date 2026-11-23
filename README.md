@@ -505,6 +505,12 @@ on nearly every search", with a line saying what to do â€” usually Update.bat â€
 that mends itself is labelled as that, so the two are not confused. Opening it reads files only:
 no browser, no search, no AI call, so it costs nothing and cannot make a bad day worse.
 
+**Updates** sit on the same tab. *Check for updates* compares your copy with GitHub; *Update now*
+installs what changed and restarts the app by itself, in the same window. Switch on *Update
+automatically* and the app looks every six hours and shows a banner when a version is ready, with
+*Update now* and *Update later*. It never installs on its own, and "later" lasts until the app is
+closed and opened again. A copy that is a git checkout is updated with `git pull` instead.
+
 | what you see | what to do |
 |---|---|
 | The dashboard does not open | Wait for the black window to finish, then open http://127.0.0.1:8777 yourself. |
