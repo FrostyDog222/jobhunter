@@ -56,6 +56,8 @@
 .ht[data-ico=globe]{--g:var(--w-globe)} .ht[data-ico=alert]{--g:var(--w-alert)}
 .ht[data-ico=bolt]{--g:var(--w-bolt)} .ht[data-ico=spark]{--g:var(--w-spark)}
 .hsub{margin:5px 0 0 43px}
+#issues>p.muted,#models>p.muted,#time>p.muted{margin-left:43px}
+.upd>div:first-child,.upd>.row,.hmodels-go{margin-left:43px}
 
 /* ---- a card per source ---- */
 .hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:12px;margin-top:14px}
@@ -264,9 +266,16 @@ function fixSteps(b){
       b.locked ? 'The app stopped trying after it failed, so it does not lock the account. Sign in once more.'
                : 'Applying there fails until you sign in again, and a scheduled run sends nothing.',
       [['Open the sign-in', '/?fix=signin']]]);
-  if(kinds.some(k => UPDATE_KINDS.includes(k)))
-    steps.push(['Update the app', 'A fix for this board may already be out. Check below; if there is one, one press installs it and the app restarts by itself.',
-      [['Check for updates', '#updates']].concat(SITE[b.id] ? [['Look at {n} yourself', SITE[b.id], true]] : [])]);
+  if(kinds.some(k => UPDATE_KINDS.includes(k))){
+    const look = SITE[b.id] ? [['Look at {n} yourself', SITE[b.id], true]] : [];
+    if(UPD && UPD.checkout)
+      steps.push(['Update the app', 'This copy is a git checkout. Run git pull in its folder to get the latest fix.', look]);
+    else if(UPD && UPD.count)
+      steps.push(['Install the update', 'A new version is ready. One press installs it and the app restarts by itself.',
+        [['Go to the update', '#updates']].concat(look)]);
+    else
+      steps.push(['No fix is out yet', 'Nothing newer is available right now. When a fix is published it shows up here and in a banner.', look]);
+  }
   if(kinds.some(k => k === 'quota' || k === 'scoring'))
     steps.push(['Give the AI another way to answer', 'Add a second key or provider so scoring has a fallback when one runs out.',
       [['Open the AI settings', '/?fix=ai']]]);
@@ -298,7 +307,7 @@ function goTo(sel){
 }
 document.addEventListener('click', e => {
   const a = e.target.closest && e.target.closest('a[href^="#"]');
-  if(a && a.closest('#fixdlg')){ e.preventDefault(); $('#fixdlg').close(); goTo(a.getAttribute('href')); loadUpdate(true); return; }
+  if(a && a.closest('#fixdlg')){ e.preventDefault(); $('#fixdlg').close(); goTo(a.getAttribute('href')); return; }
   const g = e.target.closest && e.target.closest('[data-go]');
   if(g){ goTo(g.dataset.go); return; }
   const f = e.target.closest && e.target.closest('[data-fix]');
@@ -552,8 +561,8 @@ async function load(){
 }
 // ---- updates ----
 let UPD = null;
-async function loadUpdate(check){
-  try { UPD = check ? await api('/api/update/check', {}) : await api('/api/update', undefined, 'GET'); }
+async function loadUpdate(check, force){
+  try { UPD = check ? await api('/api/update/check', force ? {force: true} : {}) : await api('/api/update', undefined, 'GET'); }
   catch(e){ UPD = {error: e.message || String(e), files: [], count: 0}; }
   drawUpdate(); drawUpdBanner();
 }
@@ -583,7 +592,7 @@ function drawUpdate(){
         t('Looks every six hours and tells you when a version is ready. Nothing installs until you press Update now.'))}</span></div></label>`;
   box.innerHTML = `<div class="upd"><div><div class="big">${esc(head)}</div>
     <div class="files">${esc(sub)}</div></div>${acts ? `<div class="row">${acts}</div>` : ''}${sw}</div>`;
-  const chk = $('#updcheck'); if(chk) chk.onclick = e => busy(e.target, () => loadUpdate(true), 'checking...');
+  const chk = $('#updcheck'); if(chk) chk.onclick = e => busy(e.target, () => loadUpdate(true, true), 'checking...');
   const go = $('#updgo'); if(go) go.onclick = e => busy(e.target, installUpdateNow, 'updating...');
   const au = $('#updauto'); if(au) au.onchange = async () => {
     try { await api('/api/settings', {auto_update: au.checked}); UPD.auto = au.checked;
@@ -594,10 +603,10 @@ function drawUpdate(){
 // happened. It now says what it found, and the sections ease in so a refresh is visible.
 $('#reload').onclick = e => busy(e.target, async () => {
   const before = LAST ? LAST.checked + '|' + LAST.searches : '';
-  await Promise.all([load(), loadUpdate(true), new Promise(r => setTimeout(r, 700))]);
+  await Promise.all([load(), loadUpdate(true, true), new Promise(r => setTimeout(r, 700))]);
   ['#summary', '#kpis', '#sources', '#issues'].forEach(s => { const x = $(s); x.classList.remove('fade'); void x.offsetWidth; x.classList.add('fade'); });
   const now = LAST ? LAST.checked + '|' + LAST.searches : '';
   toast(before === now ? 'Checked just now. Nothing new since the last search.' : 'Checked. There is a new search to show.');
 });
-load(); loadUpdate(false);
+load(); loadUpdate(true);
 {% endblock %}

@@ -1370,8 +1370,6 @@ RO = {
         "se verifică...",
     "updating...":
         "se actualizează...",
-    "A fix for this board may already be out. Check below; if there is one, one press installs it and the app restarts by itself.":
-        "Este posibil să existe deja o remediere pentru acest site. Verifică mai jos; dacă există, o singură apăsare o instalează, iar aplicația repornește singură.",
     "A new version is ready":
         "Este gata o versiune nouă",
     "{n} file(s) changed. Updating restarts the app and takes a few seconds.":
@@ -1436,6 +1434,18 @@ RO = {
         "Da, am terminat",
     "Are you sure you are done?":
         "Ești sigur că ai terminat?",
+    "This copy is a git checkout. Run git pull in its folder to get the latest fix.":
+        "Această copie este un checkout git. Rulează git pull în folderul ei ca să primești ultima remediere.",
+    "Install the update":
+        "Instalează actualizarea",
+    "A new version is ready. One press installs it and the app restarts by itself.":
+        "O versiune nouă este gata. O singură apăsare o instalează, iar aplicația repornește singură.",
+    "Go to the update":
+        "Mergi la actualizare",
+    "No fix is out yet":
+        "Încă nu există nicio remediere",
+    "Nothing newer is available right now. When a fix is published it shows up here and in a banner.":
+        "Acum nu există nimic mai nou. Când se publică o remediere, apare aici și într-un banner.",
     "Recent searches":
         "Căutări recente",
     "{n} new":

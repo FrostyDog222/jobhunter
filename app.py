@@ -787,11 +787,15 @@ def update_state():
 
 
 @app.post("/api/update/check")
-def update_check():
+def update_check(body: dict = Body(default={})):
     import update
     if update.is_checkout():
         return _update_state()
     with _UPD_LOCK:
+        # opening the Health tab asks without force: a look from the last ten minutes is still the answer
+        if not (body or {}).get("force") and time.monotonic() - _UPD.get("at", -1e9) < 600:
+            return _update_state()
+        _UPD["at"] = time.monotonic()
         try:
             _UPD["files"] = update.differs(update.download())
             _UPD["error"] = None
@@ -847,7 +851,7 @@ def _auto_update_loop():
     while True:
         try:
             if settings().get("auto_update"):
-                update_check()
+                update_check({"force": True})
         except Exception as e:
             print(f"[update] could not look for updates: {type(e).__name__}: {e}")
         time.sleep(6 * 3600)
