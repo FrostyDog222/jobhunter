@@ -225,6 +225,9 @@ SETTINGS = HERE / "settings.json"
 # what the dashboard remembers between visits. Secrets stay in .env; these are preferences,
 # and they travel with a folder copy while .env deliberately does not.
 DEFAULTS = {"lang": "auto", "headless": "", "cv_template": "", "cv_ask": True,
+            # take new versions from GitHub by itself, between searches. Off until someone says so:
+            # real applications go out from this app, and a change should not arrive unseen.
+            "auto_update": False,
             # The language of the buttons and the help text, which is a separate question
             # from the language a CV is written in - plenty of people want the app in
             # Romanian and their CV in English. English until someone says otherwise.
@@ -755,6 +758,97 @@ def auto_preview(min_fit: int = 85, cap: int = 5):
     at = {f: len(auto_apply.candidates(me, prefill, f, 10000)) for f in (min_fit, 90, 95)}
     return {"picks": picks, "at_floor": at,
             "boards": {b: prefill.session_for(b) for b in prefill.AUTO_APPLY}}
+
+
+# ---------- updates: look, apply, restart ----------
+# What Update.bat does, from the Health tab. The app never updates a git checkout (that is the
+# author's copy, updated with git) and never while a search is running: a half-replaced file in the
+# middle of a run that sends real applications is worse than an old version.
+_UPD = {"checked": None, "files": [], "error": None, "later": False}
+_UPD_LOCK = threading.Lock()
+
+
+def _update_busy():
+    return bool((_RUNNING and _RUNNING[-1].poll() is None) or auto_progress().get("running"))
+
+
+def _update_state():
+    import update
+    return {"checkout": update.is_checkout(), "checked": _UPD["checked"], "files": _UPD["files"][:12],
+            "count": len(_UPD["files"]), "error": _UPD["error"], "busy": _update_busy(),
+            "auto": bool(settings().get("auto_update")), "later": _UPD["later"], "restart": bool(os.environ.get("JOB_CHILD"))}
+
+
+@app.get("/api/update")
+def update_state():
+    return _update_state()
+
+
+@app.post("/api/update/check")
+def update_check():
+    import update
+    if update.is_checkout():
+        return _update_state()
+    with _UPD_LOCK:
+        try:
+            _UPD["files"] = update.differs(update.download())
+            _UPD["error"] = None
+        except Exception as e:
+            _UPD["error"] = f"{type(e).__name__}: {e}"[:200]
+        _UPD["checked"] = time.strftime("%Y-%m-%d %H:%M")
+    return _update_state()
+
+
+def _restart_soon():
+    """Leave with the code the launcher reads as 'start me again'. Late enough for the reply to land."""
+    threading.Timer(1.5, lambda: os._exit(75)).start()
+
+
+def apply_update():
+    """-> (changed files, restarting?). Raises if it cannot."""
+    import update
+    if update.is_checkout():
+        raise RuntimeError("this is a git checkout - update it with git")
+    if _update_busy():
+        raise RuntimeError("a search is running - try again when it has finished")
+    with _UPD_LOCK:
+        touched = update.install(update.download())
+        _UPD.update(files=[], error=None, checked=time.strftime("%Y-%m-%d %H:%M"))
+    restart = bool(touched) and bool(os.environ.get("JOB_CHILD"))
+    if restart:
+        _restart_soon()
+    return touched, restart
+
+
+@app.post("/api/update/apply")
+def update_apply():
+    try:
+        touched, restart = apply_update()
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
+    except Exception as e:
+        raise HTTPException(502, f"could not update: {type(e).__name__}: {e}"[:300])
+    return {"ok": True, "changed": touched[:12], "count": len(touched), "restart": restart}
+
+
+@app.post("/api/update/later")
+def update_later():
+    """'Update later': quiet until the app is closed and opened again - then the reminder is back."""
+    _UPD["later"] = True
+    return _update_state()
+
+
+def _auto_update_loop():
+    """With the switch on, look now and every six hours - and only LOOK. Nothing is installed
+    until a person presses Update now, so opening the app never restarts it under them."""
+    time.sleep(20)                                    # let the app settle first
+    while True:
+        try:
+            if settings().get("auto_update"):
+                update_check()
+        except Exception as e:
+            print(f"[update] could not look for updates: {type(e).__name__}: {e}")
+        time.sleep(6 * 3600)
 
 
 _RUNNING = []                         # the last process this button started, if it is still alive
@@ -4137,6 +4231,21 @@ def delete(body: dict = Body(...)):
     return {"ok": True}
 
 
+if __name__ == "__main__" and not os.environ.get("JOB_CHILD"):
+    # The first process only keeps watch. The app runs as its child, so that an update can end the
+    # child (exit code 75) and have a fresh one start from the new files, in the same window - with
+    # run.bat exactly as it already is.
+    _env = dict(os.environ, JOB_CHILD="1")
+    try:
+        while True:
+            _code = subprocess.call([sys.executable, str(pathlib.Path(__file__).resolve())], env=_env)
+            if _code != 75:
+                sys.exit(_code)
+            print("\n  Updated - starting the new version...\n")
+            _env.pop("JOB_OPEN", None)               # the page is already open, and reloads itself
+    except KeyboardInterrupt:
+        sys.exit(0)
+
 if __name__ == "__main__":
     import uvicorn
     import socket, threading
@@ -4155,4 +4264,5 @@ if __name__ == "__main__":
     # On a thread: it is two PowerShell calls and it matters once, so it must not sit between
     # the user double-clicking run.bat and the page loading.
     threading.Thread(target=retire_old_tasks, daemon=True).start()
+    threading.Thread(target=_auto_update_loop, daemon=True).start()
     uvicorn.run(app, host="127.0.0.1", port=8777, log_level="warning")

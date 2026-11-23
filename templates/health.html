@@ -68,6 +68,46 @@
 .hsrc.broken,.hsrc.silent{--tint:#ef4444;--ic:var(--i-alert)}
 .hsrc.off{--ic:var(--i-minus);opacity:.78}
 .hsrc.unknown{opacity:.85}
+.hsrc[data-fix]{cursor:pointer;transition:transform .15s,box-shadow .15s}
+.hsrc[data-fix]:hover,.hsrc[data-fix]:focus-visible{transform:translateY(-2px);box-shadow:0 10px 26px -12px var(--tint)}
+.hk>div[data-go]{cursor:pointer;transition:transform .15s,box-shadow .15s}
+.hk>div[data-go]:hover,.hk>div[data-go]:focus-visible{transform:translateY(-2px);box-shadow:0 12px 28px -14px var(--tint)}
+.hk>div[data-go]::after{content:"›";grid-column:3;grid-row:1/3;font-size:22px;color:var(--tint);opacity:.7}
+.hk>div[data-go]{grid-template-columns:44px minmax(0,1fr) auto}
+.hsum .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.hsum .acts a,.hsum .acts button{padding:7px 16px;font-size:13px;border-radius:99px;font-weight:600;text-decoration:none}
+.hsum .acts a{color:#fff;background:var(--btn)}
+.hsum .when{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.upd{display:grid;gap:12px;margin-top:6px}
+.upd .big{font-size:15px;font-weight:600}
+.upd .files{font-size:12.5px;color:var(--dim);overflow-wrap:anywhere}
+.upd .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.upd .sw{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:14px;border:1px solid var(--edge);
+  background:color-mix(in srgb,var(--bg) 50%,transparent);cursor:pointer}
+.upd .sw input{width:auto;margin-top:3px}
+.upd .sw span{font-size:13px;color:var(--dim)} .upd .sw b{display:block;color:var(--fg);font-size:14px}
+.hmodels-go{margin-top:12px;font-size:13px}
+.hmodels-go a{color:var(--accent);font-weight:600;text-decoration:none}
+.hsrc .fixgo{margin-top:12px;font-size:13px;font-weight:600;color:var(--tint);display:flex;align-items:center;gap:6px}
+.hiss .fixbtn{margin-top:10px;padding:6px 14px;font-size:13px}
+#fixdlg{border:1px solid var(--edge);border-radius:20px;padding:0;max-width:min(520px,92vw);width:100%;color:var(--fg);
+  background:color-mix(in srgb,var(--bg) 88%,transparent);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+  box-shadow:0 30px 80px -20px rgba(0,0,0,.7)}
+#fixdlg::backdrop{background:rgba(2,2,20,.6);backdrop-filter:blur(3px)}
+#fixdlg[open]{animation:fadein .2s ease-out both}
+#fixdlg .fx{padding:22px 24px}
+#fixdlg h2{margin:0 0 4px;font-size:20px;text-transform:none;letter-spacing:0;color:var(--fg)}
+#fixdlg ol{list-style:none;counter-reset:s;margin:16px 0 0;padding:0;display:grid;gap:12px}
+#fixdlg li{counter-increment:s;display:grid;grid-template-columns:28px 1fr;gap:4px 12px;padding:12px;border-radius:14px;
+  border:1px solid var(--edge);background:color-mix(in srgb,var(--bg) 50%,transparent)}
+#fixdlg li::before{content:counter(s);grid-row:1/3;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;
+  font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,#7c5cff,#4f46e5)}
+#fixdlg li b{font-size:14.5px} #fixdlg li span{font-size:13px;color:var(--dim)}
+#fixdlg li .acts{grid-column:2;display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+#fixdlg li a.btn{padding:7px 16px;font-size:13px;border-radius:99px;text-decoration:none;font-weight:600;color:#fff;background:var(--btn)}
+#fixdlg li a.btn:hover{filter:brightness(1.1)}
+#fixdlg .foot{display:flex;justify-content:flex-end;margin-top:16px}
+@media(prefers-reduced-motion:reduce){ #fixdlg[open]{animation:none}.hsrc[data-fix]{transition:none}}
 .hsrc .top{display:flex;align-items:center;gap:10px}
 .hsrc .ico{width:34px;height:34px;border-radius:10px;flex:0 0 auto;display:grid;place-items:center;color:#fff;
   background:linear-gradient(135deg,var(--tint),color-mix(in srgb,var(--tint) 55%,#000));
@@ -165,6 +205,7 @@
 {% endblock %}
 
 {% block body %}
+<dialog id="fixdlg" aria-label="Fix"></dialog>
 <div class="pagehead">
   <span class="tile" aria-hidden="true" style="--g:var(--w-pulse)"></span>
   <div>
@@ -200,12 +241,75 @@
       <div class="muted hsub">In the order they are asked. A model that is resting is skipped until it recovers.</div>
       <div id="models"><div class="skel" style="--h:90px"></div></div>
     </div>
+    <div class="card" id="updates">
+      <b class="ht" data-ico="bolt">Updates</b>
+      <div class="muted hsub">Fixes for the job sites arrive here, from the same place you got the app.</div>
+      <div id="updbody"><div class="skel" style="--h:80px"></div></div>
+    </div>
   </div>
 </div>
 
 {% endblock %}
 
 {% block js %}
+const SITE = {ejobs: 'https://www.ejobs.ro', bestjobs: 'https://www.bestjobs.eu', hipo: 'https://www.hipo.ro',
+              olx: 'https://www.olx.ro', publi24: 'https://www.publi24.ro'};
+const UPDATE_KINDS = ['blocked', 'silent', 'thin', 'unreadable', 'layout'];
+// Every step names the place it is done: a button that goes there, or the one command to run.
+function fixSteps(b){
+  const steps = [], kinds = b.issues || [];
+  if(b.locked || b.signed_in === false)
+    steps.push(['Sign in to {n} again',
+      b.locked ? 'The app stopped trying after it failed, so it does not lock the account. Sign in once more.'
+               : 'Applying there fails until you sign in again, and a scheduled run sends nothing.',
+      [['Open the sign-in', '/?fix=signin']]]);
+  if(kinds.some(k => UPDATE_KINDS.includes(k)))
+    steps.push(['Update the app', 'A fix for this board may already be out. Check below; if there is one, one press installs it and the app restarts by itself.',
+      [['Check for updates', '#updates']].concat(SITE[b.id] ? [['Look at {n} yourself', SITE[b.id], true]] : [])]);
+  if(kinds.some(k => k === 'quota' || k === 'scoring'))
+    steps.push(['Give the AI another way to answer', 'Add a second key or provider so scoring has a fallback when one runs out.',
+      [['Open the AI settings', '/?fix=ai']]]);
+  if(kinds.some(k => k === 'unanswered' || k === 'unread') && !steps.length)
+    steps.push(['Nothing to do', 'The board was slow or refused a few searches. It mends itself and the next search picks those up.', []]);
+  if(kinds.includes('error'))
+    steps.push(['Read what stopped it', 'auto.log in the jobhunter folder holds the detail.', []]);
+  if(!steps.length) steps.push(['Nothing to fix', 'This board looks fine on the latest search.', []]);
+  return steps;
+}
+function openFix(id){
+  const b = (LAST && LAST.boards || []).find(x => x.id === id); if(!b) return;
+  const dlg = $('#fixdlg');
+  dlg.innerHTML = `<div class="fx"><h2>${esc(fill('Fix {n}', {n: b.name}))}</h2>
+    <div class="muted">${esc(t('Do these in order. Press Check again when you are done.'))}</div>
+    <ol>${fixSteps(b).map(([title, why, acts]) => `<li><b>${esc(fill(title, {n: b.name}))}</b><span>${esc(t(why))}</span>
+      ${acts.length ? `<div class="acts">${acts.map(([lbl, href, ext]) =>
+        `<a class="btn" href="${esc(href)}" ${ext ? 'target="_blank" rel="noopener"' : ''}>${esc(fill(lbl, {n: b.name}))}</a>`).join('')}</div>` : ''}</li>`).join('')}</ol>
+    <div class="foot"><button class="ghost" id="fixclose">${esc(t('Close'))}</button></div></div>`;
+  $('#fixclose').onclick = () => dlg.close();
+  dlg.showModal();
+}
+function goTo(sel){
+  const el = $(sel); if(!el) return;
+  const card = el.closest('.card') || el;
+  card.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+  card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+  setTimeout(() => card.classList.remove('flash'), 2200);
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest && e.target.closest('a[href^="#"]');
+  if(a && a.closest('#fixdlg')){ e.preventDefault(); $('#fixdlg').close(); goTo(a.getAttribute('href')); loadUpdate(true); return; }
+  const g = e.target.closest && e.target.closest('[data-go]');
+  if(g){ goTo(g.dataset.go); return; }
+  const f = e.target.closest && e.target.closest('[data-fix]');
+  if(f) openFix(f.dataset.fix);
+  else if(e.target.id === 'fixdlg') e.target.close();          // a click on the dimmed backdrop
+});
+document.addEventListener('keydown', e => {
+  if((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.hsrc[data-fix]')){
+    e.preventDefault(); openFix(e.target.dataset.fix); }
+  else if((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-go]')){
+    e.preventDefault(); goTo(e.target.dataset.go); }
+});
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -228,11 +332,20 @@ function drawSummary(d){
     bad: worst ? fill('{n} thing(s) have stopped reading properly', {n: worst})
                : t('Every AI model is resting right now'),
   }[d.level];
+  // what to do about it, one click away: the worst source, the sign-in, or the AI keys
+  const bad = d.boards.filter(b => b.search && ['broken', 'silent', 'unsteady'].includes(b.status))
+    .sort((a, b) => (a.status === 'unsteady') - (b.status === 'unsteady'));
+  const acts = [];
+  if(bad.length) acts.push(`<button data-fix="${esc(bad[0].id)}">${esc(fill('Fix {n}', {n: bad[0].name}))} &rsaquo;</button>`);
+  if(d.signed_out.length) acts.push(`<a href="/?fix=signin">${esc(t('Sign in again'))}</a>`);
+  if(d.providers.length && d.providers.every(m => m.blocked) || !d.providers.length)
+    acts.push(`<a href="/?fix=ai">${esc(t('Open the AI settings'))}</a>`);
   const sub = d.level === 'none'
     ? t('This fills in after the next search, whether the scheduled run or one you start.')
-    : fill('Last search {when} · {how}', {when: d.checked || '?', how: how(d.via)})
-      + (d.signed_out.length ? ' · ' + fill('Signed out of {who}', {who: d.signed_out.join(', ')}) : '');
-  box.innerHTML = `<div><h2>${esc(head)}</h2><div class="muted">${esc(sub)}</div></div>`;
+    : fill('Last search {when} · {how}', {when: `<span class="when" data-go="#runs" role="button" tabindex="0">${esc(d.checked || '?')}</span>`, how: esc(how(d.via))})
+      + (d.signed_out.length ? ' · ' + fill('Signed out of {who}', {who: esc(d.signed_out.join(', '))}) : '');
+  box.innerHTML = `<div><h2>${esc(head)}</h2><div class="muted">${d.level === 'none' ? esc(sub) : sub}</div>${
+    acts.length ? `<div class="acts">${acts.join('')}</div>` : ''}</div>`;
 }
 
 // the four numbers: every one is something the rest of the page already says, counted
@@ -241,12 +354,12 @@ function drawKpis(d){
   const okN = live.filter(b => b.status === 'ok').length;
   const probs = d.issues.filter(i => i.ongoing).length;
   const up = d.providers.filter(m => !m.blocked).length;
-  const tile = (n, label) => `<div><b>${esc(n)}</b><span class="muted">${esc(t(label))}</span></div>`;
+  const tile = (n, label, go) => `<div data-go="${go}" role="button" tabindex="0"><b>${esc(n)}</b><span class="muted">${esc(t(label))}</span></div>`;
   $('#kpis').innerHTML =
-    tile(live.length ? okN + ' / ' + live.length : '–', 'Sources reading normally') +
-    tile(probs, 'Problems right now') +
-    tile(d.providers.length ? up + ' / ' + d.providers.length : '–', 'AI models available') +
-    tile(d.searches, 'Searches recorded');
+    tile(live.length ? okN + ' / ' + live.length : '–', 'Sources reading normally', '#sources') +
+    tile(probs, 'Problems right now', '#issues') +
+    tile(d.providers.length ? up + ' / ' + d.providers.length : '–', 'AI models available', '#models') +
+    tile(d.searches, 'Searches recorded', '#runs');
 }
 
 function drawSources(d){
@@ -269,9 +382,10 @@ function drawSources(d){
           b.locked ? t('Sign-in stopped after failing') : b.signed_in ? t('Signed in') : t('Signed out'))}</div>` : '';
     const bad = b.issues.map(k => kinds[k]).filter(Boolean)
       .map(l => `<div class="line warn">${esc(t(l))}</div>`).join('');
-    return `<div class="hsrc ${esc(b.status)}">
+    const needs = b.status !== 'off' && (b.issues.length || b.locked || b.signed_in === false);
+    return `<div class="hsrc ${esc(b.status)}" ${needs ? `data-fix="${esc(b.id)}" role="button" tabindex="0"` : ''}>
       <div class="top"><span class="ico"></span><div class="who"><b>${esc(b.name)}</b><span class="st">${esc(label[b.status])}</span></div></div>
-      ${nums}${sign}${bad}</div>`;
+      ${nums}${sign}${bad}${needs ? `<div class="fixgo">${esc(t('How to fix it'))} &rsaquo;</div>` : ''}</div>`;
   }).join('');
 }
 
@@ -324,6 +438,7 @@ function drawIssues(d){
         <div class="muted">${esc(when)}</div>
         ${i.advice ? `<div class="adv">${esc(t(i.advice))}</div>` : ''}
         <div class="eg">${esc(i.example)}</div>
+        ${i.board ? `<button class="ghost fixbtn" data-fix="${esc(i.board)}">${esc(t('How to fix it'))} &rsaquo;</button>` : ''}
       </div></div>`;
   }).join('') + (pages > 1
     ? pagerFor('issues', pages, ISSUE_PAGE, from + 1, from + shown.length, d.issues.length) : '');
@@ -418,6 +533,8 @@ function drawModels(d){
       <span class="hpill ${m.blocked ? 'mid' : ''}">${esc(m.blocked ? t('resting') : t('available'))}</span>
     </div>`).join('')
     : `<p class="muted" style="margin:14px 0 0">${esc(t('No AI model is set up yet.'))}</p>`;
+  if(!d.providers.length || d.providers.some(m => m.blocked))
+    $('#models').insertAdjacentHTML('beforeend', `<div class="hmodels-go"><a href="/?fix=ai">${esc(t('Add another key or model'))} &rsaquo;</a></div>`);
 }
 
 async function load(){
@@ -432,6 +549,54 @@ async function load(){
   document.querySelectorAll('#issues,#runs').forEach(x => x.style.minHeight = '');
   drawSummary(d); drawKpis(d); drawSources(d); drawIssues(d); drawTime(d); drawModels(d);
 }
-$('#reload').onclick = e => busy(e.target, load);
-load();
+// ---- updates ----
+let UPD = null;
+async function loadUpdate(check){
+  try { UPD = check ? await api('/api/update/check', {}) : await api('/api/update', undefined, 'GET'); }
+  catch(e){ UPD = {error: e.message || String(e), files: [], count: 0}; }
+  drawUpdate(); drawUpdBanner();
+}
+function drawUpdate(){
+  const u = UPD || {}, box = $('#updbody'); if(!box) return;
+  let head, sub = '', acts = '';
+  if(u.checkout){
+    head = t('This copy is a git checkout'); sub = t('Update it with git pull. The page never changes a checkout.');
+  } else if(u.error){
+    head = t('Could not look for updates'); sub = u.error;
+    acts = `<button class="ghost" id="updcheck">${esc(t('Try again'))}</button>`;
+  } else if(u.count){
+    head = fill('An update is ready: {n} file(s) changed', {n: u.count});
+    sub = u.files.join(', ') + (u.count > u.files.length ? ' …' : '');
+    acts = u.busy
+      ? `<button disabled>${esc(t('Update now'))}</button><span class="muted">${esc(t('A search is running. Update when it has finished.'))}</span>`
+      : `<button id="updgo">${esc(t('Update now'))}</button><button class="ghost" id="updcheck">${esc(t('Check for updates'))}</button>`;
+  } else if(u.checked){
+    head = t('You have the latest version'); sub = fill('Checked {when}', {when: u.checked});
+    acts = `<button class="ghost" id="updcheck">${esc(t('Check for updates'))}</button>`;
+  } else {
+    head = t('Not checked yet'); sub = t('Press the button to look for a newer version.');
+    acts = `<button class="ghost" id="updcheck">${esc(t('Check for updates'))}</button>`;
+  }
+  const sw = u.checkout ? '' : `<label class="sw"><input type="checkbox" id="updauto" ${u.auto ? 'checked' : ''}>
+      <div><b>${esc(t('Update automatically'))}</b><span>${esc(
+        t('Looks every six hours and tells you when a version is ready. Nothing installs until you press Update now.'))}</span></div></label>`;
+  box.innerHTML = `<div class="upd"><div><div class="big">${esc(head)}</div>
+    <div class="files">${esc(sub)}</div></div>${acts ? `<div class="row">${acts}</div>` : ''}${sw}</div>`;
+  const chk = $('#updcheck'); if(chk) chk.onclick = e => busy(e.target, () => loadUpdate(true), 'checking...');
+  const go = $('#updgo'); if(go) go.onclick = e => busy(e.target, installUpdateNow, 'updating...');
+  const au = $('#updauto'); if(au) au.onchange = async () => {
+    try { await api('/api/settings', {auto_update: au.checked}); UPD.auto = au.checked;
+          toast(au.checked ? 'Automatic updates are on' : 'Automatic updates are off'); }
+    catch(e){ au.checked = !au.checked; toast('could not save - ' + (e.message || e)); } };
+}
+// "Check again" used to redraw the same numbers in the same place, so it looked like nothing had
+// happened. It now says what it found, and the sections ease in so a refresh is visible.
+$('#reload').onclick = e => busy(e.target, async () => {
+  const before = LAST ? LAST.checked + '|' + LAST.searches : '';
+  await Promise.all([load(), loadUpdate(true), new Promise(r => setTimeout(r, 700))]);
+  ['#summary', '#kpis', '#sources', '#issues'].forEach(s => { const x = $(s); x.classList.remove('fade'); void x.offsetWidth; x.classList.add('fade'); });
+  const now = LAST ? LAST.checked + '|' + LAST.searches : '';
+  toast(before === now ? 'Checked just now. Nothing new since the last search.' : 'Checked. There is a new search to show.');
+});
+load(); loadUpdate(false);
 {% endblock %}

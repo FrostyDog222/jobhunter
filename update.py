@@ -78,6 +78,23 @@ def download():
     return out
 
 
+def is_checkout():
+    """A git checkout is updated with git, by the person who owns it - never from the web page."""
+    return (HERE / ".git").is_dir()
+
+
+def differs(files):
+    """-> the names in `files` that are not what is on disk. Changes nothing."""
+    out = []
+    for rel, data in sorted(files.items()):
+        target = HERE / rel
+        if rel.lower() == "update.bat" and (HERE / "Update.bat.new").is_file():
+            target = HERE / "Update.bat.new"          # already waiting to be swapped in
+        if not target.is_file() or digest(target) != hashlib.sha1(data).hexdigest():
+            out.append(rel)
+    return out
+
+
 def apply(files):
     stamp = subprocess.run(["powershell", "-NoProfile", "-Command",
                             "Get-Date -Format yyyyMMdd-HHmm"],
@@ -133,6 +150,14 @@ def main():
         done()
         return
 
+    touched = install(files)
+    if touched:
+        print("\n  Close the app's black window if it is open, then start it again with run.bat.")
+    done()
+
+
+def install(files):
+    """Write the files, tidy up after the updater itself, install new dependencies. -> names touched."""
     touched = apply(files)
 
     # Update.bat cannot safely overwrite itself while cmd is reading it line by line, so a new
@@ -148,9 +173,7 @@ def main():
                             "-m", "pip", "install", "-q", "-r", str(HERE / "requirements.txt")])
         print("  done." if r.returncode == 0 else
               "  that failed - run FirstTimeSetup.bat to sort it out.")
-    if touched:
-        print("\n  Close the app's black window if it is open, then start it again with run.bat.")
-    done()
+    return touched
 
 
 def done():

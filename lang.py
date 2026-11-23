@@ -1280,6 +1280,108 @@ RO = {
         "Avertismente",
     "stopped":
         "oprită",
+    "How to fix it":
+        "Cum se rezolvă",
+    "Fix {n}":
+        "Rezolvă {n}",
+    "Do these in order. Press Check again when you are done.":
+        "Fă pașii în ordine. Apasă Verifică din nou când ai terminat.",
+    "Sign in to {n} again":
+        "Autentifică-te din nou la {n}",
+    "The app stopped trying after it failed, so it does not lock the account. Sign in once more.":
+        "Aplicația a încetat să mai încerce după ce a eșuat, ca să nu blocheze contul. Autentifică-te încă o dată.",
+    "Applying there fails until you sign in again, and a scheduled run sends nothing.":
+        "Aplicarea eșuează până te autentifici din nou, iar o rulare programată nu trimite nimic.",
+    "Open the sign-in":
+        "Deschide autentificarea",
+    "Update the app":
+        "Actualizează aplicația",
+    "Look at {n} yourself":
+        "Uită-te singur la {n}",
+    "Give the AI another way to answer":
+        "Dă-i AI-ului o altă cale de a răspunde",
+    "Add a second key or provider so scoring has a fallback when one runs out.":
+        "Adaugă o a doua cheie sau alt furnizor, ca punctarea să aibă o variantă de rezervă când una se epuizează.",
+    "Open the AI settings":
+        "Deschide setările AI",
+    "Nothing to do":
+        "Nu ai nimic de făcut",
+    "The board was slow or refused a few searches. It mends itself and the next search picks those up.":
+        "Site-ul a fost lent sau a refuzat câteva căutări. Își revine singur, iar următoarea căutare le reia.",
+    "Read what stopped it":
+        "Citește ce a oprit-o",
+    "auto.log in the jobhunter folder holds the detail.":
+        "Detaliile sunt în auto.log, în folderul jobhunter.",
+    "Nothing to fix":
+        "Nimic de rezolvat",
+    "This board looks fine on the latest search.":
+        "Acest site arată bine la ultima căutare.",
+    "Sign in again":
+        "Autentifică-te din nou",
+    "Add another key or model":
+        "Adaugă altă cheie sau alt model",
+    "Updates":
+        "Actualizări",
+    "Fixes for the job sites arrive here, from the same place you got the app.":
+        "Remedierile pentru site-uri ajung aici, din același loc de unde ai primit aplicația.",
+    "This copy is a git checkout":
+        "Această copie este un checkout git",
+    "Update it with git pull. The page never changes a checkout.":
+        "Actualizeaz-o cu git pull. Pagina nu modifică niciodată un checkout.",
+    "Could not look for updates":
+        "Nu am putut căuta actualizări",
+    "Try again":
+        "Încearcă din nou",
+    "An update is ready: {n} file(s) changed":
+        "O actualizare este gata: {n} fișier(e) modificat(e)",
+    "Update now":
+        "Actualizează acum",
+    "Check for updates":
+        "Caută actualizări",
+    "A search is running. Update when it has finished.":
+        "O căutare este în curs. Actualizează după ce se termină.",
+    "You have the latest version":
+        "Ai cea mai nouă versiune",
+    "Checked {when}":
+        "Verificat {when}",
+    "Not checked yet":
+        "Încă neverificat",
+    "Press the button to look for a newer version.":
+        "Apasă butonul ca să cauți o versiune mai nouă.",
+    "Update automatically":
+        "Actualizează automat",
+    "Automatic updates are on":
+        "Actualizările automate sunt pornite",
+    "Automatic updates are off":
+        "Actualizările automate sunt oprite",
+    "Updated. Close the app and start it again with run.bat.":
+        "Actualizat. Închide aplicația și pornește-o din nou cu run.bat.",
+    "Installing and restarting...":
+        "Se instalează și se repornește...",
+    "This page reloads by itself when the new version is up.":
+        "Pagina se reîncarcă singură când versiunea nouă este pornită.",
+    "The app has not come back. Start it again with run.bat.":
+        "Aplicația nu a revenit. Pornește-o din nou cu run.bat.",
+    "Checked just now. Nothing new since the last search.":
+        "Verificat acum. Nimic nou de la ultima căutare.",
+    "Checked. There is a new search to show.":
+        "Verificat. Există o căutare nouă de afișat.",
+    "checking...":
+        "se verifică...",
+    "updating...":
+        "se actualizează...",
+    "A fix for this board may already be out. Check below; if there is one, one press installs it and the app restarts by itself.":
+        "Este posibil să existe deja o remediere pentru acest site. Verifică mai jos; dacă există, o singură apăsare o instalează, iar aplicația repornește singură.",
+    "A new version is ready":
+        "Este gata o versiune nouă",
+    "{n} file(s) changed. Updating restarts the app and takes a few seconds.":
+        "{n} fișier(e) modificat(e). Actualizarea repornește aplicația și durează câteva secunde.",
+    "Update later":
+        "Actualizează mai târziu",
+    "Reminder kept. It comes back the next time the app is opened.":
+        "Reamintirea rămâne. Revine data viitoare când deschizi aplicația.",
+    "Looks every six hours and tells you when a version is ready. Nothing installs until you press Update now.":
+        "Verifică la șase ore și te anunță când e gata o versiune. Nu se instalează nimic până nu apeși Actualizează acum.",
     "Recent searches":
         "Căutări recente",
     "{n} new":

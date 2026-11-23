@@ -3595,4 +3595,20 @@ api('/api/boards', undefined, 'GET')
     draw();
   }).catch(()=>{});
 load();
+
+// Arriving from the Health tab's "how to fix it": open Settings at the thing that needs doing and
+// light it up for a moment, so the eye does not have to hunt for it.
+(() => {
+  const fix = new URLSearchParams(location.search).get('fix');
+  if(!fix) return;
+  history.replaceState(null, '', location.pathname);
+  $('#setup').classList.add('open');
+  const to = fix === 'signin' ? $('#signinrow') : $('#prov');
+  if(!to) return;
+  setTimeout(() => {
+    const box = to.closest('.card, .panel, div') || to;
+    to.scrollIntoView({block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+    to.classList.add('flash'); setTimeout(() => to.classList.remove('flash'), 2200);
+  }, 500);
+})();
 {% endblock %}

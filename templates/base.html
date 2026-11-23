@@ -193,6 +193,22 @@ button:disabled .spin{opacity:.9}
 .skelgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
 .skelgrid .skel{margin:0;--h:210px}
 /* a redrawn list eases in instead of popping */
+@keyframes flash{0%,60%{box-shadow:0 0 0 3px rgba(167,139,250,.9),0 0 30px 6px rgba(124,92,255,.55)}100%{box-shadow:0 0 0 0 transparent}}
+.flash{animation:flash 2.2s ease-out;border-radius:14px}
+@media(prefers-reduced-motion:reduce){.flash{animation:none;outline:2px solid var(--accent)}}
+#updbanner{max-width:1380px;margin:14px auto -10px;width:calc(100% - 56px);box-sizing:border-box;padding:12px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  border-radius:16px;border:1px solid color-mix(in srgb,#8b5cf6 55%,var(--edge));
+  background:linear-gradient(120deg,color-mix(in srgb,#8b5cf6 22%,transparent),color-mix(in srgb,#4f46e5 8%,transparent)),var(--card);
+  box-shadow:0 0 28px -10px #7c5cff}
+#updbanner[hidden]{display:none}
+#updbanner .tx{flex:1 1 260px;min-width:0} #updbanner .tx b{display:block;font-size:14.5px}
+#updbanner .tx span{font-size:12.5px;color:var(--dim)}
+#updbanner button{padding:8px 18px;font-size:13.5px}
+#updveil{position:fixed;inset:0;z-index:100;display:grid;place-items:center;text-align:center;padding:24px;
+  background:rgba(3,3,24,.82);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#updveil b{display:block;font-size:20px;margin-top:10px}
+/* a jump to a card stops below the sticky header, with the card's whole border in view */
+.card,.hsrc,.hiss{scroll-margin-top:86px}
 @keyframes fadein{from{opacity:0}}
 .fade{animation:fadein .25s ease-out both}
 @media(prefers-reduced-motion:reduce){
@@ -359,6 +375,7 @@ h2{font-size:15px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06e
        {% if page=='health' %}aria-current="page"{% endif %}>Health</a>
   </nav>
 </header>
+<div id="updbanner" role="status" hidden></div>
 <main class="{{ 'wide' if page in ('dash', 'profile', 'health') }}">{% block body %}{% endblock %}</main>
 <footer style="text-align:center;padding:0 16px 30px;margin-top:-50px">
   <span class="muted">jobhunter — built by
@@ -486,5 +503,41 @@ async function busy(btn, fn, label){
       bar.classList.remove('on'); progress(null); }
   }
 }
+
+// ---- a new version is ready (only when automatic updates are on) ----
+// It asks; it never restarts anything by itself. "Later" lasts until the app is closed and opened again.
+async function installUpdateNow(){
+  let r;
+  try { r = await api('/api/update/apply', {}); }
+  catch(e){ toast(e.message || String(e), 8000); return false; }
+  if(!r.restart){ toast('Updated. Close the app and start it again with run.bat.', 9000); return true; }
+  const v = document.createElement('div'); v.id = 'updveil';
+  v.innerHTML = '<div><span class="spin" style="width:26px;height:26px;border-width:3px"></span><b>' + esc(t('Installing and restarting...'))
+              + '</b><span class="muted">' + esc(t('This page reloads by itself when the new version is up.')) + '</span></div>';
+  document.body.appendChild(v);
+  await new Promise(r => setTimeout(r, 2500));          // the old server leaves, the new one arrives
+  for(let i = 0; i < 60; i++){
+    try { const x = await fetch('/api/update', {cache: 'no-store'}); if(x.ok){ location.reload(); return true; } } catch(_){}
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  v.remove(); toast('The app has not come back. Start it again with run.bat.', 9000);
+  return true;
+}
+async function drawUpdBanner(){
+  const box = document.getElementById('updbanner'); if(!box) return;
+  let u; try { u = await api('/api/update', undefined, 'GET'); } catch(_){ return; }
+  if(!u.auto || u.checkout || u.later || !u.count){ box.hidden = true; return; }
+  box.innerHTML = '<div class="tx"><b>' + esc(t('A new version is ready')) + '</b><span>'
+    + esc(u.busy ? t('A search is running. Update when it has finished.')
+                 : fill('{n} file(s) changed. Updating restarts the app and takes a few seconds.', {n: u.count}))
+    + '</span></div><button class="ghost" id="updlater">' + esc(t('Update later')) + '</button>'
+    + '<button id="updnow"' + (u.busy ? ' disabled' : '') + '>' + esc(t('Update now')) + '</button>';
+  box.hidden = false;
+  document.getElementById('updnow').onclick = e => busy(e.target, installUpdateNow, 'updating...');
+  document.getElementById('updlater').onclick = async () => {
+    try { await api('/api/update/later', {}); } catch(_){}
+    box.hidden = true; toast('Reminder kept. It comes back the next time the app is opened.'); };
+}
+drawUpdBanner(); setInterval(drawUpdBanner, 60000);
 {% block js %}{% endblock %}
 </script></body></html>
