@@ -33,6 +33,9 @@
 .sechead .act{margin-left:auto;flex:0 0 auto;padding:8px 18px;font-size:13.5px}
 .sect>.muted:first-of-type{margin-top:-4px}
 .sect.upload{background:linear-gradient(120deg,color-mix(in srgb,var(--accent2) 20%,var(--card)),var(--card) 70%)}
+#savedlist .saved{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;margin:8px 0;border-radius:14px;
+  border:1px solid var(--edge);background:color-mix(in srgb,var(--bg) 50%,transparent)}
+#savedlist .svmain{flex:1 1 220px;min-width:0} #savedlist .saved button{padding:7px 16px;font-size:13px}
 .sect.danger{border-color:color-mix(in srgb,var(--bad) 45%,var(--edge));
   background:linear-gradient(120deg,color-mix(in srgb,var(--bad) 9%,var(--card)),var(--card) 70%)}
 .sect.danger h2.sec::before{background:var(--g) center/18px no-repeat,linear-gradient(135deg,#f87171,#b91c1c);
@@ -333,6 +336,19 @@ h2.sec[data-ico=globe]{--g:var(--w-globe)}
     read your CV badly, or you deleted something you wanted, this puts that copy back. One step
     only — it is the profile as it was immediately before the most recent save.</p>
   <button id="restore" class="ghost">Restore the previous copy</button>
+</section>
+
+<section class="card sect" id="savedprofiles">
+  <div class="sechead"><h2 class="sec" data-ico="folder">Saved profiles</h2></div>
+  <p class="muted" style="margin:0 0 10px">A saved profile is a full copy of everything here: the profile and photo,
+    every job and the applied history, the CVs, the search and Health history, the board sign-ins and the settings.
+    Start fresh and the current one is saved first, so you can load it again whenever you like. Nothing runs or sends
+    by itself after a load; you switch the automation on again yourself.</p>
+  <div id="savedlist"></div>
+  <div class="row" style="margin-top:12px;gap:10px;flex-wrap:wrap">
+    <button class="ghost" id="saveprof">Save a copy now</button>
+    <button id="freshprof" class="ghost danger">Start fresh</button>
+  </div>
 </section>
 
 <section class="card sect danger">
@@ -784,6 +800,56 @@ $('#purge').onclick = e => busy(e.target, async () => {
   toast(fill('Erased {n} item(s). Starting fresh.', {n: r.removed.length}), 8000);
   setTimeout(() => location.reload(), 1200);
 }, 'erasing...');
+
+/* ---------- saved profiles: save, start fresh, load ---------- */
+async function loadSaved(){
+  let r; try { r = await api('/api/profiles', undefined, 'GET'); } catch(e){ return; }
+  const box = $('#savedlist'); if(!box || !r || !Array.isArray(r.profiles)) return;
+  box.innerHTML = r.profiles.length ? r.profiles.map(p => `<div class="saved" data-id="${esc(p.id)}">
+      <div class="svmain"><b>${esc(p.name)}</b>${p.title ? ` <span class="muted">${esc(p.title)}</span>` : ''}
+        <div class="muted">${esc(fill('Saved {when} · {n} jobs · {a} applied', {when: p.saved, n: p.jobs, a: p.applied}))}${p.note ? ' · ' + esc(t(p.note)) : ''}</div></div>
+      <button class="ghost" data-load>${esc(t('Load'))}</button>
+      <button class="ghost danger" data-del>${esc(t('Delete'))}</button></div>`).join('')
+    : `<p class="muted" style="margin:0">${esc(t('No saved profiles yet.'))}</p>`;
+  $('#saveprof').disabled = !r.current;
+}
+// nothing may autosave over what is about to change: the pending save would write this tab's copy straight back
+const quiet = () => { clearTimeout(_timer); DIRTY = false; LOADED = false; P = {}; };
+$('#saveprof').onclick = e => busy(e.target, async () => {
+  await api('/api/profiles/save', {}); toast('Saved. It is in the list below.'); await loadSaved();
+}, 'saving...');
+$('#freshprof').onclick = async () => {
+  if(!await askConfirm({title: t('Start fresh?'), yes: t('Save a copy and start fresh'), danger: true, wait: 3,
+      lines: [t('A copy of everything is saved first, then this profile, its jobs, applied history, CVs, search history, Health history, sign-ins and settings are removed.'),
+              t('You can load the saved copy again from this page.')],
+      warn: t('Applications already sent stay sent. Nothing on eJobs, BestJobs or Hipo is touched.')})) return;
+  busy($('#freshprof'), async () => {
+    quiet();
+    const r = await api('/api/profiles/fresh', {confirm: 'FRESH'});
+    if(r.failed && r.failed.length){
+      $('#purgefailed').textContent = fill('Saved a copy, but {k} item(s) could NOT be removed and are still on this PC: {which}. Close the app (the black run.bat window) and try again.',
+        {k: r.failed.length, which: r.failed.map(f => String(f).split(':')[0]).join(', ')});
+      $('#purgefailed').style.display = 'block'; return; }
+    toast('A copy is saved. Starting fresh.', 6000); setTimeout(() => location.reload(), 1200);
+  }, 'working...');
+};
+$('#savedlist').addEventListener('click', async e => {
+  const row = e.target.closest('.saved'); if(!row) return;
+  const id = row.dataset.id, name = row.querySelector('b').textContent;
+  if(e.target.closest('[data-load]')){
+    if(!await askConfirm({title: fill('Load {n}?', {n: name}), yes: t('Save current and load'), wait: 2,
+        lines: [t('What is here now is saved first, then replaced by this saved profile with everything in it.')],
+        warn: t('The schedule, the keep-signed-in timer and applying all come back switched off. Turn them on again when you are ready.')})) return;
+    busy(e.target.closest('[data-load]'), async () => {
+      quiet(); await api('/api/profiles/load', {id}); toast('Loaded.', 6000); setTimeout(() => location.reload(), 1000);
+    }, 'loading...');
+  } else if(e.target.closest('[data-del]')){
+    if(!await askConfirm({title: fill('Delete the saved copy of {n}?', {n: name}), yes: t('Delete it'), danger: true, wait: 2,
+        lines: [t('This removes the saved copy for good. Whatever is on this page now is not affected.')]})) return;
+    await api('/api/profiles/' + id, undefined, 'DELETE'); await loadSaved();
+  }
+});
+loadSaved();
 
 /* ---------- currency beside the salary ---------- */
 // One stored string, not two fields: this answer is repeated to employers exactly as written,

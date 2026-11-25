@@ -1429,6 +1429,12 @@ def purge(body: dict = Body(...)):
     """Delete every trace of this person from this folder. Not undoable, by design."""
     if (body or {}).get("confirm") != "ERASE":
         raise HTTPException(400, "Not confirmed, so nothing was erased.")
+    removed, failed = _wipe()
+    return {"ok": not failed, "removed": removed, "failed": failed}
+
+
+def _wipe():
+    """Remove every trace of the person from this folder. -> (removed, failed)."""
     removed, failed = [], []
 
     # the scheduled tasks first: a weekly run that fires after the data is gone would search
@@ -1455,8 +1461,11 @@ def purge(body: dict = Body(...)):
              DB.with_name(DB.name + "-wal"), DB.with_name(DB.name + "-shm"),
              HERE / "photo.jpg", HERE / "photo.png",
              prefill.STATE, prefill.BOARD_STATE,
-             HERE / "auto.log", HERE / "auto_last.json",
-             HERE / "signin.log", HERE / "srv.log", HERE / "srv.err.log"]
+             HERE / "auto.log", HERE / "auto_last.json", HERE / "auto_runs.json",
+             HERE / "signin.log", HERE / "srv.log", HERE / "srv.err.log",
+             # what the Health tab remembers about their searches, the saved passwords, the ranking of
+             # their shortlist and the progress of a run: all of it is theirs, and none of it was removed
+             SEARCH_LOG, BOARD_COUNTS, creds.CREDS, HERE / ".shortlist.json", HERE / ".auto_now.json"]
     for f in files:
         try:
             if f.exists():
@@ -1484,7 +1493,170 @@ def purge(body: dict = Body(...)):
     # "ok" has to mean it. This is the one button whose entire purpose is a promise, and it was
     # answering 200/ok while the database - every job, every application - was still on disk
     # because something held it open.
-    return {"ok": not failed, "removed": removed, "failed": failed}
+    return removed, failed
+
+
+# ---------- saved profiles ----------
+# Everything about one person, in one folder, so it can be put back. Starting fresh and loading another
+# profile both save the current one first, so neither can lose anything. It lives under backup/, which git
+# ignores and the share zip leaves out - a saved profile is a person, and never travels.
+PROFILES_DIR = HERE / "backup" / "profiles"
+_SID = re.compile(r"^\d{8}-\d{6}(-\d+)?$")
+
+
+def _person_files():
+    return [PROFILE, SETTINGS, HERE / "photo.jpg", HERE / "photo.png", prefill.STATE, prefill.BOARD_STATE,
+            creds.CREDS, SEARCH_LOG, BOARD_COUNTS, HERE / ".shortlist.json", HERE / "auto_last.json",
+            HERE / "auto_runs.json"]
+
+
+def _job_counts():
+    try:
+        with db() as c:
+            n = c.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+            a = c.execute("SELECT COUNT(*) FROM jobs WHERE status='applied'").fetchone()[0]
+        return n, a
+    except Exception:
+        return 0, 0
+
+
+def _has_anything():
+    return _has_substance(profile()) or _job_counts()[0] > 0
+
+
+def _snapshot(note=""):
+    """Copy everything about the current person into backup/profiles/<stamp>/. -> the stamp."""
+    PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    sid, n = time.strftime("%Y%m%d-%H%M%S"), 0
+    while (PROFILES_DIR / sid).exists():                 # two saves in one second
+        n += 1
+        sid = time.strftime("%Y%m%d-%H%M%S") + f"-{n}"
+    d = PROFILES_DIR / sid
+    d.mkdir()
+    for f in _person_files():
+        if f.is_file():
+            shutil.copy2(f, d / f.name)
+    if DB.exists():                                       # the backup API copies a live database consistently
+        src, dst = sqlite3.connect(DB), sqlite3.connect(d / "db.sqlite")
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+            src.close()
+    if OUT.exists():
+        shutil.copytree(OUT, d / "out", ignore=shutil.ignore_patterns(".thumbs"), dirs_exist_ok=True)
+    jobs, applied = _job_counts()
+    me = profile()
+    (d / "meta.json").write_text(json.dumps({
+        "name": (me.get("name") or "").strip() or "Unnamed profile", "note": note,
+        "title": (me.get("title") or "").strip(),
+        "saved": time.strftime("%Y-%m-%d %H:%M"), "jobs": jobs, "applied": applied,
+        "searches": bool(SEARCH_LOG.exists())}, ensure_ascii=False), encoding="utf-8")
+    return sid
+
+
+def _saved_dir(sid):
+    if not isinstance(sid, str) or not _SID.match(sid):
+        raise HTTPException(400, "That is not a saved profile.")
+    d = PROFILES_DIR / sid
+    if not d.is_dir():
+        raise HTTPException(404, "That saved profile is gone.")
+    return d
+
+
+def _restore(sid):
+    d = _saved_dir(sid)
+    for fn in (lambda: schedule(False, "SUN", "09:00"), lambda: keep_signed_in(False)):
+        try:
+            fn()
+        except Exception:
+            pass
+    removed, failed = _wipe()
+    paths = {f.name: f for f in _person_files()}
+    for f in d.iterdir():
+        if f.is_file() and f.name in paths:
+            shutil.copy2(f, paths[f.name])
+    if (d / "db.sqlite").is_file():
+        src, dst = sqlite3.connect(d / "db.sqlite"), sqlite3.connect(DB)
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+            src.close()
+    if (d / "out").is_dir():
+        OUT.mkdir(exist_ok=True)
+        shutil.copytree(d / "out", OUT, dirs_exist_ok=True)
+    # Nothing runs or sends by itself after a load: the saved schedule, the keep-alive and the applying
+    # switch all come back OFF, and Windows has no tasks for them anyway. It is a choice to turn them on.
+    with _FILES:
+        cur = settings()
+        cur.update(auto_enabled=False, keep_signed_in=False, auto_apply=False,
+                   paused=False, resume_auto=False, resume_keep=False)
+        save_settings_file(cur)
+    global _SCHEMA_DONE
+    _SCHEMA_DONE = False
+    return failed
+
+
+def _refuse_while_running():
+    if _update_busy():
+        raise HTTPException(409, "A search is running. Wait for it to finish, then try again.")
+
+
+@app.get("/api/profiles")
+def profiles_list():
+    out = []
+    for d in sorted(PROFILES_DIR.glob("*"), reverse=True) if PROFILES_DIR.exists() else []:
+        if not (d.is_dir() and _SID.match(d.name)):
+            continue
+        try:
+            m = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            m = {}
+        out.append({"id": d.name, "name": m.get("name") or "Unnamed profile", "title": m.get("title") or "",
+                    "saved": m.get("saved") or "", "note": m.get("note") or "", "jobs": m.get("jobs") or 0,
+                    "applied": m.get("applied") or 0})
+    return {"profiles": out, "current": _has_anything()}
+
+
+@app.post("/api/profiles/save")
+def profiles_save():
+    if not _has_anything():
+        raise HTTPException(400, "There is nothing to save yet.")
+    return {"ok": True, "id": _snapshot()}
+
+
+@app.post("/api/profiles/fresh")
+def profiles_fresh(body: dict = Body(...)):
+    """Save the current profile, then start from nothing."""
+    if (body or {}).get("confirm") != "FRESH":
+        raise HTTPException(400, "Not confirmed, so nothing was changed.")
+    _refuse_while_running()
+    saved = _snapshot("Saved when starting fresh") if _has_anything() else None
+    for fn in (lambda: schedule(False, "SUN", "09:00"), lambda: keep_signed_in(False)):
+        try:
+            fn()
+        except Exception:
+            pass
+    removed, failed = _wipe()
+    return {"ok": not failed, "saved": saved, "removed": removed, "failed": failed}
+
+
+@app.post("/api/profiles/load")
+def profiles_load(body: dict = Body(...)):
+    """Put a saved profile back. The one that is here is saved first, so nothing is lost either way."""
+    sid = (body or {}).get("id")
+    _saved_dir(sid)
+    _refuse_while_running()
+    saved = _snapshot("Saved before loading another profile") if _has_anything() else None
+    failed = _restore(sid)
+    return {"ok": not failed, "saved": saved, "failed": failed}
+
+
+@app.delete("/api/profiles/{sid}")
+def profiles_delete(sid: str):
+    shutil.rmtree(_saved_dir(sid), ignore_errors=True)
+    return {"ok": True}
 
 
 @app.get("/api/profile/cv")

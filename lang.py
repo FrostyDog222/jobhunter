@@ -1446,6 +1446,56 @@ RO = {
         "Încă nu există nicio remediere",
     "Nothing newer is available right now. When a fix is published it shows up here and in a banner.":
         "Acum nu există nimic mai nou. Când se publică o remediere, apare aici și într-un banner.",
+    "Saved profiles":
+        "Profiluri salvate",
+    "Save a copy now":
+        "Salvează o copie acum",
+    "Start fresh":
+        "Începe de la zero",
+    "Saved {when} · {n} jobs · {a} applied":
+        "Salvat {when} · {n} joburi · {a} aplicate",
+    "Load":
+        "Încarcă",
+    "No saved profiles yet.":
+        "Niciun profil salvat încă.",
+    "Saved. It is in the list below.":
+        "Salvat. Este în lista de mai jos.",
+    "Start fresh?":
+        "Începi de la zero?",
+    "Save a copy and start fresh":
+        "Salvează o copie și începe de la zero",
+    "A copy of everything is saved first, then this profile, its jobs, applied history, CVs, search history, Health history, sign-ins and settings are removed.":
+        "Mai întâi se salvează o copie a tuturor, apoi se elimină acest profil, joburile lui, istoricul aplicărilor, CV-urile, istoricul căutărilor, istoricul Health, autentificările și setările.",
+    "You can load the saved copy again from this page.":
+        "Poți încărca din nou copia salvată de pe această pagină.",
+    "Applications already sent stay sent. Nothing on eJobs, BestJobs or Hipo is touched.":
+        "Aplicațiile deja trimise rămân trimise. Nimic de pe eJobs, BestJobs sau Hipo nu este atins.",
+    "Saved a copy, but {k} item(s) could NOT be removed and are still on this PC: {which}. Close the app (the black run.bat window) and try again.":
+        "Copia a fost salvată, dar {k} element(e) NU au putut fi eliminate și sunt încă pe acest PC: {which}. Închide aplicația (fereastra neagră run.bat) și încearcă din nou.",
+    "A copy is saved. Starting fresh.":
+        "Copia este salvată. Se începe de la zero.",
+    "Load {n}?":
+        "Încarci {n}?",
+    "Save current and load":
+        "Salvează curentul și încarcă",
+    "What is here now is saved first, then replaced by this saved profile with everything in it.":
+        "Ce este acum aici se salvează mai întâi, apoi este înlocuit de acest profil salvat, cu tot ce conține.",
+    "The schedule, the keep-signed-in timer and applying all come back switched off. Turn them on again when you are ready.":
+        "Programul, temporizatorul de menținere a autentificării și aplicarea revin oprite. Pornește-le din nou când ești gata.",
+    "Loaded.":
+        "Încărcat.",
+    "Delete the saved copy of {n}?":
+        "Ștergi copia salvată a lui {n}?",
+    "Delete it":
+        "Șterge-o",
+    "This removes the saved copy for good. Whatever is on this page now is not affected.":
+        "Aceasta elimină definitiv copia salvată. Ce este acum pe această pagină nu este afectat.",
+    "A saved profile is a full copy of everything here: the profile and photo, every job and the applied history, the CVs, the search and Health history, the board sign-ins and the settings. Start fresh and the current one is saved first, so you can load it again whenever you like. Nothing runs or sends by itself after a load; you switch the automation on again yourself.":
+        "Un profil salvat este o copie completă a tot ce se află aici: profilul și fotografia, toate joburile și istoricul aplicărilor, CV-urile, istoricul căutărilor și al paginii Health, autentificările la site-uri și setările. Dacă începi de la zero, cel curent se salvează mai întâi, deci îl poți încărca din nou oricând. După o încărcare nu rulează și nu trimite nimic singur; pornești automatizarea din nou tu.",
+    "Saved when starting fresh":
+        "Salvat la începerea de la zero",
+    "Saved before loading another profile":
+        "Salvat înainte de încărcarea altui profil",
     "Recent searches":
         "Căutări recente",
     "{n} new":

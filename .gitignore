@@ -33,3 +33,15 @@ backup/
 .shortlist.json
 .board_counts.json
 .search_log.json
+
+# Anything that is a person: never committed, whatever it is called (a copy, a backup, a download).
+profile*.json
+*-before-*.json
+[Pp]rofile*.pdf
+photo.*
+settings*.json
+.creds*
+.session*
+.boards*
+backup/
+out/

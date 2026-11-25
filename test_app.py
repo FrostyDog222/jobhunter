@@ -13,6 +13,20 @@ app.BOARD_COUNTS = pathlib.Path(_tf0.mkdtemp()) / ".board_counts.json"
 # any test that drives it on stubs would otherwise write those into the real passed_over table.
 # Blocks that want their own database still make one; this is only what they fall back to.
 app.DB, app._SCHEMA_DONE = pathlib.Path(_tf0.mkdtemp()) / "suite.sqlite", False
+# ...and the profile and the settings. The suite used to read whoever's real ones were in this folder, so
+# the same tests passed or failed depending on who used the app last - and one of them could write
+# over a real profile. Every test now starts from a made-up person who exists nowhere else.
+_tfp = pathlib.Path(_tf0.mkdtemp())
+app.PROFILE, app.PROFILE_BAK, app.SETTINGS = _tfp / "profile.json", _tfp / "profile.previous.json", _tfp / "settings.json"
+app.PROFILE.write_text(json.dumps({
+    "name": "Test Person", "title": "Customer Support Representative", "email": "test@example.com",
+    "phone": "+40700000000", "location": "Cluj", "links": [], "summary": "Eight years of customer support.",
+    "experience": [{"role": "Customer Support Representative", "company": "ACME", "location": "Cluj",
+                    "start": "2020-01", "end": "Present", "bullets": ["Answered customers by chat and phone."]}],
+    "education": [{"degree": "BA", "school": "Some University", "start": "2014", "end": "2018"}],
+    "skills": ["Customer service", "Zendesk"], "languages": [{"name": "Romanian", "level": "Native"},
+                                                              {"name": "English", "level": "Advanced"}],
+    "certifications": [], "projects": [], "hobbies": [], "new_to_work": False}), encoding="utf-8")
 
 # 1. JSON-LD extraction survives the shapes these boards actually emit
 page = '<script type="application/ld+json">' + json.dumps({"@graph": [
@@ -616,7 +630,7 @@ assert "c.close()" in _i6.getsource(app.db), "db() has to close the connection"
 assert "contextmanager" in _i6.getsource(app.db) or "contextlib" in _i6.getsource(app.db)
 # and purge empties the table as well as unlinking the file, for the case where something else
 # still holds it open
-_psrc = _i6.getsource(app.purge)
+_psrc = _i6.getsource(app.purge) + _i6.getsource(app._wipe)     # the endpoint asks; _wipe does it
 assert "DROP TABLE" in _psrc, "purge must empty the database, not only try to delete it"
 assert 'confirm") != "ERASE"' in _psrc, "purge must refuse without the typed confirmation"
 for _needed in ("PROFILE", "SETTINGS", "photo.jpg", "auto.log"):
@@ -1008,7 +1022,7 @@ assert "HTTPException" in _csrc
 assert "_url_of" in _i6.getsource(app.set_status) and "_url_of" in _i6.getsource(app.delete)
 assert "_url_of" in _i6.getsource(app.tailor) and "_url_of" in _i6.getsource(app.apply)
 # purge takes out/ away and tailoring writes straight into it
-assert "OUT.mkdir" in _i6.getsource(app.purge), "tailoring 500s after a purge"
+assert "OUT.mkdir" in _i6.getsource(app._wipe), "tailoring 500s after a purge"
 # "...." and "%2e" resolve to a directory, which FileResponse turns into a 500
 assert "is_file()" in _i6.getsource(app.get_cv)
 
@@ -1682,7 +1696,7 @@ for _line in (app.HERE / ".gitignore").read_text(encoding="utf-8").splitlines():
     if _line.endswith("/"):
         assert _line.rstrip("/") in _sh2.PRIVATE_DIRS, \
             f"{_line} is kept out of git but would be shipped by share.py"
-    elif not _line.startswith("*"):
+    elif "*" not in _line and "[" not in _line:        # a pattern is wider than any one name
         assert (_line in _sh2.PRIVATE or _line in _sh2.SKIP_NAMES
                 or pathlib.PurePosixPath(_line).suffix.lower() in _sh2.SKIP_SUFFIX), \
             f"{_line} is kept out of git but would be shipped by share.py"
@@ -7273,6 +7287,86 @@ try:
 finally:
     app.schedule, app.keep_signed_in, app._end_running_search = _real
     app.SETTINGS = _keep_auto
+
+# The repository is public and a profile is a person: nothing personal is ever tracked, and everything the
+# share list calls private is also ignored by git, so a new file of that kind cannot slip in by name.
+if (app.HERE / ".git").is_dir():
+    import re as _re_g
+    import subprocess as _sp_g
+    import share as _share_g
+    _tr = _sp_g.run(["git", "ls-files"], cwd=app.HERE, capture_output=True, text=True).stdout.split("\n")
+    _bad_g = [f for f in _tr if f and (_re_g.search(
+        r"(^|/)(profile[^/]*\.json|profile[^/]*\.pdf|photo\.[a-z]+|settings[^/]*\.json|\.creds[^/]*|\.session[^/]*"
+        r"|\.boards[^/]*|db\.sqlite[^/]*|\.env|auto_last\.json|auto_runs\.json)$", f, _re_g.I)
+        or f.startswith(("backup/", "out/")))]
+    assert not _bad_g, f"personal files are tracked by git: {_bad_g}"
+    for _n_g in sorted(_share_g.PRIVATE):
+        assert _sp_g.run(["git", "check-ignore", "-q", _n_g], cwd=app.HERE).returncode == 0, \
+            f"{_n_g} is private but git would not ignore it"
+
+# Saved profiles: save, start fresh, load. Everything is pointed at a throwaway folder first - this block
+# deletes files, and it must never be able to reach a real person's.
+import shutil as _sh_s, tempfile as _tf_s
+_box_s = pathlib.Path(_tf_s.mkdtemp())
+_names_s = ("HERE", "PROFILE", "PROFILE_BAK", "SETTINGS", "DB", "OUT", "SEARCH_LOG", "BOARD_COUNTS", "PROFILES_DIR",
+            "schedule", "keep_signed_in", "_SCHEMA_DONE")
+_was_s = {n: getattr(app, n) for n in _names_s}
+_was_s_ext = (app.creds.CREDS, app.prefill.STATE, app.prefill.BOARD_STATE)
+try:
+    app.HERE, app.PROFILE, app.PROFILE_BAK = _box_s, _box_s / "profile.json", _box_s / "profile.previous.json"
+    app.SETTINGS, app.DB, app.OUT = _box_s / "settings.json", _box_s / "db.sqlite", _box_s / "out"
+    app.SEARCH_LOG, app.BOARD_COUNTS = _box_s / ".search_log.json", _box_s / ".board_counts.json"
+    app.PROFILES_DIR = _box_s / "backup" / "profiles"
+    app.creds.CREDS, app.prefill.STATE, app.prefill.BOARD_STATE = _box_s / ".creds.json", _box_s / ".session.json", _box_s / ".boards.json"
+    app.schedule, app.keep_signed_in, app._SCHEMA_DONE = (lambda *a: ""), (lambda on: ""), False
+    app.OUT.mkdir()
+    _me_s = {"name": "Ana Test", "title": "Analyst", "email": "a@example.com", "phone": "+40700000001", "location": "Cluj",
+             "links": [], "summary": "Ten years of analysis.", "experience": [{"role": "Analyst", "company": "X",
+             "location": "", "start": "2020-01", "end": "Present", "bullets": ["Did analysis."]}], "education": [],
+             "skills": ["Excel"], "languages": [], "certifications": [], "projects": [], "hobbies": []}
+    app.save_profile(dict(_me_s))
+    app.save_settings_file({**app.DEFAULTS, "auto_enabled": True, "auto_apply": True, "auto_query": "analyst"})
+    with app.db() as _c_s:
+        _c_s.execute("INSERT INTO jobs(url, source, title, status) VALUES ('u1','ejobs','A','applied'), ('u2','olx','B','new')")
+    app.SEARCH_LOG.write_text('[{"when": "x"}]', encoding="utf-8")
+    (_box_s / "photo.jpg").write_bytes(b"\xff\xd8x")
+    (app.OUT / "cv.pdf").write_bytes(b"%PDF-")
+    app.creds.CREDS.write_text("{}", encoding="utf-8")
+    _c_s = _TC(app.app)
+
+    # a copy of everything
+    _sid_s = _c_s.post("/api/profiles/save").json()["id"]
+    _row_s = _c_s.get("/api/profiles").json()["profiles"][0]
+    assert _row_s["id"] == _sid_s and _row_s["name"] == "Ana Test" and _row_s["jobs"] == 2 and _row_s["applied"] == 1, _row_s
+    # without the word, nothing happens
+    assert _c_s.post("/api/profiles/fresh", json={}).status_code == 400 and app.PROFILE.exists()
+
+    # start fresh: saved first, then every trace gone
+    _r_s = _c_s.post("/api/profiles/fresh", json={"confirm": "FRESH"}).json()
+    assert _r_s["ok"] and _r_s["saved"], _r_s
+    for _gone in (app.PROFILE, app.SETTINGS, app.SEARCH_LOG, _box_s / "photo.jpg", app.creds.CREDS):
+        assert not _gone.exists(), f"{_gone.name} survived starting fresh"
+    assert app._job_counts()[0] == 0 and not (app.OUT / "cv.pdf").exists()
+
+    # someone new, then the old profile comes back whole - and the new one is kept too
+    app.save_profile({**_me_s, "name": "Bo New"})
+    _r_s = _c_s.post("/api/profiles/load", json={"id": _sid_s}).json()
+    assert _r_s["ok"] and _r_s["saved"], _r_s
+    assert app.profile()["name"] == "Ana Test" and app._job_counts() == (2, 1)
+    assert app.SEARCH_LOG.exists() and (_box_s / "photo.jpg").exists() and (app.OUT / "cv.pdf").exists() and app.creds.CREDS.exists()
+    _st_s = app.settings()
+    assert not _st_s["auto_enabled"] and not _st_s["auto_apply"] and not _st_s["keep_signed_in"], "a load must not switch anything on"
+    assert "Bo New" in {p["name"] for p in _c_s.get("/api/profiles").json()["profiles"]}, "the profile that was replaced was not kept"
+
+    # the id is a stamp, never a path
+    for _bad_s in ("../x", r"..\x", "20260101-000000/../x", ""):
+        assert _c_s.post("/api/profiles/load", json={"id": _bad_s}).status_code in (400, 404), _bad_s
+    assert _c_s.delete(f"/api/profiles/{_sid_s}").json()["ok"] and not (app.PROFILES_DIR / _sid_s).exists()
+finally:
+    for _n_s, _v_s in _was_s.items():
+        setattr(app, _n_s, _v_s)
+    app.creds.CREDS, app.prefill.STATE, app.prefill.BOARD_STATE = _was_s_ext
+    _sh_s.rmtree(_box_s, ignore_errors=True)
 
 # 11b. The note shows where a manual row actually is, and says the thing that costs you.
 #
